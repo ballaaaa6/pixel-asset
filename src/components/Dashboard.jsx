@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   Plus, RefreshCw, LogOut, TrendingUp, TrendingDown,
-  Trash2, Download, Upload, PieChart, Star, BarChart2
+  Trash2, Download, Upload, PieChart, Star, BarChart2, Pencil
 } from "lucide-react";
 import AssetModal from "./AssetModal";
 import AssetDetailPanel from "./AssetDetailPanel";
@@ -778,6 +778,18 @@ export default function Dashboard({ user, onLogout, showToast }) {
   const [modalOpen, setModalOpen]         = useState(false);
   const [editingAsset, setEditingAsset]   = useState(null);
   const [selectedAsset, setSelectedAsset] = useState(null);
+  const [portfolioName, setPortfolioName] = useState(() => localStorage.getItem(`portfolio_name_${user.username}`) || "StockVault");
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [tempName, setTempName]           = useState("");
+
+  const handleSaveName = () => {
+    const trimmed = tempName.trim();
+    if (trimmed) {
+      setPortfolioName(trimmed);
+      localStorage.setItem(`portfolio_name_${user.username}`, trimmed);
+    }
+    setIsEditingName(false);
+  };
 
   const prevPricesRef = useRef({});
   const assetsRef = useRef([]);
@@ -947,7 +959,28 @@ export default function Dashboard({ user, onLogout, showToast }) {
   /* ── COMPUTE PER-ASSET VALUATION ── */
   const computeAsset = useCallback((asset) => {
     const pData = prices[asset.symbol];
-    const price = pData?.price ?? 0;
+    let price = pData?.price ?? 0;
+    
+    // Check for active pre-market or after-market pricing
+    const isPre = pData?.marketState === "PRE" || pData?.marketState === "PREPRE";
+    const isPost = pData?.marketState === "POST" || pData?.marketState === "POSTPOST";
+    
+    let extPrice = null;
+    let extChangePct = null;
+    let extType = null;
+    
+    if (isPre && pData.prePrice != null && pData.prePrice > 0) {
+      price = pData.prePrice;
+      extPrice = pData.prePrice;
+      extChangePct = pData.preChangePercent;
+      extType = "Pre";
+    } else if (isPost && pData.postPrice != null && pData.postPrice > 0) {
+      price = pData.postPrice;
+      extPrice = pData.postPrice;
+      extChangePct = pData.postChangePercent;
+      extType = "After";
+    }
+
     const isThai = asset.symbol.endsWith(".BK");
     const priceUSD = isThai ? price / exchangeRate : price;
     const valueUSD = priceUSD * asset.qty;
@@ -958,9 +991,26 @@ export default function Dashboard({ user, onLogout, showToast }) {
     const costUSD  = avgCost * asset.qty;
     const gainUSD  = valueUSD - costUSD;
     const gainPct  = costUSD > 0 ? (gainUSD / costUSD) * 100 : 0;
-    const todayChg = (pData?.change || 0) * asset.qty;
-    const todayPct = pData?.changePercent || 0;
-    return { price, priceUSD, valueUSD, valueTHB, costUSD, gainUSD, gainPct, todayChg, todayPct };
+    
+    const activePrice = price;
+    const prevClose = pData?.previousClose ?? activePrice;
+    const todayChg = (activePrice - prevClose) * asset.qty;
+    const todayPct = prevClose > 0 ? ((activePrice - prevClose) / prevClose) * 100 : 0;
+
+    return { 
+      price, 
+      priceUSD, 
+      valueUSD, 
+      valueTHB, 
+      costUSD, 
+      gainUSD, 
+      gainPct, 
+      todayChg, 
+      todayPct,
+      extPrice,
+      extChangePct,
+      extType
+    };
   }, [prices, exchangeRate]);
 
   /* ── COMPUTED PORTFOLIO TOTALS ── */
@@ -1192,7 +1242,69 @@ export default function Dashboard({ user, onLogout, showToast }) {
         <div className="navbar-container">
           <div className="navbar-brand">
             <span>📈</span>
-            <span>StockVault</span>
+            {isEditingName ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <input
+                  type="text"
+                  value={tempName}
+                  onChange={(e) => setTempName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSaveName();
+                    if (e.key === "Escape") setIsEditingName(false);
+                  }}
+                  autoFocus
+                  style={{
+                    fontSize: 15,
+                    fontWeight: 800,
+                    color: "var(--primary)",
+                    border: "1.5px solid var(--primary)",
+                    borderRadius: 8,
+                    padding: "2px 8px",
+                    width: 120,
+                    fontFamily: "Outfit, sans-serif",
+                    height: 28,
+                    background: "white"
+                  }}
+                />
+                <button
+                  onClick={handleSaveName}
+                  style={{
+                    background: "var(--primary)",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 6,
+                    padding: "4px 8px",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    height: 28,
+                    display: "flex",
+                    alignItems: "center"
+                  }}
+                >
+                  บันทึก
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontWeight: 800 }}>{portfolioName}</span>
+                <button
+                  onClick={() => { setTempName(portfolioName); setIsEditingName(true); }}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "var(--text-faint)",
+                    cursor: "pointer",
+                    padding: 4,
+                    display: "inline-flex",
+                    alignItems: "center"
+                  }}
+                  title="แก้ไขชื่อพอร์ต"
+                >
+                  <Pencil size={13} />
+                </button>
+              </div>
+            )}
             <span className="live-dot" title="Live" />
           </div>
           <div className="navbar-actions">
@@ -1419,6 +1531,11 @@ export default function Dashboard({ user, onLogout, showToast }) {
                                         {fmt.usd(asset.priceUSD)}
                                       </div>
                                       <div className="price-thb">{fmt.thb(asset.priceUSD * exchangeRate)}</div>
+                                      {asset.extPrice != null && (
+                                        <div style={{ fontSize: 10, fontWeight: 700, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 2 }}>
+                                          {asset.extType}: {fmt.usd(asset.extPrice)} ({fmt.pct(asset.extChangePct)})
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
                                 )}
@@ -1520,6 +1637,11 @@ export default function Dashboard({ user, onLogout, showToast }) {
                                 <>
                                   <div className="mobile-card-price">{fmt.usd(asset.priceUSD)}</div>
                                   <div className="price-thb">{fmt.thb(asset.priceUSD * exchangeRate)}</div>
+                                  {asset.extPrice != null && (
+                                    <div style={{ fontSize: 9, fontWeight: 700, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 2 }}>
+                                      {asset.extType}: {fmt.usd(asset.extPrice)} ({fmt.pct(asset.extChangePct)})
+                                    </div>
+                                  )}
                                 </>
                               ) : (
                                 <div className="skeleton skeleton-text" style={{ width: 80, height: 18 }} />
