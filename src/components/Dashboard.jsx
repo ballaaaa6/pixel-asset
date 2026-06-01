@@ -1293,30 +1293,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
                 hasAssets={assets.length > 0}
               />
             </div>
-
-            {/* Backup Card */}
-            <div className="card stagger-4">
-              <div className="card-section-title">💾 สำรองข้อมูล</div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button className="btn btn-secondary ripple-btn" style={{ height: 44, fontSize: 13, flex: 1 }} onClick={handleExport}>
-                  <Download size={15} /> ส่งออก JSON
-                </button>
-                <label className="btn btn-secondary ripple-btn" style={{ height: 44, fontSize: 13, flex: 1, cursor: "pointer" }}>
-                  <Upload size={15} /> นำเข้า JSON
-                  <input type="file" accept=".json" style={{ display: "none" }} onChange={handleImport} />
-                </label>
-              </div>
-
-              {/* Auto-refresh toggle */}
-              <div style={{ marginTop: 14 }}>
-                <label className="auto-refresh-toggle" onClick={() => setAutoRefresh(p => !p)}>
-                  <div className={`toggle-track${autoRefresh ? " on" : ""}`}>
-                    <div className="toggle-thumb" />
-                  </div>
-                  <span>{autoRefresh ? "🔄 รีเฟรชอัตโนมัติ (30 วิ)" : "⏸ หยุดรีเฟรช"}</span>
-                </label>
-              </div>
-            </div>
           </div>
 
           {/* ══ RIGHT COLUMN ══ */}
@@ -1598,6 +1574,30 @@ export default function Dashboard({ user, onLogout, showToast }) {
                 </>
               )}
             </div>
+          </div>
+        </div>
+
+        {/* Backup & Restore Card (Very Bottom) */}
+        <div className="card stagger-4" style={{ marginTop: 16 }}>
+          <div className="card-section-title">💾 สำรองข้อมูล</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn btn-secondary ripple-btn" style={{ height: 44, fontSize: 13, flex: 1 }} onClick={handleExport}>
+              <Download size={15} /> ส่งออก JSON
+            </button>
+            <label className="btn btn-secondary ripple-btn" style={{ height: 44, fontSize: 13, flex: 1, cursor: "pointer" }}>
+              <Upload size={15} /> นำเข้า JSON
+              <input type="file" accept=".json" style={{ display: "none" }} onChange={handleImport} />
+            </label>
+          </div>
+
+          {/* Auto-refresh toggle */}
+          <div style={{ marginTop: 14 }}>
+            <label className="auto-refresh-toggle" onClick={() => setAutoRefresh(p => !p)}>
+              <div className={`toggle-track${autoRefresh ? " on" : ""}`}>
+                <div className="toggle-thumb" />
+              </div>
+              <span>{autoRefresh ? "🔄 รีเฟรชอัตโนมัติ (30 วิ)" : "⏸ หยุดรีเฟรช"}</span>
+            </label>
           </div>
         </div>
       </div>

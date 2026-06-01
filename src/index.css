@@ -767,6 +767,15 @@ html, body {
   border-radius: 12px;
   padding: 3px;
   gap: 2px;
+  overflow-x: auto;
+  white-space: nowrap;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.chart-range-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .chart-range-tab {
@@ -781,6 +790,7 @@ html, body {
   cursor: pointer;
   transition: var(--transition);
   user-select: none;
+  flex-shrink: 0;
 }
 
 .chart-range-tab:hover  { color: var(--text-main); }
@@ -1483,6 +1493,14 @@ html, body {
   .alert-toast   { right: 12px; bottom: 16px; left: 12px; max-width: 100%; }
   .navbar { padding: 12px 14px; }
   .navbar-brand  { font-size: 17px; }
+  .chart-card-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .chart-range-tabs {
+    width: 100%;
+  }
 }
 
 @media (max-width: 380px) {
