@@ -48,6 +48,29 @@ function stepPath(pts) {
 }
 
 
+const getCurrencyTicker = (symbol) => {
+  if (symbol === "USD") return "USD";
+  if (["EUR", "GBP", "AUD", "NZD"].includes(symbol)) {
+    return `${symbol}USD=X`;
+  }
+  return `${symbol}=X`;
+};
+
+const getCurrencyPriceUSD = (symbol, prices, exchangeRate) => {
+  if (symbol === "USD") return 1.0;
+  const ticker = getCurrencyTicker(symbol);
+  const pData = prices[ticker];
+  const priceVal = pData?.price;
+  if (priceVal != null && priceVal > 0) {
+    if (["EUR", "GBP", "AUD", "NZD"].includes(symbol)) {
+      return priceVal;
+    }
+    return 1.0 / priceVal;
+  }
+  if (symbol === "THB") return 1.0 / (exchangeRate || 35.0);
+  return 1.0;
+};
+
 function getPoints(values, W, H, padX = 0, padY = 10) {
   if (!values || values.length < 2) return [];
   const clean = values.filter(v => v != null && isFinite(v));
@@ -895,7 +918,17 @@ export default function Dashboard({ user, onLogout, showToast }) {
   const fetchPrices = async (portfolioAssets) => {
     setRefreshing(true);
     try {
-      const symbols = portfolioAssets.map(a => a.symbol).filter(sym => sym !== "THB" && sym !== "USD").join(",");
+      const symbols = portfolioAssets
+        .map(a => {
+          const isCashAsset = a.type === "fiat" || a.category === "fiat";
+          if (isCashAsset) {
+            if (a.symbol === "USD") return null;
+            return getCurrencyTicker(a.symbol);
+          }
+          return a.symbol;
+        })
+        .filter(Boolean)
+        .join(",");
       const res = await fetch(`/api/prices?symbols=${encodeURIComponent(symbols)}`);
       if (res.ok) {
         const data = await res.json();
@@ -931,7 +964,14 @@ export default function Dashboard({ user, onLogout, showToast }) {
     if (!portfolioAssets.length) return;
     setSparklineLoading(true);
     try {
-      const syms = [...new Set(portfolioAssets.map(a => a.symbol).filter(sym => sym !== "THB" && sym !== "USD"))];
+      const syms = [...new Set(portfolioAssets.map(a => {
+        const isCashAsset = a.type === "fiat" || a.category === "fiat";
+        if (isCashAsset) {
+          if (a.symbol === "USD") return null;
+          return getCurrencyTicker(a.symbol);
+        }
+        return a.symbol;
+      }).filter(Boolean))];
       const res = await fetch(`/api/prices?sparkline=${encodeURIComponent(syms.join(","))}&tf=${range}`);
       if (res.ok) {
         const data = await res.json();
@@ -975,28 +1015,44 @@ export default function Dashboard({ user, onLogout, showToast }) {
 
         // Calculate cost on this date in USD
         const isThai = asset.symbol.toUpperCase().endsWith(".BK");
-        const isTHBCash = asset.symbol.toUpperCase() === "THB";
-        const isUSDCash = asset.symbol.toUpperCase() === "USD";
-        const isCash = isTHBCash || isUSDCash;
+        const isCashAsset = asset.type === "fiat" || asset.category === "fiat";
 
         const costOnDateUSD = lotsBeforeOrOnDate.reduce((sum, l) => {
           let priceUSD = isThai ? (l.price || 0) / exchangeRate : (l.price || 0);
-          if (isTHBCash) {
-            priceUSD = l.price || (1.0 / exchangeRate);
-          } else if (isUSDCash) {
-            priceUSD = 1.0;
+          if (isCashAsset) {
+            if (asset.symbol === "USD") {
+              priceUSD = 1.0;
+            } else {
+              priceUSD = l.price || getCurrencyPriceUSD(asset.symbol, prices, exchangeRate);
+            }
           }
           return sum + (l.qty || 0) * priceUSD;
         }, 0);
 
-        let priceUSD = 0;
-        if (isTHBCash) {
-          priceUSD = 1.0 / exchangeRate;
-        } else if (isUSDCash) {
-          priceUSD = 1.0;
-        }
+        if (isCashAsset) {
+          let priceUSD = 0;
+          if (asset.symbol === "USD") {
+            priceUSD = 1.0;
+          } else {
+            const ticker = getCurrencyTicker(asset.symbol);
+            const symData = sparklines[ticker];
+            if (symData) {
+              const targetIdx = symData.dates.indexOf(date);
+              const priceVal = targetIdx >= 0 ? symData.closes[targetIdx] : symData.closes[dayIdx];
+              if (priceVal != null && priceVal > 0) {
+                if (["EUR", "GBP", "AUD", "NZD"].includes(asset.symbol)) {
+                  priceUSD = priceVal;
+                } else {
+                  priceUSD = 1.0 / priceVal;
+                }
+              } else {
+                priceUSD = asset.symbol === "THB" ? 1.0 / (exchangeRate || 35.0) : 1.0;
+              }
+            } else {
+              priceUSD = asset.symbol === "THB" ? 1.0 / (exchangeRate || 35.0) : 1.0;
+            }
+          }
 
-        if (isCash) {
           const valueUSD = priceUSD * qtyOnDate;
           totalUSD += valueUSD;
           totalCostUSD += costOnDateUSD;
@@ -1059,11 +1115,57 @@ export default function Dashboard({ user, onLogout, showToast }) {
   /* ── COMPUTE PER-ASSET VALUATION ── */
   const computeAsset = useCallback((asset) => {
     const isThai = asset.symbol.endsWith(".BK");
-    const isTHBCash = asset.symbol === "THB";
-    const isUSDCash = asset.symbol === "USD";
-    const isCash = isTHBCash || isUSDCash;
+    const isCashAsset = asset.type === "fiat" || asset.category === "fiat";
 
-    const pData = isCash ? null : prices[asset.symbol];
+    if (isCashAsset) {
+      const price = 1.0;
+      const priceUSD = getCurrencyPriceUSD(asset.symbol, prices, exchangeRate);
+      const valueUSD = priceUSD * asset.qty;
+      const valueTHB = valueUSD * exchangeRate;
+      
+      const avgCost = asset.avgCost ?? asset.avgPrice ?? priceUSD;
+      const costUSD = avgCost * asset.qty;
+      const gainUSD = valueUSD - costUSD;
+      const gainPct = costUSD > 0 ? (gainUSD / costUSD) * 100 : 0;
+      
+      // Calculate day changes based on Yahoo Finance ticker previousClose if available
+      let todayChg = 0;
+      let todayPct = 0;
+      if (asset.symbol !== "USD") {
+        const ticker = getCurrencyTicker(asset.symbol);
+        const pData = prices[ticker];
+        if (pData) {
+          const prevPriceVal = pData.previousClose || pData.price;
+          if (prevPriceVal > 0) {
+            let prevPriceUSD = 0;
+            if (["EUR", "GBP", "AUD", "NZD"].includes(asset.symbol)) {
+              prevPriceUSD = prevPriceVal;
+            } else {
+              prevPriceUSD = 1.0 / prevPriceVal;
+            }
+            todayChg = (priceUSD - prevPriceUSD) * asset.qty;
+            todayPct = prevPriceUSD > 0 ? ((priceUSD - prevPriceUSD) / prevPriceUSD) * 100 : 0;
+          }
+        }
+      }
+
+      return {
+        price,
+        priceUSD,
+        valueUSD,
+        valueTHB,
+        costUSD,
+        gainUSD,
+        gainPct,
+        todayChg,
+        todayPct,
+        extPrice: null,
+        extChangePct: null,
+        extType: null
+      };
+    }
+
+    const pData = prices[asset.symbol];
     let price = pData?.price ?? 0;
     
     // Check for active pre-market or after-market pricing
@@ -1086,19 +1188,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
       extType = "After";
     }
 
-    if (isTHBCash) {
-      price = 1.0;
-    } else if (isUSDCash) {
-      price = 1.0;
-    }
-
-    let priceUSD = isThai ? price / exchangeRate : price;
-    if (isTHBCash) {
-      priceUSD = 1.0 / exchangeRate;
-    } else if (isUSDCash) {
-      priceUSD = 1.0;
-    }
-
+    const priceUSD = isThai ? price / exchangeRate : price;
     const valueUSD = priceUSD * asset.qty;
     const valueTHB = valueUSD * exchangeRate;
     
@@ -1109,9 +1199,9 @@ export default function Dashboard({ user, onLogout, showToast }) {
     const gainPct  = costUSD > 0 ? (gainUSD / costUSD) * 100 : 0;
     
     const activePrice = price;
-    const prevClose = isCash ? activePrice : (pData?.previousClose ?? activePrice);
-    const todayChg = isCash ? 0 : ((activePrice - prevClose) * asset.qty);
-    const todayPct = isCash ? 0 : (prevClose > 0 ? ((activePrice - prevClose) / prevClose) * 100 : 0);
+    const prevClose = pData?.previousClose ?? activePrice;
+    const todayChg = ((activePrice - prevClose) * asset.qty);
+    const todayPct = (prevClose > 0 ? ((activePrice - prevClose) / prevClose) * 100 : 0);
 
     return { 
       price, 
@@ -1887,7 +1977,11 @@ export default function Dashboard({ user, onLogout, showToast }) {
       {selectedAsset && (
         <AssetDetailPanel
           asset={selectedAsset}
-          price={prices[selectedAsset.symbol]}
+          price={
+            (selectedAsset.type === "fiat" || selectedAsset.category === "fiat")
+              ? prices[getCurrencyTicker(selectedAsset.symbol)]
+              : prices[selectedAsset.symbol]
+          }
           exchangeRate={exchangeRate}
           onClose={() => setSelectedAsset(null)}
         />

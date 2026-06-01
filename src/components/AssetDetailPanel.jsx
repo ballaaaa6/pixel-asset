@@ -50,11 +50,19 @@ function stepPath(pts) {
   return d;
 }
 
+const getCurrencyTicker = (symbol) => {
+  if (symbol === "USD") return "USD";
+  if (["EUR", "GBP", "AUD", "NZD"].includes(symbol)) {
+    return `${symbol}USD=X`;
+  }
+  return `${symbol}=X`;
+};
+
 
 /* ══════════════════════════════════════════════════════
    MAIN ASSET DETAIL CHART
 ══════════════════════════════════════════════════════ */
-function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate }) {
+function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset }) {
   const containerRef = useRef(null);
   const [hovered, setHovered] = useState(null);
   const [dims, setDims] = useState({ w: 600, h: 280 });
@@ -102,6 +110,8 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate }) {
       return { qty: totalQty, cost: totalCost };
     };
 
+    const isCashAsset = asset?.type === "fiat" || asset?.category === "fiat";
+
     // Calculate value and cost for each candle
     const rawData = candles.map((c) => {
       const targetDateOnly = c.date.split("T")[0];
@@ -114,9 +124,30 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate }) {
       }
 
       const stats = getStatsOnDate(c.date);
-      const priceUSD = isThai ? c.close / exchangeRate : c.close;
+      
+      let priceUSD = 0;
+      if (isCashAsset) {
+        if (asset.symbol === "USD") {
+          priceUSD = 1.0;
+        } else {
+          if (["EUR", "GBP", "AUD", "NZD"].includes(asset.symbol)) {
+            priceUSD = c.close;
+          } else {
+            priceUSD = 1.0 / c.close;
+          }
+        }
+      } else {
+        priceUSD = isThai ? c.close / exchangeRate : c.close;
+      }
+
       const valueUSD = stats.qty * priceUSD;
-      const costUSD = isThai ? stats.cost / exchangeRate : stats.cost;
+      
+      let costUSD = 0;
+      if (isCashAsset) {
+        costUSD = stats.cost; // stats.cost is already in USD terms
+      } else {
+        costUSD = isThai ? stats.cost / exchangeRate : stats.cost;
+      }
 
       return { date: c.date, valueUSD, costUSD, hasPurchased: true };
     });
@@ -511,6 +542,19 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
   const [error, setError]         = useState(null);
 
   const isThai = asset?.symbol?.endsWith(".BK");
+  const isCashAsset = asset?.type === "fiat" || asset?.category === "fiat";
+
+  const getCurrencyPriceUSD = (symbol, priceVal, exchangeRate) => {
+    if (symbol === "USD") return 1.0;
+    if (priceVal != null && priceVal > 0) {
+      if (["EUR", "GBP", "AUD", "NZD"].includes(symbol)) {
+        return priceVal;
+      }
+      return 1.0 / priceVal;
+    }
+    if (symbol === "THB") return 1.0 / (exchangeRate || 35.0);
+    return 1.0;
+  };
 
   /* ── Fetch chart data ── */
   useEffect(() => {
@@ -520,8 +564,9 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
     setError(null);
     setChartData(null);
 
-    const isCash = asset.symbol === "THB" || asset.symbol === "USD";
-    if (isCash) {
+    // Only USD uses completely flat mock data! Other currencies fetch actual rates.
+    const isUSDOnly = asset.symbol === "USD";
+    if (isUSDOnly) {
       const priceVal = 1.0;
       const now = new Date();
       const thirtyDaysAgo = new Date();
@@ -559,7 +604,8 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
       return;
     }
 
-    fetch(`/api/prices?history=${encodeURIComponent(asset.symbol)}&tf=${tf}`)
+    const targetSymbol = isCashAsset ? getCurrencyTicker(asset.symbol) : asset.symbol;
+    fetch(`/api/prices?history=${encodeURIComponent(targetSymbol)}&tf=${tf}`)
       .then(r => r.json())
       .then(data => {
         if (cancelled) return;
@@ -570,41 +616,49 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
       .catch(err => { if (!cancelled) { setError(err.message); setLoading(false); } });
 
     return () => { cancelled = true; };
-  }, [asset?.symbol, tf]);
+  }, [asset?.symbol, tf, isCashAsset]);
 
   if (!asset) return null;
-
-  const isTHBCash = asset.symbol === "THB";
-  const isUSDCash = asset.symbol === "USD";
-  const isCash = isTHBCash || isUSDCash;
 
   const pData = price || {};
   
   let priceUSD = isThai ? (pData.price || 0) / exchangeRate : (pData.price || 0);
-  if (isTHBCash) {
-    priceUSD = 1.0 / exchangeRate;
-  } else if (isUSDCash) {
-    priceUSD = 1.0;
+  if (isCashAsset) {
+    priceUSD = getCurrencyPriceUSD(asset.symbol, pData.price, exchangeRate);
   }
 
-  const changeUSD   = isCash ? 0 : (isThai ? (pData.change || 0) / exchangeRate : (pData.change || 0));
-  const changePct   = isCash ? 0 : (pData.changePercent || 0);
-  const valueUSD    = priceUSD * asset.qty;
+  // Calculate day change for cash
+  let changeUSD = 0;
+  let changePct = 0;
+  if (isCashAsset) {
+    if (asset.symbol !== "USD" && pData.price > 0 && pData.previousClose > 0) {
+      let prevPriceUSD = 0;
+      if (["EUR", "GBP", "AUD", "NZD"].includes(asset.symbol)) {
+        prevPriceUSD = pData.previousClose;
+      } else {
+        prevPriceUSD = 1.0 / pData.previousClose;
+      }
+      changeUSD = (priceUSD - prevPriceUSD) * asset.qty;
+      changePct = prevPriceUSD > 0 ? ((priceUSD - prevPriceUSD) / prevPriceUSD) * 100 : 0;
+    }
+  } else {
+    changeUSD = isThai ? (pData.change || 0) / exchangeRate : (pData.change || 0);
+    changePct = pData.changePercent || 0;
+  }
+
+  const valueUSD = priceUSD * asset.qty;
 
   // Robustly handle avgCost vs avgPrice for backward compatibility
-  const avgCost     = asset.avgCost ?? asset.avgPrice ?? 0;
+  const avgCost = asset.avgCost ?? asset.avgPrice ?? 0;
   
-  let costUSD = avgCost * asset.qty / (isThai ? exchangeRate : 1);
-  if (isCash) {
-    costUSD = avgCost * asset.qty;
-  }
+  const costUSD = isCashAsset ? avgCost * asset.qty : (avgCost * asset.qty / (isThai ? exchangeRate : 1));
 
   const gainUSD     = valueUSD - costUSD;
   const gainPct     = costUSD > 0 ? ((valueUSD - costUSD) / costUSD) * 100 : 0;
   const lots        = asset.lots || [];
 
   // Recompute properly
-  const avgCostUSD = isCash ? avgCost : (isThai ? avgCost / exchangeRate : avgCost);
+  const avgCostUSD = isCashAsset ? avgCost : (isThai ? avgCost / exchangeRate : avgCost);
   const totalCostUSD = avgCostUSD * asset.qty;
   const totalGainUSD = valueUSD - totalCostUSD;
   const totalGainPct = totalCostUSD > 0 ? (totalGainUSD / totalCostUSD) * 100 : 0;
@@ -742,6 +796,7 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
               tf={tf}
               isThai={isThai}
               exchangeRate={exchangeRate}
+              asset={asset}
             />
           ) : null}
         </div>
