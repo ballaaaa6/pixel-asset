@@ -520,6 +520,45 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
     setError(null);
     setChartData(null);
 
+    const isCash = asset.symbol === "THB" || asset.symbol === "USD";
+    if (isCash) {
+      const priceVal = 1.0;
+      const now = new Date();
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      const mockData = {
+        symbol: asset.symbol,
+        tf: tf,
+        interval: "1d",
+        currency: asset.symbol,
+        regularMarketPrice: priceVal,
+        candles: [
+          {
+            ts: Math.floor(thirtyDaysAgo.getTime() / 1000),
+            date: thirtyDaysAgo.toISOString(),
+            open: priceVal,
+            high: priceVal,
+            low: priceVal,
+            close: priceVal,
+            volume: 0
+          },
+          {
+            ts: Math.floor(now.getTime() / 1000),
+            date: now.toISOString(),
+            open: priceVal,
+            high: priceVal,
+            low: priceVal,
+            close: priceVal,
+            volume: 0
+          }
+        ]
+      };
+      setChartData(mockData);
+      setLoading(false);
+      return;
+    }
+
     fetch(`/api/prices?history=${encodeURIComponent(asset.symbol)}&tf=${tf}`)
       .then(r => r.json())
       .then(data => {
@@ -535,21 +574,37 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
 
   if (!asset) return null;
 
+  const isTHBCash = asset.symbol === "THB";
+  const isUSDCash = asset.symbol === "USD";
+  const isCash = isTHBCash || isUSDCash;
+
   const pData = price || {};
-  const priceUSD    = isThai ? (pData.price || 0) / exchangeRate : (pData.price || 0);
-  const changeUSD   = isThai ? (pData.change || 0) / exchangeRate : (pData.change || 0);
-  const changePct   = pData.changePercent || 0;
+  
+  let priceUSD = isThai ? (pData.price || 0) / exchangeRate : (pData.price || 0);
+  if (isTHBCash) {
+    priceUSD = 1.0 / exchangeRate;
+  } else if (isUSDCash) {
+    priceUSD = 1.0;
+  }
+
+  const changeUSD   = isCash ? 0 : (isThai ? (pData.change || 0) / exchangeRate : (pData.change || 0));
+  const changePct   = isCash ? 0 : (pData.changePercent || 0);
   const valueUSD    = priceUSD * asset.qty;
 
   // Robustly handle avgCost vs avgPrice for backward compatibility
   const avgCost     = asset.avgCost ?? asset.avgPrice ?? 0;
-  const costUSD     = avgCost * asset.qty / (isThai ? exchangeRate : 1);
+  
+  let costUSD = avgCost * asset.qty / (isThai ? exchangeRate : 1);
+  if (isCash) {
+    costUSD = avgCost * asset.qty;
+  }
+
   const gainUSD     = valueUSD - costUSD;
   const gainPct     = costUSD > 0 ? ((valueUSD - costUSD) / costUSD) * 100 : 0;
   const lots        = asset.lots || [];
 
   // Recompute properly
-  const avgCostUSD = isThai ? avgCost / exchangeRate : avgCost;
+  const avgCostUSD = isCash ? avgCost : (isThai ? avgCost / exchangeRate : avgCost);
   const totalCostUSD = avgCostUSD * asset.qty;
   const totalGainUSD = valueUSD - totalCostUSD;
   const totalGainPct = totalCostUSD > 0 ? (totalGainUSD / totalCostUSD) * 100 : 0;

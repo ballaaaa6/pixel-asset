@@ -895,7 +895,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
   const fetchPrices = async (portfolioAssets) => {
     setRefreshing(true);
     try {
-      const symbols = portfolioAssets.map(a => a.symbol).join(",");
+      const symbols = portfolioAssets.map(a => a.symbol).filter(sym => sym !== "THB" && sym !== "USD").join(",");
       const res = await fetch(`/api/prices?symbols=${encodeURIComponent(symbols)}`);
       if (res.ok) {
         const data = await res.json();
@@ -931,7 +931,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
     if (!portfolioAssets.length) return;
     setSparklineLoading(true);
     try {
-      const syms = [...new Set(portfolioAssets.map(a => a.symbol))];
+      const syms = [...new Set(portfolioAssets.map(a => a.symbol).filter(sym => sym !== "THB" && sym !== "USD"))];
       const res = await fetch(`/api/prices?sparkline=${encodeURIComponent(syms.join(","))}&tf=${range}`);
       if (res.ok) {
         const data = await res.json();
@@ -975,10 +975,33 @@ export default function Dashboard({ user, onLogout, showToast }) {
 
         // Calculate cost on this date in USD
         const isThai = asset.symbol.toUpperCase().endsWith(".BK");
+        const isTHBCash = asset.symbol.toUpperCase() === "THB";
+        const isUSDCash = asset.symbol.toUpperCase() === "USD";
+        const isCash = isTHBCash || isUSDCash;
+
         const costOnDateUSD = lotsBeforeOrOnDate.reduce((sum, l) => {
-          const priceUSD = isThai ? (l.price || 0) / exchangeRate : (l.price || 0);
+          let priceUSD = isThai ? (l.price || 0) / exchangeRate : (l.price || 0);
+          if (isTHBCash) {
+            priceUSD = l.price || (1.0 / exchangeRate);
+          } else if (isUSDCash) {
+            priceUSD = 1.0;
+          }
           return sum + (l.qty || 0) * priceUSD;
         }, 0);
+
+        let priceUSD = 0;
+        if (isTHBCash) {
+          priceUSD = 1.0 / exchangeRate;
+        } else if (isUSDCash) {
+          priceUSD = 1.0;
+        }
+
+        if (isCash) {
+          const valueUSD = priceUSD * qtyOnDate;
+          totalUSD += valueUSD;
+          totalCostUSD += costOnDateUSD;
+          return;
+        }
 
         const symData = sparklines[asset.symbol.toUpperCase()];
         if (!symData) return;
@@ -1035,7 +1058,12 @@ export default function Dashboard({ user, onLogout, showToast }) {
 
   /* ── COMPUTE PER-ASSET VALUATION ── */
   const computeAsset = useCallback((asset) => {
-    const pData = prices[asset.symbol];
+    const isThai = asset.symbol.endsWith(".BK");
+    const isTHBCash = asset.symbol === "THB";
+    const isUSDCash = asset.symbol === "USD";
+    const isCash = isTHBCash || isUSDCash;
+
+    const pData = isCash ? null : prices[asset.symbol];
     let price = pData?.price ?? 0;
     
     // Check for active pre-market or after-market pricing
@@ -1058,8 +1086,19 @@ export default function Dashboard({ user, onLogout, showToast }) {
       extType = "After";
     }
 
-    const isThai = asset.symbol.endsWith(".BK");
-    const priceUSD = isThai ? price / exchangeRate : price;
+    if (isTHBCash) {
+      price = 1.0;
+    } else if (isUSDCash) {
+      price = 1.0;
+    }
+
+    let priceUSD = isThai ? price / exchangeRate : price;
+    if (isTHBCash) {
+      priceUSD = 1.0 / exchangeRate;
+    } else if (isUSDCash) {
+      priceUSD = 1.0;
+    }
+
     const valueUSD = priceUSD * asset.qty;
     const valueTHB = valueUSD * exchangeRate;
     
@@ -1070,9 +1109,9 @@ export default function Dashboard({ user, onLogout, showToast }) {
     const gainPct  = costUSD > 0 ? (gainUSD / costUSD) * 100 : 0;
     
     const activePrice = price;
-    const prevClose = pData?.previousClose ?? activePrice;
-    const todayChg = (activePrice - prevClose) * asset.qty;
-    const todayPct = prevClose > 0 ? ((activePrice - prevClose) / prevClose) * 100 : 0;
+    const prevClose = isCash ? activePrice : (pData?.previousClose ?? activePrice);
+    const todayChg = isCash ? 0 : ((activePrice - prevClose) * asset.qty);
+    const todayPct = isCash ? 0 : (prevClose > 0 ? ((activePrice - prevClose) / prevClose) * 100 : 0);
 
     return { 
       price, 
@@ -1590,7 +1629,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                         {sortedAssets.map((asset, idx) => {
                           const pData = prices[asset.symbol];
                           const flash = priceFlash[asset.symbol];
-                          const sp = sparklines[asset.symbol]?.closes;
+                          const sp = (asset.symbol === "THB" || asset.symbol === "USD") ? [1.0, 1.0, 1.0] : sparklines[asset.symbol]?.closes;
                           const weightPct = totalUSD > 0 ? (asset.valueUSD / totalUSD) * 100 : 0;
                           const isBest = bestAsset?.symbol === asset.symbol;
 
@@ -1759,9 +1798,9 @@ export default function Dashboard({ user, onLogout, showToast }) {
                           </div>
 
                           {/* Sparkline full row */}
-                          {sp && sp.length > 2 && (
+                          {((asset.symbol === "THB" || asset.symbol === "USD") ? [1.0, 1.0, 1.0] : sparklines[asset.symbol]?.closes) && (
                             <div className="mobile-sparkline">
-                              <SparklineChart closes={sp} />
+                              <SparklineChart closes={(asset.symbol === "THB" || asset.symbol === "USD") ? [1.0, 1.0, 1.0] : sparklines[asset.symbol]?.closes} />
                               <span style={{ fontSize: 11, marginLeft: 8, color: sp[sp.length-1] >= sp[0] ? "var(--gain)" : "var(--loss)", fontWeight: 700 }}>
                                 {sp.length > 1 ? fmt.pct(((sp[sp.length-1] - sp[0]) / sp[0]) * 100) : ""} (7 วัน)
                               </span>
@@ -1840,6 +1879,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
           editingAsset={editingAsset}
           onClose={() => { setModalOpen(false); setEditingAsset(null); }}
           onSave={handleSaveAsset}
+          exchangeRate={exchangeRate}
         />
       )}
 

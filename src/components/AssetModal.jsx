@@ -6,7 +6,7 @@ const fmtDate  = (s) => s ? new Date(s + "T00:00:00").toLocaleDateString("th-TH"
 const fmtUSD   = (n) => n == null ? "—" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: n < 1 ? 4 : 2 }).format(n);
 const fmtQty   = (n) => n == null ? "—" : new Intl.NumberFormat("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 6 }).format(n);
 
-export default function AssetModal({ isOpen, onClose, onSave, editingAsset }) {
+export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exchangeRate }) {
   const [type,        setType]        = useState("stock");
   const [symbol,      setSymbol]      = useState("");
   const [name,        setName]        = useState("");
@@ -118,6 +118,11 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset }) {
       setName("Spot Gold (ทองคำตลาดโลก)");
       setQuery("GC=F");
       setConfirmed(true);
+    } else if (c === "fiat") {
+      setSymbol("THB");
+      setName("Cash (THB)");
+      setQuery("THB");
+      setConfirmed(true);
     }
   };
 
@@ -136,10 +141,16 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     const pQty   = parseFloat(qty);
-    const pPrice = parseFloat(price);
     if (!symbol.trim())            { alert("เลือกสินทรัพย์ก่อนนะครับ"); return; }
     if (isNaN(pQty) || pQty <= 0) { alert("ใส่จำนวนให้ถูกต้อง (มากกว่า 0)"); return; }
-    if (isNaN(pPrice) || pPrice < 0) { alert("ใส่ราคาทุนให้ถูกต้อง"); return; }
+
+    let pPrice = 1.0;
+    if (type === "fiat") {
+      pPrice = symbol === "THB" ? 1 / (exchangeRate || 35.0) : 1.0;
+    } else {
+      pPrice = parseFloat(price);
+      if (isNaN(pPrice) || pPrice < 0) { alert("ใส่ราคาทุนให้ถูกต้อง"); return; }
+    }
 
     onSave({
       symbol: symbol.trim().toUpperCase(),
@@ -195,150 +206,177 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset }) {
             )}
 
             {/* ── Symbol search OR confirmed chip ── */}
-            <div className="form-group">
-              <label className="form-label">
-                {!editingAsset ? (
-                  type === "stock"  ? "ค้นหาหุ้น (ชื่อย่อหรือชื่อบริษัท)" :
-                  type === "crypto" ? "ค้นหาเหรียญ (เช่น Bitcoin, SOL)" :
-                  type === "gold"   ? "ทองคำตลาดโลก" :
-                  "ค้นหาสกุลเงิน"
-                ) : "สินทรัพย์"}
-              </label>
+            {type === "fiat" ? (
+              <div className="form-group">
+                <label className="form-label">สกุลเงินสด</label>
+                <select
+                  className="form-input"
+                  value={symbol}
+                  onChange={(e) => {
+                    const sym = e.target.value;
+                    setSymbol(sym);
+                    setName(sym === "THB" ? "Cash (THB)" : "Cash (USD)");
+                    setConfirmed(true);
+                  }}
+                  disabled={editingAsset}
+                  style={{ height: 52, borderRadius: 18 }}
+                >
+                  <option value="THB">THB (บาท 🇹🇭)</option>
+                  <option value="USD">USD (ดอลลาร์สหรัฐ 🇺🇸)</option>
+                </select>
+              </div>
+            ) : (
+              <div className="form-group">
+                <label className="form-label">
+                  {!editingAsset ? (
+                    type === "stock"  ? "ค้นหาหุ้น (ชื่อย่อหรือชื่อบริษัท)" :
+                    type === "crypto" ? "ค้นหาเหรียญ (เช่น Bitcoin, SOL)" :
+                    "ทองคำตลาดโลก"
+                  ) : "สินทรัพย์"}
+                </label>
 
-              {/* Confirmed chip */}
-              {confirmed || editingAsset ? (
-                <div style={{
-                  display: "flex", alignItems: "center", gap: 10,
-                  background: "var(--primary-light)", border: "1.5px solid var(--primary)",
-                  borderRadius: 16, padding: "10px 14px"
-                }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 800, color: "var(--primary)", fontSize: 15 }}>{symbol}</div>
-                    <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>{name}</div>
-                  </div>
-                  {!editingAsset && (
-                    <button type="button" className="btn-close" onClick={clearSymbol}
-                      style={{ background: "rgba(82,54,255,0.1)", color: "var(--primary)" }}>
-                      <X size={14} />
-                    </button>
-                  )}
-                </div>
-              ) : (
-                /* Search input + dropdown */
-                <div style={{ position: "relative" }}>
-                  <div style={{ position: "relative" }}>
-                    <Search size={17} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#94A3B8", pointerEvents: "none" }} />
-                    <input
-                      type="text"
-                      className="form-input"
-                      style={{ paddingLeft: 44 }}
-                      placeholder={
-                        type === "stock"  ? "พิมพ์ เช่น Apple, NVDA, PTT.BK…" :
-                        type === "crypto" ? "พิมพ์ เช่น Bitcoin, ETH, SOL…" :
-                        type === "gold"   ? "GC=F" : "THB=X, EURUSD=X…"
-                      }
-                      value={query}
-                      autoFocus
-                      onChange={e => { setQuery(e.target.value); setConfirmed(false); }}
-                      onFocus={() => { if (suggestions.length > 0) setShowDrop(true); }}
-                      onBlur={() => {
-                        // Delay so onMouseDown on suggestion fires first
-                        setTimeout(() => setShowDrop(false), 180);
-                      }}
-                    />
-                    {searching && (
-                      <div className="spinner sm" style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)" }} />
+                {/* Confirmed chip */}
+                {confirmed || editingAsset ? (
+                  <div style={{
+                    display: "flex", alignItems: "center", gap: 10,
+                    background: "var(--primary-light)", border: "1.5px solid var(--primary)",
+                    borderRadius: 16, padding: "10px 14px"
+                  }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 800, color: "var(--primary)", fontSize: 15 }}>{symbol}</div>
+                      <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>{name}</div>
+                    </div>
+                    {!editingAsset && (
+                      <button type="button" className="btn-close" onClick={clearSymbol}
+                        style={{ background: "rgba(82,54,255,0.1)", color: "var(--primary)" }}>
+                        <X size={14} />
+                      </button>
                     )}
                   </div>
-
-                  {/* Dropdown */}
-                  {showDrop && suggestions.length > 0 && (
-                    <div className="suggestions-dropdown">
-                      {suggestions.map(item => (
-                        <div key={item.symbol} className="suggestion-item"
-                          onMouseDown={(e) => { e.preventDefault(); pickSuggestion(item); }}>
-                          <div className="suggestion-left">
-                            <span className="suggestion-symbol">{item.symbol}</span>
-                            <span className="suggestion-name">{item.name}</span>
-                          </div>
-                          <div className="suggestion-right">
-                            <span className="suggestion-exchange">{item.exchange}</span>
-                            <span style={{ fontSize: 9, color: "var(--text-muted)", textTransform: "uppercase" }}>{item.type}</span>
-                          </div>
-                        </div>
-                      ))}
+                ) : (
+                  /* Search input + dropdown */
+                  <div style={{ position: "relative" }}>
+                    <div style={{ position: "relative" }}>
+                      <Search size={17} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#94A3B8", pointerEvents: "none" }} />
+                      <input
+                        type="text"
+                        className="form-input"
+                        style={{ paddingLeft: 44 }}
+                        placeholder={
+                          type === "stock"  ? "พิมพ์ เช่น Apple, NVDA, PTT.BK…" :
+                          type === "crypto" ? "พิมพ์ เช่น Bitcoin, ETH, SOL…" :
+                          "GC=F"
+                        }
+                        value={query}
+                        autoFocus
+                        onChange={e => { setQuery(e.target.value); setConfirmed(false); }}
+                        onFocus={() => { if (suggestions.length > 0) setShowDrop(true); }}
+                        onBlur={() => {
+                          // Delay so onMouseDown on suggestion fires first
+                          setTimeout(() => setShowDrop(false), 180);
+                        }}
+                      />
+                      {searching && (
+                        <div className="spinner sm" style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)" }} />
+                      )}
                     </div>
-                  )}
-                </div>
-              )}
 
-              {/* Quick presets */}
-              {!editingAsset && !confirmed && (
-                <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  {type === "stock" && (
-                    <>
-                      {[["AAPL","Apple Inc."],["NVDA","NVIDIA Corp."],["TSLA","Tesla Inc."],["PTT.BK","PTT ปตท."]].map(([s,n]) => (
-                        <button key={s} type="button" className="ripple-btn"
-                          style={{ height: 28, borderRadius: 8, padding: "0 10px", fontSize: 11, fontWeight: 700, background: "#F1F5F9", border: "1px solid var(--border)", cursor: "pointer", fontFamily: "inherit" }}
-                          onMouseDown={(e) => { e.preventDefault(); applyPreset(s, n); }}>
-                          {s}
-                        </button>
-                      ))}
-                    </>
-                  )}
-                  {type === "crypto" && (
-                    <>
-                      {[["BTC-USD","Bitcoin"],["ETH-USD","Ethereum"],["SOL-USD","Solana"],["BNB-USD","BNB"]].map(([s,n]) => (
-                        <button key={s} type="button" className="ripple-btn"
-                          style={{ height: 28, borderRadius: 8, padding: "0 10px", fontSize: 11, fontWeight: 700, background: "#FFF7ED", border: "1px solid #FED7AA", cursor: "pointer", fontFamily: "inherit" }}
-                          onMouseDown={(e) => { e.preventDefault(); applyPreset(s, n); }}>
-                          {s.split("-")[0]}
-                        </button>
-                      ))}
-                    </>
-                  )}
-                  {type === "fiat" && (
-                    <>
-                      {[["THB=X","USD/THB"],["EURUSD=X","EUR/USD"],["SGDTHB=X","SGD/THB"]].map(([s,n]) => (
-                        <button key={s} type="button" className="ripple-btn"
-                          style={{ height: 28, borderRadius: 8, padding: "0 10px", fontSize: 11, fontWeight: 700, background: "#ECFDF5", border: "1px solid #A7F3D0", cursor: "pointer", fontFamily: "inherit" }}
-                          onMouseDown={(e) => { e.preventDefault(); applyPreset(s, n); }}>
-                          {n}
-                        </button>
-                      ))}
-                    </>
-                  )}
-                  {type === "gold" && (
-                    <button type="button" className="ripple-btn"
-                      style={{ height: 28, borderRadius: 8, padding: "0 10px", fontSize: 11, fontWeight: 700, background: "var(--gold-light)", border: "1px solid #FCD34D", cursor: "pointer", fontFamily: "inherit" }}
-                      onMouseDown={(e) => { e.preventDefault(); applyPreset("GC=F", "Spot Gold"); }}>
-                      GC=F Spot Gold 🥇
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
+                    {/* Dropdown */}
+                    {showDrop && suggestions.length > 0 && (
+                      <div className="suggestions-dropdown">
+                        {suggestions.map(item => (
+                          <div key={item.symbol} className="suggestion-item"
+                            onMouseDown={(e) => { e.preventDefault(); pickSuggestion(item); }}>
+                            <div className="suggestion-left">
+                              <span className="suggestion-symbol">{item.symbol}</span>
+                              <span className="suggestion-name">{item.name}</span>
+                            </div>
+                            <div className="suggestion-right">
+                              <span className="suggestion-exchange">{item.exchange}</span>
+                              <span style={{ fontSize: 9, color: "var(--text-muted)", textTransform: "uppercase" }}>{item.type}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Quick presets */}
+                {!editingAsset && !confirmed && (
+                  <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {type === "stock" && (
+                      <>
+                        {[["AAPL","Apple Inc."],["NVDA","NVIDIA Corp."],["TSLA","Tesla Inc."],["PTT.BK","PTT ปตท."]].map(([s,n]) => (
+                          <button key={s} type="button" className="ripple-btn"
+                            style={{ height: 28, borderRadius: 8, padding: "0 10px", fontSize: 11, fontWeight: 700, background: "#F1F5F9", border: "1px solid var(--border)", cursor: "pointer", fontFamily: "inherit" }}
+                            onMouseDown={(e) => { e.preventDefault(); applyPreset(s, n); }}>
+                            {s}
+                          </button>
+                        ))}
+                      </>
+                    )}
+                    {type === "crypto" && (
+                      <>
+                        {[["BTC-USD","Bitcoin"],["ETH-USD","Ethereum"],["SOL-USD","Solana"],["BNB-USD","BNB"]].map(([s,n]) => (
+                          <button key={s} type="button" className="ripple-btn"
+                            style={{ height: 28, borderRadius: 8, padding: "0 10px", fontSize: 11, fontWeight: 700, background: "#FFF7ED", border: "1px solid #FED7AA", cursor: "pointer", fontFamily: "inherit" }}
+                            onMouseDown={(e) => { e.preventDefault(); applyPreset(s, n); }}>
+                            {s.split("-")[0]}
+                          </button>
+                        ))}
+                      </>
+                    )}
+                    {type === "gold" && (
+                      <button type="button" className="ripple-btn"
+                        style={{ height: 28, borderRadius: 8, padding: "0 10px", fontSize: 11, fontWeight: 700, background: "var(--gold-light)", border: "1px solid #FCD34D", cursor: "pointer", fontFamily: "inherit" }}
+                        onMouseDown={(e) => { e.preventDefault(); applyPreset("GC=F", "Spot Gold"); }}>
+                        GC=F Spot Gold 🥇
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* ── Qty & Price inputs ── */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            {type === "fiat" ? (
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">จำนวน (หน่วย)</label>
-                <input ref={qtyInputRef} type="number" step="any" min="0.000001"
-                  className="form-input" placeholder="เช่น 10, 1.5"
-                  value={qty} onChange={e => setQty(e.target.value)} required />
+                <label className="form-label">จำนวนเงินสด</label>
+                <input
+                  ref={qtyInputRef}
+                  type="number"
+                  step="any"
+                  min="0.01"
+                  className="form-input"
+                  placeholder={symbol === "THB" ? "กรอกจำนวนเงินบาท เช่น 10000" : "กรอกจำนวนดอลลาร์ เช่น 500"}
+                  value={qty}
+                  onChange={(e) => setQty(e.target.value)}
+                  required
+                  autoFocus
+                />
               </div>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">
-                  ราคาต่อหน่วย
-                  <span style={{ fontSize: 10, color: "var(--text-faint)", marginLeft: 4 }}>
-                    {symbol.includes(".BK") ? "(THB)" : "(USD)"}
-                  </span>
-                </label>
-                <input type="number" step="any" min="0"
-                  className="form-input" placeholder={symbol.includes(".BK") ? "บาท/หุ้น" : "USD/unit"}
-                  value={price} onChange={e => setPrice(e.target.value)} required />
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">จำนวน (หน่วย)</label>
+                  <input ref={qtyInputRef} type="number" step="any" min="0.000001"
+                    className="form-input" placeholder="เช่น 10, 1.5"
+                    value={qty} onChange={e => setQty(e.target.value)} required />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">
+                    ราคาต่อหน่วย
+                    <span style={{ fontSize: 10, color: "var(--text-faint)", marginLeft: 4 }}>
+                      {symbol.includes(".BK") ? "(THB)" : "(USD)"}
+                    </span>
+                  </label>
+                  <input type="number" step="any" min="0"
+                    className="form-input" placeholder={symbol.includes(".BK") ? "บาท/หุ้น" : "USD/unit"}
+                    value={price} onChange={e => setPrice(e.target.value)} required />
+                </div>
               </div>
-            </div>
+            )}
 
             {/* ── Purchase Date ── */}
             <div className="form-group" style={{ marginTop: 14 }}>
@@ -417,7 +455,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset }) {
                   {type === "stock"  && "หุ้นไทยต่อท้ายด้วย .BK เช่น PTT.BK · ราคาทุนใส่เป็นบาทได้เลย"}
                   {type === "crypto" && "ต่อท้ายด้วย -USD เช่น BTC-USD · ราคาทุนใส่เป็น USD"}
                   {type === "gold"   && "GC=F คือ Spot Gold ราคาต่อออนซ์ (USD)"}
-                  {type === "fiat"   && "ใส่จำนวนเงินสดที่ถือ และราคาทุนเทียบ USD"}
+                  {type === "fiat"   && "กรอกจำนวนเงินสดที่คุณถือครองและเลือกสกุลเงินสดได้เลย"}
                 </span>
               </div>
             )}
