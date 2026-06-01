@@ -1,0 +1,6 @@
+name = "us-stock-tracker"
+pages_build_output_dir = "dist"
+
+[[kv_namespaces]]
+binding = "PORTFOLIOS"
+id = "portfolios_kv"
