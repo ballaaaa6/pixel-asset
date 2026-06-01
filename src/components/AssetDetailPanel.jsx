@@ -10,7 +10,7 @@ const fmtQty  = (n) => n == null ? "—" : new Intl.NumberFormat("en-US", { mini
 const fmtDate = (iso, tf) => {
   const d = new Date(iso);
   if (tf === "1D") return d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
-  if (tf === "5D") return d.toLocaleDateString("th-TH", { day: "numeric", month: "short" }) + " " + d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+  if (tf === "5D" || tf === "1W") return d.toLocaleDateString("th-TH", { day: "numeric", month: "short" }) + " " + d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
   return d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: tf === "5Y" ? "2-digit" : undefined });
 };
 const fmtDateShort = (iso) => new Date(iso).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
@@ -131,8 +131,9 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate }) {
     const valuesUSD = activePoints.map(d => d.valueUSD).filter(v => v != null);
     const costsUSD = activePoints.map(d => d.costUSD).filter(c => c != null);
 
-    const dataMin = Math.min(...valuesUSD, ...costsUSD);
-    const dataMax = Math.max(...valuesUSD, ...costsUSD);
+    const isShortTF = tf === "1D" || tf === "5D" || tf === "1W";
+    const dataMin = isShortTF ? Math.min(...valuesUSD) : Math.min(...valuesUSD, ...costsUSD);
+    const dataMax = isShortTF ? Math.max(...valuesUSD) : Math.max(...valuesUSD, ...costsUSD);
     const range   = dataMax - dataMin || dataMin * 0.02 || 1;
 
     // Tight padding: 12% of range each side (shows movement clearly)
@@ -501,7 +502,7 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate }) {
 /* ══════════════════════════════════════════════════════
    ASSET DETAIL PANEL
 ══════════════════════════════════════════════════════ */
-const TF_OPTIONS = ["1D", "5D", "1M", "3M", "6M", "1Y", "5Y"];
+const TF_OPTIONS = ["1D", "5D", "1W", "1M", "3M", "6M", "YTD", "1Y", "5Y"];
 
 export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }) {
   const [tf, setTf]         = useState("1M");
@@ -632,7 +633,7 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
             ))}
           </div>
           <div style={{ fontSize: 11, color: "var(--text-faint)", fontWeight: 600 }}>
-            {tf === "1D" ? "รายนาที (5m)" : tf === "5D" ? "รายชั่วโมง" : tf === "5Y" ? "รายสัปดาห์" : "รายวัน"}
+            {tf === "1D" ? "รายนาที (5m)" : tf === "5D" ? "รายชั่วโมง" : tf === "1W" ? "ราย 30 นาที" : tf === "5Y" ? "รายสัปดาห์" : "รายวัน"}
           </div>
         </div>
 

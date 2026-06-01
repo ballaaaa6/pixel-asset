@@ -39,16 +39,29 @@ export async function onRequestGet(context) {
     }
   }
 
-  // ─── 2. Sparkline History (?sparkline=SYM1,SYM2&days=30) ────────────────
+  // ─── 2. Sparkline History (?sparkline=SYM1,SYM2&tf=1M) ────────────────
   if (sparklineParam) {
     try {
       const symbols = sparklineParam.split(",").map(s => s.trim().toUpperCase()).filter(Boolean);
-      const days = parseInt(url.searchParams.get("days") || "30", 10);
-      const range = days <= 7 ? "7d" : days <= 30 ? "1mo" : "3mo";
+      const tf = (url.searchParams.get("tf") || "1M").toUpperCase();
+
+      const tfMap = {
+        "1D":  { range: "1d",  interval: "5m"  },
+        "5D":  { range: "5d",  interval: "60m" },
+        "1W":  { range: "7d",  interval: "30m" },
+        "1M":  { range: "1mo", interval: "1d"  },
+        "3M":  { range: "3mo", interval: "1d"  },
+        "6M":  { range: "6mo", interval: "1d"  },
+        "YTD": { range: "ytd", interval: "1d"  },
+        "1Y":  { range: "1y",  interval: "1d"  },
+        "5Y":  { range: "5y",  interval: "1wk" },
+        "MAX": { range: "max", interval: "1wk" },
+      };
+      const { range, interval } = tfMap[tf] || tfMap["1M"];
 
       const historyFetches = symbols.map(async (symbol) => {
         try {
-          const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=${range}`;
+          const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`;
           const resp = await fetch(chartUrl, { headers: YF_HEADERS });
           if (!resp.ok) return { symbol, dates: [], closes: [] };
 
@@ -61,7 +74,7 @@ export async function onRequestGet(context) {
 
           // Filter out null values (non-trading days)
           const paired = timestamps.map((ts, i) => ({
-            date: new Date(ts * 1000).toISOString().split("T")[0],
+            date: new Date(ts * 1000).toISOString(),
             close: rawCloses[i]
           })).filter(p => p.close != null && p.close > 0);
 
@@ -159,11 +172,14 @@ export async function onRequestGet(context) {
       const tfMap = {
         "1D":  { range: "1d",  interval: "5m"  },
         "5D":  { range: "5d",  interval: "60m" },
+        "1W":  { range: "7d",  interval: "30m" },
         "1M":  { range: "1mo", interval: "1d"  },
         "3M":  { range: "3mo", interval: "1d"  },
         "6M":  { range: "6mo", interval: "1d"  },
+        "YTD": { range: "ytd", interval: "1d"  },
         "1Y":  { range: "1y",  interval: "1d"  },
         "5Y":  { range: "5y",  interval: "1wk" },
+        "MAX": { range: "max", interval: "1wk" },
       };
       const { range, interval } = tfMap[tf] || tfMap["1M"];
 

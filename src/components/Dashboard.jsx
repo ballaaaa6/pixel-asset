@@ -118,7 +118,7 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
   const iW = W - PAD_L - PAD_R;
   const iH = H - PAD_T - PAD_B;
 
-  const RANGES = ["1W", "1M", "3M"];
+  const RANGES = ["1D", "5D", "1W", "1M", "3M", "6M", "YTD", "1Y", "5Y", "MAX"];
 
   // Unique lot purchase dates for markers
   const lotMarkers = useMemo(() => {
@@ -156,8 +156,9 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
     const vals = history.map(h => h.value);
     const costs = history.map(h => h.cost || 0);
 
-    const dataMin = Math.min(...vals, ...costs.filter(c => c > 0));
-    const dataMax = Math.max(...vals, ...costs);
+    const isShortTF = range === "1D" || range === "5D" || range === "1W";
+    const dataMin = isShortTF ? Math.min(...vals) : Math.min(...vals, ...costs.filter(c => c > 0));
+    const dataMax = isShortTF ? Math.max(...vals) : Math.max(...vals, ...costs);
     const rangeVal = dataMax - dataMin || dataMin * 0.02 || 1;
 
     // Adaptive padding (shows movement clearly)
@@ -176,7 +177,7 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
     const color = isUp ? "var(--gain)" : "var(--loss)";
 
     return { pts, costPts, yMin, yMax, isUp, color, toY };
-  }, [history, iH, iW]);
+  }, [history, iH, iW, range]);
 
   const linePath = useMemo(() => smoothPath(pts), [pts]);
   const costLinePath = useMemo(() => stepPath(costPts), [costPts]);
@@ -494,7 +495,12 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
           {dateLabels.map(({ x, date }, i) => (
             <text key={i} x={x} y={H - PAD_B + 16} textAnchor="middle" fontSize="10"
               fill="#94A3B8" fontFamily="Outfit,sans-serif" fontWeight="600">
-              {new Date(date).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}
+              {(() => {
+                const d = new Date(date);
+                if (range === "1D") return d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+                if (range === "5D" || range === "1W") return d.toLocaleDateString("th-TH", { day: "numeric", month: "short" }) + " " + d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+                return d.toLocaleDateString("th-TH", { day: "numeric", month: "short" });
+              })()}
             </text>
           ))}
 
@@ -538,7 +544,12 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
               zIndex: 100
             }}>
               <div style={{ fontSize: 10, opacity: 0.75, marginBottom: 2 }}>
-                {new Date(hovered.date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" })}
+                {(() => {
+                  const d = new Date(hovered.date);
+                  if (range === "1D") return d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+                  if (range === "5D" || range === "1W") return d.toLocaleDateString("th-TH", { day: "numeric", month: "short" }) + " " + d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+                  return d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
+                })()}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
@@ -782,7 +793,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
         const data = await res.json();
         setAssets(data);
         await fetchPrices(data);
-        if (data.length > 0) fetchSparklines(data, "1M");
+        if (data.length > 0) fetchSparklines(data, chartRange);
       }
     } catch (err) {
       showToast("โหลดพอร์ตไม่สำเร็จ: " + err.message, "error");
@@ -832,8 +843,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
     setSparklineLoading(true);
     try {
       const syms = [...new Set(portfolioAssets.map(a => a.symbol))];
-      const days = range === "1W" ? 7 : range === "3M" ? 90 : 30;
-      const res = await fetch(`/api/prices?sparkline=${encodeURIComponent(syms.join(","))}&days=${days}`);
+      const res = await fetch(`/api/prices?sparkline=${encodeURIComponent(syms.join(","))}&tf=${range}`);
       if (res.ok) {
         const data = await res.json();
         setSparklines(data);
@@ -868,7 +878,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
           : [{ id: "virtual", date: "1970-01-01", qty: asset.qty, price: (asset.avgCost ?? asset.avgPrice ?? 0) }];
 
         // Filter lots purchased on or before this day
-        const lotsBeforeOrOnDate = assetLots.filter(lot => lot && lot.date && lot.date <= date);
+        const lotsBeforeOrOnDate = assetLots.filter(lot => lot && lot.date && lot.date <= date.split("T")[0]);
         if (lotsBeforeOrOnDate.length === 0) return; // not purchased yet
 
         // Calculate qty on this date
