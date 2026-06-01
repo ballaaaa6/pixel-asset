@@ -118,7 +118,7 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
   const iW = W - PAD_L - PAD_R;
   const iH = H - PAD_T - PAD_B;
 
-  const RANGES = ["1D", "5D", "1W", "1M", "3M", "6M", "YTD", "1Y", "5Y", "MAX"];
+  const RANGES = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "5Y", "MAX"];
 
   // Unique lot purchase dates for markers
   const lotMarkers = useMemo(() => {
@@ -821,44 +821,50 @@ export default function Dashboard({ user, onLogout, showToast }) {
     reader.readAsDataURL(file);
   };
 
-  const handleSaveProfile = async () => {
+  const handleSaveProfile = () => {
     try {
-      localStorage.setItem(`profile_nickname_${user.username}`, newNickname.trim());
-      setNickname(newNickname.trim());
+      const trimmedNickname = newNickname.trim();
+      localStorage.setItem(`profile_nickname_${user.username}`, trimmedNickname);
+      setNickname(trimmedNickname);
       localStorage.setItem(`profile_pic_${user.username}`, profilePic);
-
-      if (oldPassword || newPassword) {
-        if (!oldPassword || !newPassword) {
-          showToast("กรุณากรอกรหัสผ่านเดิมและรหัสผ่านใหม่ให้ครบถ้วน", "error");
-          return;
-        }
-        if (newPassword.length < 6) {
-          showToast("รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร", "error");
-          return;
-        }
-
-        const res = await fetch("/api/auth/change-password", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            username: user.username,
-            oldPassword,
-            newPassword
-          })
-        });
-
-        const data = await res.json();
-        if (!res.ok) {
-          showToast(data.error || "เปลี่ยนรหัสผ่านไม่สำเร็จ", "error");
-          return;
-        }
-        showToast("เปลี่ยนรหัสผ่านและข้อมูลโปรไฟล์สำเร็จ!", "success");
-      } else {
-        showToast("บันทึกข้อมูลโปรไฟล์สำเร็จ!", "success");
-      }
+      showToast("บันทึกข้อมูลโปรไฟล์สำเร็จ!", "success");
       setProfileModalOpen(false);
     } catch (err) {
-      showToast("เกิดข้อผิดพลาด: " + err.message, "error");
+      showToast("เกิดข้อผิดพลาดในการบันทึกโปรไฟล์", "error");
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!oldPassword || !newPassword) {
+      showToast("กรุณากรอกรหัสผ่านเดิมและรหัสผ่านใหม่ให้ครบถ้วน", "error");
+      return;
+    }
+    if (newPassword.length < 6) {
+      showToast("รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร", "error");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: user.username,
+          oldPassword,
+          newPassword
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || "เปลี่ยนรหัสผ่านไม่สำเร็จ", "error");
+        return;
+      }
+      showToast("เปลี่ยนรหัสผ่านสำเร็จแล้ว!", "success");
+      setOldPassword("");
+      setNewPassword("");
+    } catch (err) {
+      showToast("เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน", "error");
     }
   };
 
@@ -1858,106 +1864,143 @@ export default function Dashboard({ user, onLogout, showToast }) {
               </button>
             </div>
 
-            <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              {/* Avatar Upload */}
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
-                <div style={{ position: "relative" }}>
-                  <img
-                    src={profilePic || "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='90' height='90' viewBox='0 0 80 80'><rect width='80' height='80' fill='%23F1F5F9'/><text x='50%' y='55%' font-family='sans-serif' font-size='32' text-anchor='middle' fill='%2394A3B8'>👤</text></svg>"}
-                    alt="profile avatar"
-                    style={{
-                      width: 90,
-                      height: 90,
-                      borderRadius: "50%",
-                      objectFit: "cover",
-                      border: "3px solid var(--primary)",
-                      boxShadow: "var(--shadow-md)"
-                    }}
-                  />
-                  <label
-                    style={{
-                      position: "absolute",
-                      bottom: 0,
-                      right: 0,
-                      background: "var(--primary)",
-                      color: "white",
-                      width: 28,
-                      height: 28,
-                      borderRadius: "50%",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      cursor: "pointer",
-                      boxShadow: "var(--shadow-md)",
-                      border: "2px solid white"
-                    }}
-                    title="เปลี่ยนรูปโปรไฟล์"
-                  >
-                    <Plus size={16} />
-                    <input
-                      type="file"
-                      accept="image/*"
-                      style={{ display: "none" }}
-                      onChange={handleAvatarUpload}
+            <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {/* SECTION 1: PROFILE INFO */}
+              <div style={{
+                background: "#FFFFFF",
+                border: "1px solid var(--border)",
+                borderRadius: "16px",
+                padding: "16px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 16
+              }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)", borderBottom: "1.5px solid var(--primary-light)", paddingBottom: 6, display: "block" }}>
+                  📝 ข้อมูลส่วนตัว
+                </span>
+                
+                {/* Avatar Upload */}
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+                  <div style={{ position: "relative" }}>
+                    <img
+                      src={profilePic || "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='90' height='90' viewBox='0 0 80 80'><rect width='80' height='80' fill='%23F1F5F9'/><text x='50%' y='55%' font-family='sans-serif' font-size='32' text-anchor='middle' fill='%2394A3B8'>👤</text></svg>"}
+                      alt="profile avatar"
+                      style={{
+                        width: 90,
+                        height: 90,
+                        borderRadius: "50%",
+                        objectFit: "cover",
+                        border: "3px solid var(--primary)",
+                        boxShadow: "var(--shadow-md)"
+                      }}
                     />
-                  </label>
+                    <label
+                      style={{
+                        position: "absolute",
+                        bottom: 0,
+                        right: 0,
+                        background: "var(--primary)",
+                        color: "white",
+                        width: 28,
+                        height: 28,
+                        borderRadius: "50%",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "pointer",
+                        boxShadow: "var(--shadow-md)",
+                        border: "2px solid white"
+                      }}
+                      title="เปลี่ยนรูปโปรไฟล์"
+                    >
+                      <Plus size={16} />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: "none" }}
+                        onChange={handleAvatarUpload}
+                      />
+                    </label>
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-muted)", textAlign: "center" }}>รองรับไฟล์รูปภาพ JPG, PNG, WebP (ไม่เกิน 2MB)</span>
                 </div>
-                <span style={{ fontSize: 12, fontWeight: 500, color: "var(--text-muted)", marginTop: 2 }}>รองรับไฟล์รูปภาพ JPG, PNG, WebP (ไม่เกิน 2MB)</span>
+
+                {/* Nickname Input */}
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">ชื่อเล่น / ชื่อเรียก</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="กรอกชื่อเล่นเพื่อแสดงแทนชื่อผู้ใช้"
+                    value={newNickname}
+                    onChange={(e) => setNewNickname(e.target.value)}
+                  />
+                </div>
+
+                <button
+                  className="btn btn-primary ripple-btn"
+                  onClick={handleSaveProfile}
+                  style={{ height: 44, fontSize: 13 }}
+                >
+                  บันทึกข้อมูลส่วนตัว
+                </button>
               </div>
 
-              {/* Nickname Input */}
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">ชื่อเล่น / ชื่อเรียก</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="กรอกชื่อเล่นเพื่อแสดงแทนชื่อผู้ใช้"
-                  value={newNickname}
-                  onChange={(e) => setNewNickname(e.target.value)}
-                />
-              </div>
+              {/* SECTION 2: CHANGE PASSWORD */}
+              <div style={{
+                background: "#FFFFFF",
+                border: "1px solid var(--border)",
+                borderRadius: "16px",
+                padding: "16px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 16
+              }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)", borderBottom: "1.5px solid var(--loss-light)", paddingBottom: 6, display: "block" }}>
+                  🔑 เปลี่ยนรหัสผ่านใหม่
+                </span>
 
-              <div style={{ margin: "4px 0", height: 1, background: "var(--border)" }} />
-              
-              <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: "var(--text-main)", display: "flex", alignItems: "center", gap: 6 }}>🔒 เปลี่ยนรหัสผ่าน</h4>
+                {/* Password Inputs */}
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">รหัสผ่านเดิม</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    placeholder="กรอกรหัสผ่านปัจจุบัน"
+                    value={oldPassword}
+                    onChange={(e) => setOldPassword(e.target.value)}
+                  />
+                </div>
 
-              {/* Password Inputs */}
-              <div className="form-group" style={{ marginBottom: 12 }}>
-                <label className="form-label">รหัสผ่านเดิม</label>
-                <input
-                  type="password"
-                  className="form-input"
-                  placeholder="กรอกรหัสผ่านปัจจุบัน"
-                  value={oldPassword}
-                  onChange={(e) => setOldPassword(e.target.value)}
-                />
-              </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">รหัสผ่านใหม่</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    placeholder="ตั้งรหัสผ่านใหม่"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                  />
+                </div>
 
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">รหัสผ่านใหม่</label>
-                <input
-                  type="password"
-                  className="form-input"
-                  placeholder="ตั้งรหัสผ่านใหม่"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                />
+                <button
+                  className="btn ripple-btn"
+                  onClick={handleChangePassword}
+                  style={{ height: 44, fontSize: 13, background: "var(--loss)", color: "white", boxShadow: "0 4px 12px var(--loss-glow)" }}
+                >
+                  ยืนยันเปลี่ยนรหัสผ่าน
+                </button>
               </div>
             </div>
 
-            {/* Save profile details */}
-            <div className="modal-footer">
+            {/* Close modal */}
+            <div className="modal-footer" style={{ padding: "8px 24px 16px" }}>
               <button
                 className="btn btn-secondary ripple-btn"
                 onClick={() => setProfileModalOpen(false)}
+                style={{ height: 44, fontSize: 13 }}
               >
-                ยกเลิก
-              </button>
-              <button
-                className="btn btn-primary ripple-btn"
-                onClick={handleSaveProfile}
-              >
-                บันทึกข้อมูล
+                ปิดหน้าต่าง
               </button>
             </div>
           </div>

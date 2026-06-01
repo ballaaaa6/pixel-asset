@@ -502,7 +502,7 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate }) {
 /* ══════════════════════════════════════════════════════
    ASSET DETAIL PANEL
 ══════════════════════════════════════════════════════ */
-const TF_OPTIONS = ["1D", "5D", "1W", "1M", "3M", "6M", "YTD", "1Y", "5Y"];
+const TF_OPTIONS = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "5Y"];
 
 export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }) {
   const [tf, setTf]         = useState("1M");
