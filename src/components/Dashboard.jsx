@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   Plus, RefreshCw, LogOut, TrendingUp, TrendingDown,
-  Trash2, Download, Upload, PieChart, Star, BarChart2, Pencil
+  Trash2, Download, Upload, PieChart, Star, BarChart2, Pencil, X
 } from "lucide-react";
 import AssetModal from "./AssetModal";
 import AssetDetailPanel from "./AssetDetailPanel";
@@ -791,6 +791,77 @@ export default function Dashboard({ user, onLogout, showToast }) {
     setIsEditingName(false);
   };
 
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [profilePic, setProfilePic]             = useState(() => localStorage.getItem(`profile_pic_${user.username}`) || "");
+  const [nickname, setNickname]                 = useState(() => localStorage.getItem(`profile_nickname_${user.username}`) || "");
+
+  const [newNickname, setNewNickname]           = useState("");
+  const [oldPassword, setOldPassword]           = useState("");
+  const [newPassword, setNewPassword]           = useState("");
+
+  useEffect(() => {
+    if (profileModalOpen) {
+      setNewNickname(nickname);
+      setOldPassword("");
+      setNewPassword("");
+    }
+  }, [profileModalOpen, nickname]);
+
+  const handleAvatarUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      showToast("ขนาดไฟล์ต้องไม่เกิน 2MB", "error");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setProfilePic(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveProfile = async () => {
+    try {
+      localStorage.setItem(`profile_nickname_${user.username}`, newNickname.trim());
+      setNickname(newNickname.trim());
+      localStorage.setItem(`profile_pic_${user.username}`, profilePic);
+
+      if (oldPassword || newPassword) {
+        if (!oldPassword || !newPassword) {
+          showToast("กรุณากรอกรหัสผ่านเดิมและรหัสผ่านใหม่ให้ครบถ้วน", "error");
+          return;
+        }
+        if (newPassword.length < 6) {
+          showToast("รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร", "error");
+          return;
+        }
+
+        const res = await fetch("/api/auth/change-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: user.username,
+            oldPassword,
+            newPassword
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          showToast(data.error || "เปลี่ยนรหัสผ่านไม่สำเร็จ", "error");
+          return;
+        }
+        showToast("เปลี่ยนรหัสผ่านและข้อมูลโปรไฟล์สำเร็จ!", "success");
+      } else {
+        showToast("บันทึกข้อมูลโปรไฟล์สำเร็จ!", "success");
+      }
+      setProfileModalOpen(false);
+    } catch (err) {
+      showToast("เกิดข้อผิดพลาด: " + err.message, "error");
+    }
+  };
+
   const prevPricesRef = useRef({});
   const assetsRef = useRef([]);
   assetsRef.current = assets;
@@ -1311,9 +1382,41 @@ export default function Dashboard({ user, onLogout, showToast }) {
             <div className="exchange-badge">
               💱 1 USD = <strong>{exchangeRate.toFixed(2)}</strong> THB
             </div>
-            <span className="user-name" style={{ display: window.innerWidth < 480 ? "none" : undefined }}>
-              👤 {user?.username}
-            </span>
+            <div
+              className="user-profile-btn"
+              onClick={() => setProfileModalOpen(true)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                cursor: "pointer",
+                padding: "4px 10px",
+                borderRadius: 10,
+                background: "var(--primary-light)",
+                transition: "var(--transition)",
+                userSelect: "none"
+              }}
+              title="โปรไฟล์ของฉัน"
+            >
+              {profilePic ? (
+                <img
+                  src={profilePic}
+                  alt="avatar"
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: "50%",
+                    objectFit: "cover",
+                    border: "1.5px solid var(--primary)"
+                  }}
+                />
+              ) : (
+                <span style={{ fontSize: 13 }}>👤</span>
+              )}
+              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--primary)" }}>
+                {nickname || user?.username}
+              </span>
+            </div>
             <button className="btn-logout ripple-btn" onClick={onLogout}>ออกจากระบบ</button>
           </div>
         </div>
@@ -1742,6 +1845,129 @@ export default function Dashboard({ user, onLogout, showToast }) {
           exchangeRate={exchangeRate}
           onClose={() => setSelectedAsset(null)}
         />
+      )}
+
+      {/* ── PROFILE MODAL ── */}
+      {profileModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: 400 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>👤 โปรไฟล์ของฉัน</h3>
+              <button
+                onClick={() => setProfileModalOpen(false)}
+                style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer", padding: 4 }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {/* Avatar Upload */}
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                <div style={{ position: "relative" }}>
+                  <img
+                    src={profilePic || "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'><rect width='80' height='80' fill='%23F1F5F9'/><text x='50%' y='55%' font-family='sans-serif' font-size='32' text-anchor='middle' fill='%2394A3B8'>👤</text></svg>"}
+                    alt="profile avatar"
+                    style={{
+                      width: 80,
+                      height: 80,
+                      borderRadius: "50%",
+                      objectFit: "cover",
+                      border: "2px solid var(--primary)"
+                    }}
+                  />
+                  <label
+                    style={{
+                      position: "absolute",
+                      bottom: 0,
+                      right: 0,
+                      background: "var(--primary)",
+                      color: "white",
+                      width: 24,
+                      height: 24,
+                      borderRadius: "50%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                      boxShadow: "var(--shadow-sm)"
+                    }}
+                    title="เปลี่ยนรูปโปรไฟล์"
+                  >
+                    <Plus size={14} />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      style={{ display: "none" }}
+                      onChange={handleAvatarUpload}
+                    />
+                  </label>
+                </div>
+                <span style={{ fontSize: 11, color: "var(--text-faint)" }}>รองรับไฟล์รูปภาพ JPG, PNG, WebP</span>
+              </div>
+
+              {/* Nickname Input */}
+              <div className="form-group">
+                <label className="form-label">ชื่อเล่น / ชื่อเรียก</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="กรอกชื่อเล่นเพื่อแสดงแทนชื่อผู้ใช้"
+                  value={newNickname}
+                  onChange={(e) => setNewNickname(e.target.value)}
+                  style={{ height: 44, fontSize: 14 }}
+                />
+              </div>
+
+              <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "8px 0" }} />
+              
+              <h4 style={{ margin: "0 0 8px 0", fontSize: 14, fontWeight: 800 }}>🔒 เปลี่ยนรหัสผ่าน</h4>
+
+              {/* Password Inputs */}
+              <div className="form-group">
+                <label className="form-label">รหัสผ่านเดิม</label>
+                <input
+                  type="password"
+                  className="form-input"
+                  placeholder="กรอกรหัสผ่านปัจจุบัน"
+                  value={oldPassword}
+                  onChange={(e) => setOldPassword(e.target.value)}
+                  style={{ height: 44, fontSize: 14 }}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">รหัสผ่านใหม่</label>
+                <input
+                  type="password"
+                  className="form-input"
+                  placeholder="ตั้งรหัสผ่านใหม่"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  style={{ height: 44, fontSize: 14 }}
+                />
+              </div>
+
+              {/* Save profile details */}
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <button
+                  className="btn btn-secondary ripple-btn"
+                  style={{ height: 44, fontSize: 14, flex: 1 }}
+                  onClick={() => setProfileModalOpen(false)}
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  className="btn ripple-btn"
+                  style={{ height: 44, fontSize: 14, flex: 1, background: "var(--primary)" }}
+                  onClick={handleSaveProfile}
+                >
+                  บันทึกข้อมูล
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

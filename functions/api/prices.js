@@ -106,7 +106,7 @@ export async function onRequestGet(context) {
 
       const priceFetches = symbolsList.map(async (symbol) => {
         try {
-          const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
+          const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=5m&range=1d&includePrePost=true`;
           const resp = await fetch(chartUrl, { headers: YF_HEADERS });
           if (!resp.ok) return null;
 
@@ -120,6 +120,51 @@ export async function onRequestGet(context) {
           const change = price - prevClose;
           const changePercent = prevClose > 0 ? (change / prevClose) * 100 : 0;
 
+          // Determine current market state from trading periods
+          let marketState = "REGULAR";
+          const now = Math.floor(Date.now() / 1000);
+          const ctp = meta.currentTradingPeriod;
+          if (ctp) {
+            const pre = ctp.pre;
+            const reg = ctp.regular;
+            const post = ctp.post;
+            
+            if (pre && now >= pre.start && now < pre.end) {
+              marketState = "PRE";
+            } else if (reg && now >= reg.start && now < reg.end) {
+              marketState = "REGULAR";
+            } else if (post && now >= post.start && now < post.end) {
+              marketState = "POST";
+            } else {
+              marketState = "CLOSED";
+            }
+          }
+
+          // Extract last close from the 5m chart
+          const timestamps = result.timestamp || [];
+          const rawCloses = result.indicators?.quote?.[0]?.close || [];
+          const paired = timestamps.map((ts, i) => ({
+            ts,
+            close: rawCloses[i]
+          })).filter(p => p.close != null && p.close > 0);
+
+          const lastPoint = paired[paired.length - 1];
+          const lastPrice = lastPoint ? lastPoint.close : price;
+
+          let prePrice = null;
+          let postPrice = null;
+
+          if (marketState === "PRE") {
+            prePrice = lastPrice;
+          } else if (marketState === "POST") {
+            postPrice = lastPrice;
+          } else if (marketState === "CLOSED") {
+            // Keep showing after-hours price if the last point lies in the post-market window
+            if (ctp && ctp.post && lastPoint && lastPoint.ts >= ctp.post.start && lastPoint.ts <= ctp.post.end) {
+              postPrice = lastPrice;
+            }
+          }
+
           return {
             symbol,
             price,
@@ -127,14 +172,14 @@ export async function onRequestGet(context) {
             changePercent,
             previousClose: prevClose,
             currency: meta.currency || "USD",
-            marketState: meta.marketState || "REGULAR",
-            prePrice: meta.preMarketPrice || null,
-            preChangePercent: meta.preMarketPrice && prevClose
-              ? ((meta.preMarketPrice - prevClose) / prevClose) * 100
+            marketState,
+            prePrice,
+            preChangePercent: prePrice && prevClose
+              ? ((prePrice - prevClose) / prevClose) * 100
               : null,
-            postPrice: meta.postMarketPrice || null,
-            postChangePercent: meta.postMarketPrice && price
-              ? ((meta.postMarketPrice - price) / price) * 100
+            postPrice,
+            postChangePercent: postPrice && price
+              ? ((postPrice - price) / price) * 100
               : null
           };
         } catch {
