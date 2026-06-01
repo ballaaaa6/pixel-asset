@@ -1673,7 +1673,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                                   <div className="skeleton skeleton-text" style={{ width: 70, height: 16, marginLeft: "auto" }} />
                                 ) : (
                                   <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10 }}>
-                                    <SparklineChart closes={sp} />
+                                    <SparklineChart closes={(asset.symbol === "THB" || asset.symbol === "USD") ? [1.0, 1.0, 1.0] : sparklines[asset.symbol]?.closes} />
                                     <div>
                                       <div className={`num-tick`} style={{ fontWeight: 700, fontSize: 14 }}>
                                         {fmt.usd(asset.priceUSD)}
@@ -1754,7 +1754,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                     {sortedAssets.map((asset, idx) => {
                       const pData = prices[asset.symbol];
                       const flash = priceFlash[asset.symbol];
-                      const sp    = sparklines[asset.symbol]?.closes;
+                      const sp    = (asset.symbol === "THB" || asset.symbol === "USD") ? [1.0, 1.0, 1.0] : sparklines[asset.symbol]?.closes;
                       const isBest = bestAsset?.symbol === asset.symbol;
 
                       return (
@@ -1798,9 +1798,9 @@ export default function Dashboard({ user, onLogout, showToast }) {
                           </div>
 
                           {/* Sparkline full row */}
-                          {((asset.symbol === "THB" || asset.symbol === "USD") ? [1.0, 1.0, 1.0] : sparklines[asset.symbol]?.closes) && (
+                          {sp && (
                             <div className="mobile-sparkline">
-                              <SparklineChart closes={(asset.symbol === "THB" || asset.symbol === "USD") ? [1.0, 1.0, 1.0] : sparklines[asset.symbol]?.closes} />
+                              <SparklineChart closes={sp} />
                               <span style={{ fontSize: 11, marginLeft: 8, color: sp[sp.length-1] >= sp[0] ? "var(--gain)" : "var(--loss)", fontWeight: 700 }}>
                                 {sp.length > 1 ? fmt.pct(((sp[sp.length-1] - sp[0]) / sp[0]) * 100) : ""} (7 วัน)
                               </span>
