@@ -261,16 +261,25 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
   const transactionsByIdx = useMemo(() => {
     if (!assets || !history || history.length < 2) return {};
     const map = {};
+    const startStr = history[0].date.split("T")[0];
+    const endStr = history[history.length - 1].date.split("T")[0];
+
     assets.forEach(asset => {
       (asset.lots || []).forEach(lot => {
+        if (!lot || !lot.date) return;
+        const lotDateStr = lot.date;
+        
+        // Strict boundary check: transaction must be within history bounds
+        if (lotDateStr < startStr || lotDateStr > endStr) return;
+
         // Find closest date in history
         let bestIdx = -1, bestDiff = Infinity;
         
         // Exact string match on date first
-        bestIdx = history.findIndex(h => h.date.split("T")[0] === lot.date);
+        bestIdx = history.findIndex(h => h.date.split("T")[0] === lotDateStr);
         
         if (bestIdx === -1) {
-          const targetTime = new Date(lot.date + "T00:00:00.000Z").getTime();
+          const targetTime = new Date(lotDateStr + "T00:00:00.000Z").getTime();
           history.forEach((h, i) => {
             const hTime = new Date(h.date).getTime();
             const diff = Math.abs(hTime - targetTime);
@@ -2096,7 +2105,57 @@ export default function Dashboard({ user, onLogout, showToast }) {
         }
         return a.symbol;
       }).filter(Boolean))];
-      const res = await fetch(`/api/prices?sparkline=${encodeURIComponent(syms.join(","))}&tf=${range}`);
+
+      // Calculate optimal timeframe range based on earliest purchase date
+      let earliestDate = null;
+      const hasNonCash = portfolioAssets.some(a => a.type !== "fiat" && a.category !== "fiat");
+      portfolioAssets.forEach(asset => {
+        const isCash = asset.type === "fiat" || asset.category === "fiat";
+        if (hasNonCash && isCash) return;
+        const assetLots = asset.lots && asset.lots.length > 0 ? asset.lots : [];
+        assetLots.forEach(lot => {
+          if (lot && lot.date && lot.date !== "1970-01-01") {
+            if (!earliestDate || lot.date < earliestDate) {
+              earliestDate = lot.date;
+            }
+          }
+        });
+      });
+
+      let optimalRange = range;
+      if (earliestDate) {
+        const earliestTime = new Date(earliestDate + "T00:00:00.000Z").getTime();
+        const ageInDays = (Date.now() - earliestTime) / 86400000;
+
+        const rangeDurationDays = {
+          "1D": 1,
+          "1W": 7,
+          "1M": 30,
+          "3M": 90,
+          "6M": 180,
+          "YTD": 365,
+          "1Y": 365,
+          "5Y": 1825,
+          "MAX": Infinity
+        };
+
+        const rangesOrder = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "5Y", "MAX"];
+        let matchedRange = "1D";
+        for (const r of rangesOrder) {
+          matchedRange = r;
+          if (rangeDurationDays[r] >= ageInDays) {
+            break;
+          }
+        }
+
+        const requestedIdx = rangesOrder.indexOf(range);
+        const matchedIdx = rangesOrder.indexOf(matchedRange);
+        if (matchedIdx < requestedIdx) {
+          optimalRange = matchedRange;
+        }
+      }
+
+      const res = await fetch(`/api/prices?sparkline=${encodeURIComponent(syms.join(","))}&tf=${optimalRange}`);
       if (res.ok) {
         const data = await res.json();
         setSparklines(data);
@@ -2115,13 +2174,26 @@ export default function Dashboard({ user, onLogout, showToast }) {
       return;
     }
 
+    // Check if dates are intraday (consecutive points are less than 18 hours apart)
+    let isShortTF = false;
+    Object.keys(sparklines).forEach(sym => {
+      const symData = sparklines[sym];
+      if (symData && symData.dates && symData.dates.length > 1) {
+        const d1 = new Date(symData.dates[0]).getTime();
+        const d2 = new Date(symData.dates[1]).getTime();
+        if (d1 && d2 && Math.abs(d2 - d1) < 18 * 3600000) {
+          isShortTF = true;
+        }
+      }
+    });
+
     // Parse and sort price points for each symbol to allow robust closest-date lookups
     const symbolPriceHistories = {};
     Object.keys(sparklines).forEach(sym => {
       const symData = sparklines[sym];
       if (symData && symData.dates && symData.dates.length > 0) {
         const points = symData.dates.map((d, idx) => ({
-          dateStr: d, // Keep full ISO string for time-based matching
+          dateStr: isShortTF ? d : d.split("T")[0],
           price: symData.closes[idx]
         })).filter(p => p.price != null && p.price > 0);
         // Sort by dateStr ascending
@@ -2174,7 +2246,13 @@ export default function Dashboard({ user, onLogout, showToast }) {
       const symData = sparklines[sym];
       if (symData && symData.dates) {
         symData.dates.forEach(d => {
-          if (d) allDatesSet.add(d);
+          if (d) {
+            if (isShortTF) {
+              allDatesSet.add(d); // Keep full ISO string for intraday
+            } else {
+              allDatesSet.add(d.split("T")[0]); // Keep only date part YYYY-MM-DD for daily/weekly
+            }
+          }
         });
       }
     });
@@ -2185,8 +2263,11 @@ export default function Dashboard({ user, onLogout, showToast }) {
     }
 
     // Add current live time to the timeline so the graph ends exactly at the current live valuation
-    const nowISO = new Date().toISOString();
-    allDatesSet.add(nowISO);
+    if (isShortTF) {
+      allDatesSet.add(new Date().toISOString());
+    } else {
+      allDatesSet.add(new Date().toISOString().split("T")[0]);
+    }
 
     // Sort timeline ascending
     let timeline = Array.from(allDatesSet).sort((a, b) => a.localeCompare(b));
@@ -2210,13 +2291,17 @@ export default function Dashboard({ user, onLogout, showToast }) {
     if (earliestDate) {
       const earliestStr = earliestDate.split("T")[0];
       // Filter out timeline dates that are strictly before earliestStr date
-      timeline = timeline.filter(d => d.split("T")[0] >= earliestStr);
+      timeline = timeline.filter(d => {
+        const dStr = isShortTF ? d.split("T")[0] : d;
+        return dStr >= earliestStr;
+      });
 
       // Prepend exact first purchase date if the timeline starts after it
-      if (timeline.length > 0 && timeline[0].split("T")[0] > earliestStr) {
-        timeline.unshift(earliestStr + "T00:00:00.000Z");
+      const firstTimelineDate = timeline[0] ? (isShortTF ? timeline[0].split("T")[0] : timeline[0]) : "";
+      if (timeline.length > 0 && firstTimelineDate > earliestStr) {
+        timeline.unshift(isShortTF ? earliestStr + "T00:00:00.000Z" : earliestStr);
       } else if (timeline.length === 0) {
-        timeline.push(earliestStr + "T00:00:00.000Z");
+        timeline.push(isShortTF ? earliestStr + "T00:00:00.000Z" : earliestStr);
       }
     }
 
@@ -2296,7 +2381,8 @@ export default function Dashboard({ user, onLogout, showToast }) {
         totalCostUSD += costOnDateUSD;
       });
 
-      return { date, value: totalUSD, cost: totalCostUSD };
+      const dateIso = date.includes("T") ? date : date + "T00:00:00.000Z";
+      return { date: dateIso, value: totalUSD, cost: totalCostUSD };
     });
 
     // Clean history points

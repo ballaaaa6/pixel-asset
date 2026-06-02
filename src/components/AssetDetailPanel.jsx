@@ -375,8 +375,16 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
     const startIdx = zoomRange ? zoomRange.start : 0;
     const endIdx = zoomRange ? zoomRange.end : candles.length - 1;
     const markers = [];
+    const startStr = candles[0].date.split("T")[0];
+    const endStr = candles[candles.length - 1].date.split("T")[0];
+
     lots.forEach((lot, i) => {
+      if (!lot || !lot.date) return;
       const lotDateStr = lot.date;
+      
+      // Strict boundary check: transaction must be within history bounds
+      if (lotDateStr < startStr || lotDateStr > endStr) return;
+
       let bestIdx = -1, bestDiff = Infinity;
       
       // Try to find exact string match first in original candles

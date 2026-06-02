@@ -459,8 +459,14 @@ Respond with ONLY a valid JSON array matching this schema (no markdown wrapping,
               if (jsonMatch) {
                 const parsedArray = JSON.parse(jsonMatch[0]);
                 if (Array.isArray(parsedArray)) {
-                  parsedArray.forEach(parsedData => {
-                    const idx = parsedData.index;
+                  parsedArray.forEach((parsedData, arrayIdx) => {
+                    let idx = parsedData.index;
+                    if (idx != null && !failedIndices.includes(idx) && arrayIdx < chunk.length) {
+                      idx = chunk[arrayIdx].index;
+                    }
+                    if (idx == null && arrayIdx < chunk.length) {
+                      idx = chunk[arrayIdx].index;
+                    }
                     if (idx != null && failedIndices.includes(idx)) {
                       let sym = String(parsedData.symbol).toUpperCase().replace(/[^A-Z0-9.-]/g, "");
                       if (sym === "เบ" || sym === "เน" || sym === "เม" || sym === "เU") sym = "MU";
@@ -575,9 +581,13 @@ Format the response strictly as a JSON array matching this schema:
               if (jsonMatch) {
                 const parsedArray = JSON.parse(jsonMatch[0]);
                 if (Array.isArray(parsedArray)) {
-                  parsedArray.forEach(parsedData => {
-                    const idx = parsedData.index;
-                    const matchedImg = chunk.find(item => item.index === idx);
+                  parsedArray.forEach((parsedData, arrayIdx) => {
+                    let idx = parsedData.index;
+                    let matchedImg = chunk.find(item => item.index === idx);
+                    if (!matchedImg && arrayIdx < chunk.length) {
+                      matchedImg = chunk[arrayIdx];
+                      idx = matchedImg.index;
+                    }
                     if (idx != null && matchedImg) {
                       let sym = String(parsedData.symbol).toUpperCase().replace(/[^A-Z0-9.-]/g, "");
                       if (sym === "เบ" || sym === "เน" || sym === "เม" || sym === "เU") sym = "MU";
