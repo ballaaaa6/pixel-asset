@@ -1021,12 +1021,10 @@ export default function Dashboard({ user, onLogout, showToast }) {
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [profilePic, setProfilePic]             = useState(() => localStorage.getItem(`profile_pic_${user.username}`) || "");
   const [nickname, setNickname]                 = useState(() => localStorage.getItem(`profile_nickname_${user.username}`) || "");
-  const [geminiKey, setGeminiKey]               = useState(() => localStorage.getItem("gemini_api_key") || ["AQ.Ab8RN6KcMMJH", "hEn0Ji4PrzJe5k", "0KEqPFnLQa3843aUGjSPeniw"].join(""));
+  const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem("gemini_api_key") || "");
 
   useEffect(() => {
-    if (!localStorage.getItem("gemini_api_key")) {
-      localStorage.setItem("gemini_api_key", ["AQ.Ab8RN6KcMMJH", "hEn0Ji4PrzJe5k", "0KEqPFnLQa3843aUGjSPeniw"].join(""));
-    }
+    // No hardcoded key migration — key must be entered via Settings
   }, []);
 
   const [newNickname, setNewNickname]           = useState("");
@@ -2550,22 +2548,33 @@ export default function Dashboard({ user, onLogout, showToast }) {
                 </span>
                 
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Google Gemini API Key</label>
+                  <label className="form-label" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    Google Gemini API Key
+                    {geminiKey
+                      ? <span style={{ fontSize: 10, background: "#E3FAF2", color: "#00B98A", borderRadius: 6, padding: "2px 8px", fontWeight: 700 }}>✓ ตั้งค่าแล้ว</span>
+                      : <span style={{ fontSize: 10, background: "#FFEBEB", color: "#FF4B55", borderRadius: 6, padding: "2px 8px", fontWeight: 700 }}>⚠ ยังไม่ได้ตั้งค่า</span>
+                    }
+                  </label>
                   <input
                     type="password"
                     className="form-input"
-                    placeholder="กรอก Google Gemini API Key"
+                    placeholder="วาง API Key ที่นี่ (AQ.Ab8...)"
                     value={geminiKey}
                     onChange={(e) => {
                       setGeminiKey(e.target.value);
                       localStorage.setItem("gemini_api_key", e.target.value);
                     }}
                   />
-                  <span style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 6, display: "block", fontWeight: 500 }}>
-                    คีย์นี้ใช้ประมวลผลสแกนรูปภาพใบเสร็จ Dime! เพื่อกรอกข้อมูลอัตโนมัติ (เก็บในเครื่องส่วนตัวอย่างปลอดภัย)
-                  </span>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 8, lineHeight: 1.6, background: "#F8FAFC", borderRadius: 8, padding: "8px 10px" }}>
+                    <strong>วิธีรับ key ฟรี:</strong><br/>
+                    1. เปิด <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" style={{ color: "var(--primary)", fontWeight: 700 }}>aistudio.google.com/app/apikey</a><br/>
+                    2. กด <strong>"Create API key"</strong> → เลือก project<br/>
+                    3. Copy key แล้ววางในช่องด้านบน<br/>
+                    <span style={{ color: "var(--text-faint)", fontSize: 10 }}>🔒 Key เก็บในเครื่องคุณเท่านั้น ไม่ถูกส่งไปที่ server</span>
+                  </div>
                 </div>
               </div>
+
 
               {/* SECTION 5: USER ACCOUNT & LOGOUT */}
               <div style={{

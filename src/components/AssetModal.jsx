@@ -222,84 +222,115 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
     }
   };
 
+  /* ─── Image compressor: shrink to max 1024px & 75% JPEG ─── */
+  const compressImage = (file) => new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const MAX = 1024;
+      let { width, height } = img;
+      if (width > MAX || height > MAX) {
+        if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
+        else { width = Math.round(width * MAX / height); height = MAX; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width; canvas.height = height;
+      canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+      canvas.toBlob((blob) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve({ base64: reader.result.split(",")[1], mime: "image/jpeg" });
+        reader.readAsDataURL(blob);
+      }, "image/jpeg", 0.75);
+    };
+    img.onerror = () => {
+      // Fallback: use original file uncompressed
+      const reader = new FileReader();
+      reader.onload = () => resolve({ base64: reader.result.split(",")[1], mime: file.type || "image/jpeg" });
+      reader.readAsDataURL(file);
+    };
+    img.src = url;
+  });
+
+  // Keys are stored only in localStorage (entered via Settings)
+  const NEW_KEY = ""; // no hardcoded key — user must enter via Settings
+  const OLD_KEY = ""; // no old key to migrate
+
+  /* ─── Gemini fetch with 1 retry on 429 ─── */
+  const callGemini = async (key, bodyObj, attempt = 0) => {
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": key   // header auth — matches Google AI Studio curl format
+      },
+      body: JSON.stringify(bodyObj)
+    });
+    if (res.status === 429 && attempt === 0) {
+      await new Promise(r => setTimeout(r, 8000));
+      return callGemini(key, bodyObj, 1);
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new Error(errBody?.error?.message || `HTTP ${res.status}`);
+    }
+    return res.json();
+  };
+
   const processReceiptImages = async (files) => {
     if (!files || files.length === 0) return;
     const fileList = Array.from(files);
     setScanning(true);
     setScanningStatus({ active: true, total: fileList.length, completed: 0 });
 
-    const key = localStorage.getItem("gemini_api_key") || ["AQ.Ab8RN6KcMMJH", "hEn0Ji4PrzJe5k", "0KEqPFnLQa3843aUGjSPeniw"].join("");
+    // Use key from localStorage (entered via Settings ⚙️)
+    const stored = localStorage.getItem("gemini_api_key") || "";
+    const key = stored;
+    if (!key) {
+      triggerToast("❌ กรุณาตั้งค่า Gemini API Key ก่อน\nไปที่ ⚙️ Settings → Google Gemini API Key", "error");
+      setScanning(false);
+      setScanningStatus({ active: false, total: 0, completed: 0 });
+      return;
+    }
     const newScannedItems = [];
     const errors = [];
-
-    const getBase64 = (file) => new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result.split(",")[1]);
-      reader.onerror = (err) => reject(err);
-    });
-
-    const chunkArray = (array, size) => {
-      const chunked = [];
-      for (let i = 0; i < array.length; i += size) {
-        chunked.push(array.slice(i, i + size));
-      }
-      return chunked;
-    };
-
-    const fileChunks = chunkArray(fileList, 3);
     let completedCount = 0;
 
-    for (const chunk of fileChunks) {
-      await Promise.all(chunk.map(async (file) => {
-        try {
-          const base64Data = await getBase64(file);
-          
-          const prompt = `You are a receipt parser. Extract transaction details from this financial receipt or transaction slip.
-It could be from any broker (e.g., Dime!, Webull, InnovestX, Bitkub, Binance) or standard banking app.
-Analyze the image and extract:
-1. symbol: The stock ticker or asset symbol (e.g., AAPL, NVDA, BTC, THB, GC=F). Convert to uppercase.
-2. name: The company or asset name (e.g., Apple Inc, Spot Gold).
-3. category: Classify the asset type into one of these strings: "stock", "crypto", "gold", "fiat" (for cash).
-   - Use "crypto" for cryptocurrencies like BTC, ETH, SOL, etc.
-   - Use "gold" for gold assets like Spot Gold, GC=F, etc.
-   - Use "fiat" for cash deposits or withdrawals (THB, USD).
-   - Use "stock" for equities (US stocks, Thai stocks, ETFs like SPY, QQQ, etc.).
-4. transactionType: Either "BUY" (for buy/deposit/inflow) or "SELL" (for sell/withdraw/outflow).
-5. qty: The quantity of assets bought or sold (number). For cash, this is the deposit/withdrawal amount.
-6. price: The price per unit of the asset (number). For cash, this is 1.
-7. date: The transaction date in ISO format YYYY-MM-DD.
-   - For Thai year format (e.g. '69' corresponds to Buddhist Era 2569, which is Gregorian year 2026). If date is empty, use today's date.
+    const BATCH_SIZE = 5; // Send up to 5 images per API call
+    const chunks = [];
+    for (let i = 0; i < fileList.length; i += BATCH_SIZE) {
+      chunks.push(fileList.slice(i, i + BATCH_SIZE));
+    }
 
-Respond ONLY with a JSON object containing these keys. Do not include markdown formatting or backticks.`;
+    const basePromptField = `You are a financial receipt OCR parser. Each receipt may be from any broker or banking app (Dime!, Webull, InnovestX, Bitkub, Binance, etc.).
+For EACH image, extract:
+1. symbol: ticker/asset symbol (e.g. AAPL, BTC, THB). Uppercase.
+2. name: company or asset full name.
+3. category: one of "stock", "crypto", "gold", "fiat".
+   - crypto = BTC, ETH, SOL etc.  gold = Spot Gold, GC=F etc.  fiat = cash THB/USD.  stock = equities/ETFs.
+4. transactionType: "BUY" (buy/deposit/inflow) or "SELL" (sell/withdraw/outflow).
+5. qty: quantity bought/sold (number). For cash = deposit/withdrawal amount.
+6. price: price per unit in USD (number). For cash = 1.
+7. date: ISO format YYYY-MM-DD. Thai BE year: subtract 543 (e.g. "69" → 2026). If unclear use today.`;
 
-          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [
-                {
-                  parts: [
-                    { text: prompt },
-                    { inlineData: { mimeType: file.type || "image/jpeg", data: base64Data } }
-                  ]
-                }
-              ]
-            })
+    for (const chunk of chunks) {
+      try {
+        // Compress all images in this chunk in parallel
+        const compressed = await Promise.all(chunk.map(f => compressImage(f)));
+
+        let resJson;
+        if (chunk.length === 1) {
+          // Single image → ask for a single JSON object (faster, more accurate)
+          const prompt = basePromptField + `\n\nRespond ONLY with a single JSON object (no markdown, no array).`;
+          resJson = await callGemini(key, {
+            contents: [{ parts: [
+              { text: prompt },
+              { inlineData: { mimeType: compressed[0].mime, data: compressed[0].base64 } }
+            ]}]
           });
-
-          if (!res.ok) {
-            const errBody = await res.json().catch(() => ({}));
-            throw new Error(errBody?.error?.message || `HTTP ${res.status}`);
-          }
-
-          const resJson = await res.json();
-          const rawText = resJson.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (!rawText) throw new Error("AI ไม่ส่งคืนข้อมูลกลับมา – ลองอัพโหลดรูปใหม่");
-
-          // Strip optional markdown code fences  ```json ... ``` 
-          const cleanText = rawText.trim().replace(/^```[\w]*\n?/, "").replace(/\n?```$/, "").trim();
-          const data = JSON.parse(cleanText);
+          const rawText = resJson.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          const clean = rawText.trim().replace(/^```[\w]*\n?/, "").replace(/\n?```$/, "").trim();
+          const data = JSON.parse(clean);
           if (data.symbol) {
             newScannedItems.push({
               id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -314,14 +345,51 @@ Respond ONLY with a JSON object containing these keys. Do not include markdown f
           } else {
             throw new Error("ไม่พบสัญลักษณ์หุ้นหรือสินทรัพย์");
           }
-        } catch (err) {
-          console.error("OCR Error for file " + file.name, err);
-          errors.push(`${file.name}: ${err.message}`);
-        } finally {
-          completedCount++;
-          setScanningStatus(prev => ({ ...prev, completed: completedCount }));
+          completedCount += 1;
+        } else {
+          // Multiple images → ask for a JSON array, one object per image
+          const prompt = basePromptField + `\n\nYou will receive ${chunk.length} images. Respond ONLY with a JSON array containing exactly ${chunk.length} objects in order (one per image). No markdown.`;
+          const parts = [{ text: prompt }];
+          compressed.forEach(c => parts.push({ inlineData: { mimeType: c.mime, data: c.base64 } }));
+
+          resJson = await callGemini(key, { contents: [{ parts }] });
+          const rawText = resJson.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          const clean = rawText.trim().replace(/^```[\w]*\n?/, "").replace(/\n?```$/, "").trim();
+          let dataArr = JSON.parse(clean);
+          if (!Array.isArray(dataArr)) dataArr = [dataArr];
+
+          dataArr.forEach((data, i) => {
+            if (data.symbol) {
+              newScannedItems.push({
+                id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}-${i}`,
+                symbol: data.symbol.toUpperCase(),
+                name: data.name || data.symbol.toUpperCase(),
+                type: data.category || "stock",
+                qty: data.qty ? parseFloat(data.qty) || "" : "",
+                avgPrice: data.price ? parseFloat(data.price) || "" : "",
+                date: data.date || new Date().toISOString().split("T")[0],
+                transactionType: data.transactionType || "BUY"
+              });
+            } else {
+              errors.push(`รูป ${completedCount + i + 1}: ไม่พบสัญลักษณ์หุ้นหรือสินทรัพย์`);
+            }
+          });
+          completedCount += chunk.length;
         }
-      }));
+      } catch (err) {
+        console.error("OCR batch error:", err);
+        chunk.forEach((file, i) => {
+          errors.push(`${file.name || `รูป ${completedCount + i + 1}`}: ${err.message}`);
+        });
+        completedCount += chunk.length;
+      }
+
+      setScanningStatus(prev => ({ ...prev, completed: completedCount }));
+
+      // Small pause between chunks to respect free-tier rate limits
+      if (chunks.indexOf(chunk) < chunks.length - 1) {
+        await new Promise(r => setTimeout(r, 2000));
+      }
     }
 
     if (newScannedItems.length > 0) {
@@ -339,16 +407,18 @@ Respond ONLY with a JSON object containing these keys. Do not include markdown f
         triggerToast(`🤖 สแกนใบเสร็จสำเร็จ!\nดึงข้อมูล: ${item.symbol} (${item.transactionType === "BUY" ? "ซื้อ/ฝาก" : "ขาย/ถอน"} · ${item.qty} หน่วย @ $${item.avgPrice})`, "success");
       } else {
         setScannedQueue(prev => [...prev, ...newScannedItems]);
+        triggerToast(`🤖 สแกนสำเร็จ ${newScannedItems.length} รายการ! ตรวจสอบและยืนยันด้านล่าง`, "success");
       }
     }
 
     if (errors.length > 0) {
-      triggerToast(`⚠️ การสแกนเสร็จสิ้นโดยมีข้อผิดพลาดบางรายการ:\n${errors.join("\n")}`, "warning");
+      triggerToast(`⚠️ สแกนเสร็จ (พบข้อผิดพลาด ${errors.length} รายการ):\n${errors.slice(0, 3).join("\n")}${errors.length > 3 ? `\n...และอีก ${errors.length - 3} รายการ` : ""}`, "warning");
     }
 
     setScanning(false);
     setScanningStatus({ active: false, total: 0, completed: 0 });
   };
+
 
   const handleDropReceipt = (e) => {
     e.preventDefault();
