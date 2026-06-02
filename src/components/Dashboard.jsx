@@ -190,8 +190,17 @@ const SparklineChart = React.memo(function SparklineChart({ closes }) {
 ═══════════════════════════════════════════════════════════════ */
 function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate }) {
   const svgRef = useRef(null);
-  const [hovered, setHovered] = useState(null); // { idx, x, y, value, date }
+  const [hovered, setHovered] = useState(null); // { idx, originalIdx, x, y, value, date }
   const [dims, setDims] = useState({ w: 800, h: 350 });
+  const [zoomRange, setZoomRange] = useState(null); // { start: number, end: number }
+  const [dragStart, setDragStart] = useState(null); // { x, type: "zoom" | "pan", startZoom }
+  const [dragEnd, setDragEnd] = useState(null); // { x }
+  const touchRef = useRef({ lastX: 0, startDist: 0, startZoom: null, isPinching: false, centerX: 0 });
+  const lastTouchTime = useRef(0);
+
+  useEffect(() => {
+    setZoomRange(null);
+  }, [history, range]);
 
   // Responsive resizing
   useEffect(() => {
@@ -224,6 +233,12 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
   const iH = H - PAD_T - PAD_B;
 
   const RANGES = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "5Y", "MAX"];
+
+  const displayedData = useMemo(() => {
+    if (!history) return [];
+    if (!zoomRange) return history;
+    return history.slice(zoomRange.start, zoomRange.end + 1);
+  }, [history, zoomRange]);
 
   // Group transaction lots by history index
   const transactionsByIdx = useMemo(() => {
@@ -265,21 +280,29 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
 
   // Unique lot purchase dates for markers
   const lotMarkers = useMemo(() => {
-    if (!history || history.length < 2) return [];
-    return Object.keys(transactionsByIdx).map(idxStr => {
-      const idx = parseInt(idxStr, 10);
-      const txs = transactionsByIdx[idx];
-      const primarySymbol = txs[0]?.symbol || "";
-      const x = PAD_L + (idx / (history.length - 1)) * iW;
-      return { idx, x, symbol: primarySymbol, txs };
-    });
-  }, [transactionsByIdx, history, iW, PAD_L]);
+    if (!displayedData || displayedData.length < 2) return [];
+    const startIdx = zoomRange ? zoomRange.start : 0;
+    const endIdx = zoomRange ? zoomRange.end : history.length - 1;
+    
+    return Object.keys(transactionsByIdx)
+      .map(idxStr => {
+        const idx = parseInt(idxStr, 10);
+        if (idx < startIdx || idx > endIdx) return null;
+        
+        const displayIdx = idx - startIdx;
+        const txs = transactionsByIdx[idx];
+        const primarySymbol = txs[0]?.symbol || "";
+        const x = PAD_L + (displayIdx / (displayedData.length - 1)) * iW;
+        return { idx, x, symbol: primarySymbol, txs };
+      })
+      .filter(Boolean);
+  }, [transactionsByIdx, history, displayedData, zoomRange, iW, PAD_L]);
 
   const { pts, costPts, yMin, yMax, isUp, color } = useMemo(() => {
-    if (!history || history.length < 2) return { pts: [], costPts: [], yMin: 0, yMax: 1, isUp: true, color: "var(--gain)" };
+    if (!displayedData || displayedData.length < 2) return { pts: [], costPts: [], yMin: 0, yMax: 1, isUp: true, color: "var(--gain)" };
     
-    const vals = history.map(h => h.value);
-    const costs = history.map(h => h.cost || 0);
+    const vals = displayedData.map(h => h.value);
+    const costs = displayedData.map(h => h.cost || 0);
 
     const isShortTF = range === "1D" || range === "5D" || range === "1W";
     const dataMin = isShortTF ? Math.min(...vals) : Math.min(...vals, ...costs.filter(c => c > 0));
@@ -293,16 +316,16 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
     const yRange = yMax - yMin;
 
     const toY = (v) => PAD_T + ((yMax - v) / yRange) * iH;
-    const toX = (i) => PAD_L + (i / (history.length - 1)) * iW;
+    const toX = (i) => PAD_L + (i / (displayedData.length - 1)) * iW;
 
-    const pts = history.map((h, i) => ({ x: toX(i), y: toY(h.value), value: h.value, date: h.date }));
-    const costPts = history.map((h, i) => ({ x: toX(i), y: toY(h.cost || 0), cost: h.cost || 0, date: h.date }));
+    const pts = displayedData.map((h, i) => ({ x: toX(i), y: toY(h.value), value: h.value, date: h.date }));
+    const costPts = displayedData.map((h, i) => ({ x: toX(i), y: toY(h.cost || 0), cost: h.cost || 0, date: h.date }));
 
     const isUp = vals[vals.length - 1] >= vals[0];
     const color = isUp ? "var(--gain)" : "var(--loss)";
 
     return { pts, costPts, yMin, yMax, isUp, color, toY };
-  }, [history, iH, iW, range]);
+  }, [displayedData, iH, iW, range]);
 
   const linePath = useMemo(() => smoothPath(pts), [pts]);
   const costLinePath = useMemo(() => stepPath(costPts), [costPts]);
@@ -313,14 +336,14 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
     const first = pts[0], last = pts[pts.length - 1];
     const bottomY = H - PAD_B;
     return linePath + ` L ${last.x},${bottomY} L ${first.x},${bottomY} Z`;
-  }, [linePath, pts, H]);
+  }, [linePath, pts, H, PAD_B]);
 
   const fillCostArea = useMemo(() => {
     if (!costLinePath || costPts.length < 2) return "";
     const first = costPts[0], last = costPts[costPts.length - 1];
     const bottomY = H - PAD_B;
     return costLinePath + ` L ${last.x},${bottomY} L ${first.x},${bottomY} Z`;
-  }, [costLinePath, costPts, H]);
+  }, [costLinePath, costPts, H, PAD_B]);
 
   // Clip path definitions using SVG path data
   const clipAboveCostPath = useMemo(() => {
@@ -334,7 +357,7 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
     const first = costPts[0], last = costPts[costPts.length - 1];
     const bottomY = H - PAD_B;
     return costLinePath + ` L ${last.x},${bottomY} L ${first.x},${bottomY} Z`;
-  }, [costLinePath, costPts, H]);
+  }, [costLinePath, costPts, H, PAD_B]);
 
   const clipAboveValuePath = useMemo(() => {
     if (!linePath || pts.length < 2) return "";
@@ -342,26 +365,283 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
     return linePath + ` L ${last.x},0 L ${first.x},0 Z`;
   }, [linePath, pts]);
 
+  const handleMouseDown = (e) => {
+    if (e.button !== 0) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const mouseX = ((e.clientX - rect.left) / rect.width) * W;
+    if (mouseX >= PAD_L && mouseX <= W - PAD_R) {
+      if (e.shiftKey && zoomRange) {
+        setDragStart({ x: mouseX, type: "pan", startZoom: { ...zoomRange } });
+      } else {
+        setDragStart({ x: mouseX, type: "zoom" });
+        setDragEnd({ x: mouseX });
+      }
+    }
+  };
+
   const handleMouseMove = useCallback((e) => {
     if (!svgRef.current || pts.length < 2) return;
     const rect = svgRef.current.getBoundingClientRect();
     const mouseXInSvg = ((e.clientX - rect.left) / rect.width) * W;
+
+    if (dragStart) {
+      if (dragStart.type === "zoom") {
+        const boundedX = Math.max(PAD_L, Math.min(W - PAD_R, mouseXInSvg));
+        setDragEnd({ x: boundedX });
+        setHovered(null);
+      } else if (dragStart.type === "pan") {
+        const deltaX = mouseXInSvg - dragStart.x;
+        const len = history.length;
+        const currentStart = dragStart.startZoom.start;
+        const currentEnd = dragStart.startZoom.end;
+        const rangeSize = currentEnd - currentStart;
+        const stepSize = iW / Math.max(1, rangeSize);
+        const indexShift = Math.round(-deltaX / stepSize);
+
+        if (indexShift !== 0) {
+          let newStart = currentStart + indexShift;
+          let newEnd = currentEnd + indexShift;
+          if (newStart < 0) {
+            newStart = 0;
+            newEnd = newStart + rangeSize;
+          }
+          if (newEnd >= len) {
+            newEnd = len - 1;
+            newStart = Math.max(0, newEnd - rangeSize);
+          }
+          setZoomRange({ start: newStart, end: newEnd });
+        }
+        setHovered(null);
+      }
+      return;
+    }
+
     const relX = (mouseXInSvg - PAD_L) / iW;
-    const idx = Math.max(0, Math.min(Math.round(relX * (pts.length - 1)), pts.length - 1));
-    if (history[idx]) {
+    const idx = Math.max(0, Math.min(Math.round(relX * (displayedData.length - 1)), displayedData.length - 1));
+    if (displayedData[idx]) {
       setHovered({
         idx,
+        originalIdx: (zoomRange ? zoomRange.start : 0) + idx,
         x: pts[idx].x,
         y: pts[idx].y,
         costY: costPts[idx]?.y,
-        value: history[idx].value,
-        cost: history[idx].cost || 0,
-        date: history[idx].date
+        value: displayedData[idx].value,
+        cost: displayedData[idx].cost || 0,
+        date: displayedData[idx].date
       });
     }
-  }, [pts, costPts, history, iW, W]);
+  }, [pts, costPts, displayedData, iW, W, dragStart, zoomRange, history]);
 
-  const handleMouseLeave = () => setHovered(null);
+  const handleMouseUp = () => {
+    if (dragStart && dragStart.type === "zoom" && dragEnd) {
+      const x1 = Math.min(dragStart.x, dragEnd.x);
+      const x2 = Math.max(dragStart.x, dragEnd.x);
+      if (x2 - x1 > 15) {
+        const currentStartIdx = zoomRange ? zoomRange.start : 0;
+        const numPoints = displayedData.length;
+        const subStart = Math.max(0, Math.min(Math.round(((x1 - PAD_L) / iW) * (numPoints - 1)), numPoints - 1));
+        const subEnd = Math.max(0, Math.min(Math.round(((x2 - PAD_L) / iW) * (numPoints - 1)), numPoints - 1));
+        if (subEnd - subStart >= 2) {
+          setZoomRange({ start: currentStartIdx + subStart, end: currentStartIdx + subEnd });
+        }
+      }
+    }
+    setDragStart(null);
+    setDragEnd(null);
+  };
+
+  const handleMouseLeave = () => {
+    setHovered(null);
+    setDragStart(null);
+    setDragEnd(null);
+  };
+
+  // Wheel zooming
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+
+    const handleWheel = (e) => {
+      if (!history || history.length < 2) return;
+      e.preventDefault();
+
+      const isZoomIn = e.deltaY < 0;
+      const len = history.length;
+      const currentStart = zoomRange ? zoomRange.start : 0;
+      const currentEnd = zoomRange ? zoomRange.end : len - 1;
+      const rangeSize = currentEnd - currentStart;
+
+      const rect = el.getBoundingClientRect();
+      const mouseXInSvg = ((e.clientX - rect.left) / rect.width) * W;
+      const relX = (mouseXInSvg - PAD_L) / iW;
+      const hoveredIdx = Math.max(0, Math.min(Math.round(relX * (displayedData.length - 1)), displayedData.length - 1));
+      const centerIdx = currentStart + hoveredIdx;
+
+      if (isZoomIn) {
+        if (rangeSize <= 2) return;
+        const cropSize = Math.max(1, Math.floor(rangeSize * 0.12));
+        const newRangeSize = Math.max(2, rangeSize - cropSize * 2);
+        
+        let newStart = Math.round(centerIdx - relX * newRangeSize);
+        let newEnd = newStart + newRangeSize;
+
+        if (newStart < 0) {
+          newStart = 0;
+          newEnd = newRangeSize;
+        }
+        if (newEnd >= len) {
+          newEnd = len - 1;
+          newStart = Math.max(0, newEnd - newRangeSize);
+        }
+
+        setZoomRange({ start: newStart, end: newEnd });
+      } else {
+        if (!zoomRange) return;
+        const expandSize = Math.max(1, Math.floor(rangeSize * 0.12));
+        const newRangeSize = Math.min(len - 1, rangeSize + expandSize * 2);
+
+        let newStart = Math.round(centerIdx - relX * newRangeSize);
+        let newEnd = newStart + newRangeSize;
+
+        if (newStart < 0) {
+          newStart = 0;
+          newEnd = newRangeSize;
+        }
+        if (newEnd >= len) {
+          newEnd = len - 1;
+          newStart = Math.max(0, newEnd - newRangeSize);
+        }
+
+        if (newStart === 0 && newEnd === len - 1) {
+          setZoomRange(null);
+        } else {
+          setZoomRange({ start: newStart, end: newEnd });
+        }
+      }
+    };
+
+    const handleDblClick = (e) => {
+      e.preventDefault();
+      setZoomRange(null);
+    };
+
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    el.addEventListener("dblclick", handleDblClick);
+
+    return () => {
+      el.removeEventListener("wheel", handleWheel);
+      el.removeEventListener("dblclick", handleDblClick);
+    };
+  }, [zoomRange, displayedData, history, W, iW, PAD_L]);
+
+  // Touch handlers
+  const handleTouchStart = (e) => {
+    if (!history || history.length < 2) return;
+    if (e.touches.length === 1) {
+      if (zoomRange) {
+        touchRef.current = {
+          lastX: e.touches[0].clientX,
+          startZoom: { ...zoomRange },
+          isPinching: false
+        };
+      }
+    } else if (e.touches.length === 2) {
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      const initialZoom = zoomRange || { start: 0, end: history.length - 1 };
+      touchRef.current = {
+        startDist: dist,
+        startZoom: { ...initialZoom },
+        isPinching: true,
+        centerX: (t1.clientX + t2.clientX) / 2
+      };
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    if (!history || history.length < 2) return;
+    const ref = touchRef.current;
+
+    if (e.touches.length === 1 && ref.startZoom && !ref.isPinching) {
+      const currentX = e.touches[0].clientX;
+      const deltaX = currentX - ref.lastX;
+      
+      const len = history.length;
+      const currentStart = ref.startZoom.start;
+      const currentEnd = ref.startZoom.end;
+      const rangeSize = currentEnd - currentStart;
+
+      const rect = svgRef.current.getBoundingClientRect();
+      const stepSize = rect.width / rangeSize;
+      const indexShift = Math.round(-deltaX / stepSize);
+
+      if (indexShift !== 0) {
+        let newStart = currentStart + indexShift;
+        let newEnd = currentEnd + indexShift;
+        if (newStart < 0) {
+          newStart = 0;
+          newEnd = newStart + rangeSize;
+        }
+        if (newEnd >= len) {
+          newEnd = len - 1;
+          newStart = Math.max(0, newEnd - rangeSize);
+        }
+        setZoomRange({ start: newStart, end: newEnd });
+      }
+      e.preventDefault();
+
+    } else if (e.touches.length === 2 && ref.isPinching) {
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      
+      const ratio = ref.startDist / dist;
+      const len = history.length;
+      const startZoom = ref.startZoom;
+      const initialRangeSize = startZoom.end - startZoom.start;
+      
+      let newRangeSize = Math.round(initialRangeSize * ratio);
+      newRangeSize = Math.max(2, Math.min(len - 1, newRangeSize));
+
+      const rect = svgRef.current.getBoundingClientRect();
+      const relativeX = ((ref.centerX - rect.left) / rect.width);
+      
+      let newStart = Math.round((startZoom.start + initialRangeSize * relativeX) - relativeX * newRangeSize);
+      let newEnd = newStart + newRangeSize;
+
+      if (newStart < 0) {
+        newStart = 0;
+        newEnd = newRangeSize;
+      }
+      if (newEnd >= len) {
+        newEnd = len - 1;
+        newStart = Math.max(0, newEnd - newRangeSize);
+      }
+
+      if (newStart === 0 && newEnd === len - 1) {
+        setZoomRange(null);
+      } else {
+        setZoomRange({ start: newStart, end: newEnd });
+      }
+      e.preventDefault();
+    }
+  };
+
+  const handleTouchEnd = () => {
+    touchRef.current = { lastX: 0, startDist: 0, startZoom: null, isPinching: false, centerX: 0 };
+  };
+
+  const handleTouchStartWithDoubleTap = (e) => {
+    const now = Date.now();
+    if (now - lastTouchTime.current < 300) {
+      e.preventDefault();
+      setZoomRange(null);
+      return;
+    }
+    lastTouchTime.current = now;
+    handleTouchStart(e);
+  };
 
   if (!history || history.length < 2) {
     return (
@@ -382,19 +662,19 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
     );
   }
 
-  const startVal = history[0]?.value || 0;
-  const endVal = history[history.length - 1]?.value || 0;
+  const startVal = displayedData[0]?.value || 0;
+  const endVal = displayedData[displayedData.length - 1]?.value || 0;
   const totalChange = endVal - startVal;
   const totalChangePct = startVal > 0 ? (totalChange / startVal) * 100 : 0;
 
   // Axis labels — fewer ticks on mobile to avoid overflow
   const dateLabels = (() => {
-    if (history.length <= 1) return [];
-    const count = Math.min(isMobile ? 3 : 5, history.length);
-    const step = Math.floor((history.length - 1) / Math.max(count - 1, 1));
+    if (displayedData.length <= 1) return [];
+    const count = Math.min(isMobile ? 3 : 5, displayedData.length);
+    const step = Math.floor((displayedData.length - 1) / Math.max(count - 1, 1));
     return Array.from({ length: count }, (_, i) => {
-      const idx = Math.min(i === count - 1 ? history.length - 1 : i * step, history.length - 1);
-      return { idx, x: PAD_L + (idx / (history.length - 1)) * iW, date: history[idx].date };
+      const idx = Math.min(i === count - 1 ? displayedData.length - 1 : i * step, displayedData.length - 1);
+      return { idx, x: PAD_L + (idx / (displayedData.length - 1)) * iW, date: displayedData[idx].date };
     });
   })();
 
@@ -415,8 +695,8 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
     return ticks;
   })();
 
-  const latestCost = history[history.length - 1]?.cost || 0;
-  const latestVal = history[history.length - 1]?.value || 0;
+  const latestCost = displayedData[displayedData.length - 1]?.cost || 0;
+  const latestVal = displayedData[displayedData.length - 1]?.value || 0;
   const pnlPercent = latestCost > 0 ? ((latestVal - latestCost) / latestCost) * 100 : 0;
 
   return (
@@ -446,11 +726,18 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
       </div>
 
       <div className="chart-area-wrapper" ref={svgRef}
-        onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseLeave}
+        onTouchStart={handleTouchStartWithDoubleTap}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
         style={{ 
-          cursor: "crosshair", 
+          cursor: zoomRange ? (dragStart && dragStart.type === "pan" ? "grabbing" : "grab") : "crosshair", 
           position: "relative",
-          width: "100%"
+          width: "100%",
+          touchAction: "none"
         }}>
         <svg
           viewBox={`0 0 ${W} ${H}`}
@@ -504,6 +791,20 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
             <line key={i} x1={x} y1={PAD_T} x2={x} y2={H - PAD_B}
               stroke="#F8FAFC" strokeWidth="1" />
           ))}
+
+          {/* Drag selection rectangle overlay */}
+          {dragStart && dragStart.type === "zoom" && dragEnd && (
+            <rect
+              x={Math.min(dragStart.x, dragEnd.x)}
+              y={PAD_T}
+              width={Math.abs(dragStart.x - dragEnd.x)}
+              height={iH}
+              fill="var(--primary)"
+              opacity="0.15"
+              stroke="var(--primary)"
+              strokeWidth="1"
+            />
+          )}
 
           {/* Fill Areas with Clipping */}
           {costLinePath && fillValueArea && fillCostArea ? (
@@ -668,7 +969,7 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
         {hovered && (() => {
           const diff = hovered.value - hovered.cost;
           const diffPct = hovered.cost > 0 ? (diff / hovered.cost) * 100 : 0;
-          const txs = transactionsByIdx[hovered.idx];
+          const txs = transactionsByIdx[hovered.originalIdx];
           return (
             <div className="chart-tooltip-box" style={{
               top: Math.max(10, Math.min(H - 180, hovered.y - 45)) + "px",

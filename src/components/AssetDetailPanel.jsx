@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { X, TrendingUp, TrendingDown, RefreshCw, ShoppingCart, Calendar, History } from "lucide-react";
+import { X, TrendingUp, TrendingDown, RefreshCw, ShoppingCart, Calendar, History, ChevronDown, ChevronUp } from "lucide-react";
 
 /* ══════════════════════════════════════════════════════
    FORMATTERS
@@ -135,6 +135,15 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
   const containerRef = useRef(null);
   const [hovered, setHovered] = useState(null);
   const [dims, setDims] = useState({ w: 600, h: 280 });
+  const [zoomRange, setZoomRange] = useState(null); // { start, end }
+  const [dragStart, setDragStart] = useState(null);
+  const [dragEnd, setDragEnd] = useState(null);
+  const touchRef = useRef({ lastX: 0, startDist: 0, startZoom: null, isPinching: false, centerX: 0 });
+  const lastTouchTime = useRef(0);
+
+  useEffect(() => {
+    setZoomRange(null);
+  }, [candles, tf]);
 
   /* Responsive sizing */
   useEffect(() => {
@@ -154,9 +163,15 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
   const iW = W - PAD_L - PAD_R;
   const iH = H - PAD_T - PAD_B;
 
+  const displayedCandles = useMemo(() => {
+    if (!candles) return [];
+    if (!zoomRange) return candles;
+    return candles.slice(zoomRange.start, zoomRange.end + 1);
+  }, [candles, zoomRange]);
+
   /* ── Compute Y range: adaptive tight scale with dynamic cost curve ── */
   const { pts, costPts, yMin, yMax, isUp } = useMemo(() => {
-    if (!candles || candles.length < 2) return { pts: [], costPts: [], yMin: 0, yMax: 1, isUp: true };
+    if (!displayedCandles || displayedCandles.length < 2) return { pts: [], costPts: [], yMin: 0, yMax: 1, isUp: true };
 
     // Sort lots by date ascending
     const sortedLots = lots && lots.length > 0
@@ -182,7 +197,7 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
     const isCashAsset = asset?.type === "fiat" || asset?.category === "fiat";
 
     // Calculate unit price and unit average cost for each candle
-    const rawData = candles.map((c) => {
+    const rawData = displayedCandles.map((c) => {
       const targetDateOnly = c.date.split("T")[0];
       
       let priceUSD = 0;
@@ -244,16 +259,16 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
     const yRange = yMax - yMin;
 
     const toY = (v) => PAD_T + ((yMax - v) / yRange) * iH;
-    const toX = (i) => PAD_L + (i / (candles.length - 1)) * iW;
+    const toX = (i) => PAD_L + (i / (displayedCandles.length - 1)) * iW;
 
     // Map all candles: return price movement for all days, but with costUSD only after purchase
-    const pts = candles.map((c, i) => {
+    const pts = displayedCandles.map((c, i) => {
       const d = rawData[i];
       if (d.valueUSD == null) return null;
       return { x: toX(i), y: toY(d.valueUSD), value: d.valueUSD, date: c.date, hasPurchased: d.hasPurchased };
     });
 
-    const costPts = candles.map((c, i) => {
+    const costPts = displayedCandles.map((c, i) => {
       const d = rawData[i];
       if (!d.hasPurchased || d.costUSD == null) return null;
       return { x: toX(i), y: toY(d.costUSD), cost: d.costUSD, date: c.date };
@@ -263,7 +278,7 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
     const isUp = valuesUSD.length >= 2 ? valuesUSD[valuesUSD.length - 1] >= valuesUSD[0] : true;
 
     return { pts, costPts, yMin, yMax, isUp, toY, toX };
-  }, [candles, avgCost, lots, isThai, exchangeRate, PAD_T, iH, PAD_L, iW, tf]);
+  }, [displayedCandles, avgCost, lots, isThai, exchangeRate, PAD_T, iH, PAD_L, iW, tf, asset]);
 
   /* ── Y-axis tick labels ── */
   const yTicks = useMemo(() => {
@@ -285,14 +300,14 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
 
   /* ── X-axis tick labels ── */
   const xTicks = useMemo(() => {
-    if (!candles || candles.length < 2) return [];
-    const count = Math.min(6, candles.length);
-    const step = Math.floor(candles.length / count);
+    if (!displayedCandles || displayedCandles.length < 2) return [];
+    const count = Math.min(6, displayedCandles.length);
+    const step = Math.floor(displayedCandles.length / count);
     return Array.from({ length: count }, (_, i) => {
-      const idx = Math.min(i * step, candles.length - 1);
-      return { idx, x: PAD_L + (idx / (candles.length - 1)) * iW, date: candles[idx].date };
+      const idx = Math.min(i * step, displayedCandles.length - 1);
+      return { idx, x: PAD_L + (idx / (displayedCandles.length - 1)) * iW, date: displayedCandles[idx].date };
     });
-  }, [candles, PAD_L, iW]);
+  }, [displayedCandles, PAD_L, iW]);
 
   /* ── Filter active points (excluding nulls before first purchase) ── */
   const activePts = useMemo(() => pts.filter(Boolean), [pts]);
@@ -339,17 +354,18 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
 
   /* ── Lot markers (purchase dates) ── */
   const lotMarkers = useMemo(() => {
-    if (!lots || !candles || candles.length < 2) return [];
+    if (!lots || !displayedCandles || displayedCandles.length < 2) return [];
+    const startIdx = zoomRange ? zoomRange.start : 0;
+    const endIdx = zoomRange ? zoomRange.end : candles.length - 1;
     const markers = [];
     lots.forEach((lot, i) => {
       const lotDateStr = lot.date;
       let bestIdx = -1, bestDiff = Infinity;
       
-      // Try to find exact string match first
+      // Try to find exact string match first in original candles
       bestIdx = candles.findIndex(c => c.date.split("T")[0] === lotDateStr);
       
       if (bestIdx === -1) {
-        // Fallback: parse both as UTC to avoid timezone shift
         const targetTime = new Date(lotDateStr + "T00:00:00.000Z").getTime();
         candles.forEach((c, idx) => {
           const cTime = new Date(c.date).getTime();
@@ -360,22 +376,70 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
         bestDiff = 0;
       }
       
-      if (bestIdx >= 0 && (bestDiff < 7 * 86400000 || bestDiff === 0)) {
-        const x = PAD_L + (bestIdx / (candles.length - 1)) * iW;
+      if (bestIdx >= startIdx && bestIdx <= endIdx && (bestDiff < 7 * 86400000 || bestDiff === 0)) {
+        const displayIdx = bestIdx - startIdx;
+        const x = PAD_L + (displayIdx / (displayedCandles.length - 1)) * iW;
         const priceUSD = lot.price && isThai ? lot.price / exchangeRate : lot.price;
         markers.push({ x, lot, priceUSD, idx: bestIdx, num: i + 1 });
       }
     });
     return markers;
-  }, [lots, candles, PAD_L, iW, isThai, exchangeRate]);
+  }, [lots, candles, displayedCandles, zoomRange, PAD_L, iW, isThai, exchangeRate]);
+
+  const handleMouseDown = (e) => {
+    if (e.button !== 0) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const mouseX = ((e.clientX - rect.left) / rect.width) * W;
+    if (mouseX >= PAD_L && mouseX <= W - PAD_R) {
+      if (e.shiftKey && zoomRange) {
+        setDragStart({ x: mouseX, type: "pan", startZoom: { ...zoomRange } });
+      } else {
+        setDragStart({ x: mouseX, type: "zoom" });
+        setDragEnd({ x: mouseX });
+      }
+    }
+  };
 
   /* ── Hover handler (Maps cursor to any candle) ── */
   const handleMouseMove = useCallback((e) => {
     if (!containerRef.current || !pts || pts.length < 2) return;
     const rect = containerRef.current.getBoundingClientRect();
     const mouseXInSvg = ((e.clientX - rect.left) / rect.width) * W;
+
+    if (dragStart) {
+      if (dragStart.type === "zoom") {
+        const boundedX = Math.max(PAD_L, Math.min(W - PAD_R, mouseXInSvg));
+        setDragEnd({ x: boundedX });
+        setHovered(null);
+      } else if (dragStart.type === "pan") {
+        const deltaX = mouseXInSvg - dragStart.x;
+        const len = candles.length;
+        const currentStart = dragStart.startZoom.start;
+        const currentEnd = dragStart.startZoom.end;
+        const rangeSize = currentEnd - currentStart;
+        const stepSize = iW / Math.max(1, rangeSize);
+        const indexShift = Math.round(-deltaX / stepSize);
+
+        if (indexShift !== 0) {
+          let newStart = currentStart + indexShift;
+          let newEnd = currentEnd + indexShift;
+          if (newStart < 0) {
+            newStart = 0;
+            newEnd = newStart + rangeSize;
+          }
+          if (newEnd >= len) {
+            newEnd = len - 1;
+            newStart = Math.max(0, newEnd - rangeSize);
+          }
+          setZoomRange({ start: newStart, end: newEnd });
+        }
+        setHovered(null);
+      }
+      return;
+    }
+
     const relX = (mouseXInSvg - PAD_L) / iW;
-    const idx = Math.max(0, Math.min(Math.round(relX * (candles.length - 1)), candles.length - 1));
+    const idx = Math.max(0, Math.min(Math.round(relX * (displayedCandles.length - 1)), displayedCandles.length - 1));
     const pt = pts[idx];
     if (pt) {
       const costPt = costPts[idx];
@@ -390,7 +454,218 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
         hasPurchased: pt.hasPurchased
       });
     }
-  }, [pts, costPts, candles, PAD_L, iW, W]);
+  }, [pts, costPts, displayedCandles, PAD_L, iW, W, dragStart, zoomRange, candles]);
+
+  const handleMouseUp = () => {
+    if (dragStart && dragStart.type === "zoom" && dragEnd) {
+      const x1 = Math.min(dragStart.x, dragEnd.x);
+      const x2 = Math.max(dragStart.x, dragEnd.x);
+      if (x2 - x1 > 15) {
+        const currentStartIdx = zoomRange ? zoomRange.start : 0;
+        const numPoints = displayedCandles.length;
+        const subStart = Math.max(0, Math.min(Math.round(((x1 - PAD_L) / iW) * (numPoints - 1)), numPoints - 1));
+        const subEnd = Math.max(0, Math.min(Math.round(((x2 - PAD_L) / iW) * (numPoints - 1)), numPoints - 1));
+        if (subEnd - subStart >= 2) {
+          setZoomRange({ start: currentStartIdx + subStart, end: currentStartIdx + subEnd });
+        }
+      }
+    }
+    setDragStart(null);
+    setDragEnd(null);
+  };
+
+  const handleMouseLeave = () => {
+    setHovered(null);
+    setDragStart(null);
+    setDragEnd(null);
+  };
+
+  // Wheel zoom effect
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const handleWheel = (e) => {
+      if (!candles || candles.length < 2) return;
+      e.preventDefault();
+
+      const isZoomIn = e.deltaY < 0;
+      const len = candles.length;
+      const currentStart = zoomRange ? zoomRange.start : 0;
+      const currentEnd = zoomRange ? zoomRange.end : len - 1;
+      const rangeSize = currentEnd - currentStart;
+
+      const rect = el.getBoundingClientRect();
+      const mouseXInSvg = ((e.clientX - rect.left) / rect.width) * W;
+      const relX = (mouseXInSvg - PAD_L) / iW;
+      const hoveredIdx = Math.max(0, Math.min(Math.round(relX * (displayedCandles.length - 1)), displayedCandles.length - 1));
+      const centerIdx = currentStart + hoveredIdx;
+
+      if (isZoomIn) {
+        if (rangeSize <= 2) return;
+        const cropSize = Math.max(1, Math.floor(rangeSize * 0.12));
+        const newRangeSize = Math.max(2, rangeSize - cropSize * 2);
+        
+        let newStart = Math.round(centerIdx - relX * newRangeSize);
+        let newEnd = newStart + newRangeSize;
+
+        if (newStart < 0) {
+          newStart = 0;
+          newEnd = newRangeSize;
+        }
+        if (newEnd >= len) {
+          newEnd = len - 1;
+          newStart = Math.max(0, newEnd - newRangeSize);
+        }
+
+        setZoomRange({ start: newStart, end: newEnd });
+      } else {
+        if (!zoomRange) return;
+        const expandSize = Math.max(1, Math.floor(rangeSize * 0.12));
+        const newRangeSize = Math.min(len - 1, rangeSize + expandSize * 2);
+
+        let newStart = Math.round(centerIdx - relX * newRangeSize);
+        let newEnd = newStart + newRangeSize;
+
+        if (newStart < 0) {
+          newStart = 0;
+          newEnd = newRangeSize;
+        }
+        if (newEnd >= len) {
+          newEnd = len - 1;
+          newStart = Math.max(0, newEnd - newRangeSize);
+        }
+
+        if (newStart === 0 && newEnd === len - 1) {
+          setZoomRange(null);
+        } else {
+          setZoomRange({ start: newStart, end: newEnd });
+        }
+      }
+    };
+
+    const handleDblClick = (e) => {
+      e.preventDefault();
+      setZoomRange(null);
+    };
+
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    el.addEventListener("dblclick", handleDblClick);
+
+    return () => {
+      el.removeEventListener("wheel", handleWheel);
+      el.removeEventListener("dblclick", handleDblClick);
+    };
+  }, [zoomRange, displayedCandles, candles, W, iW, PAD_L]);
+
+  // Touch zoom handlers
+  const handleTouchStart = (e) => {
+    if (!candles || candles.length < 2) return;
+    if (e.touches.length === 1) {
+      if (zoomRange) {
+        touchRef.current = {
+          lastX: e.touches[0].clientX,
+          startZoom: { ...zoomRange },
+          isPinching: false
+        };
+      }
+    } else if (e.touches.length === 2) {
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      const initialZoom = zoomRange || { start: 0, end: candles.length - 1 };
+      touchRef.current = {
+        startDist: dist,
+        startZoom: { ...initialZoom },
+        isPinching: true,
+        centerX: (t1.clientX + t2.clientX) / 2
+      };
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    if (!candles || candles.length < 2) return;
+    const ref = touchRef.current;
+
+    if (e.touches.length === 1 && ref.startZoom && !ref.isPinching) {
+      const currentX = e.touches[0].clientX;
+      const deltaX = currentX - ref.lastX;
+      
+      const len = candles.length;
+      const currentStart = ref.startZoom.start;
+      const currentEnd = ref.startZoom.end;
+      const rangeSize = currentEnd - currentStart;
+
+      const rect = containerRef.current.getBoundingClientRect();
+      const stepSize = rect.width / rangeSize;
+      const indexShift = Math.round(-deltaX / stepSize);
+
+      if (indexShift !== 0) {
+        let newStart = currentStart + indexShift;
+        let newEnd = currentEnd + indexShift;
+        if (newStart < 0) {
+          newStart = 0;
+          newEnd = newStart + rangeSize;
+        }
+        if (newEnd >= len) {
+          newEnd = len - 1;
+          newStart = Math.max(0, newEnd - rangeSize);
+        }
+        setZoomRange({ start: newStart, end: newEnd });
+      }
+      e.preventDefault();
+
+    } else if (e.touches.length === 2 && ref.isPinching) {
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      
+      const ratio = ref.startDist / dist;
+      const len = candles.length;
+      const startZoom = ref.startZoom;
+      const initialRangeSize = startZoom.end - startZoom.start;
+      
+      let newRangeSize = Math.round(initialRangeSize * ratio);
+      newRangeSize = Math.max(2, Math.min(len - 1, newRangeSize));
+
+      const rect = containerRef.current.getBoundingClientRect();
+      const relativeX = ((ref.centerX - rect.left) / rect.width);
+      
+      let newStart = Math.round((startZoom.start + initialRangeSize * relativeX) - relativeX * newRangeSize);
+      let newEnd = newStart + newRangeSize;
+
+      if (newStart < 0) {
+        newStart = 0;
+        newEnd = newRangeSize;
+      }
+      if (newEnd >= len) {
+        newEnd = len - 1;
+        newStart = Math.max(0, newEnd - newRangeSize);
+      }
+
+      if (newStart === 0 && newEnd === len - 1) {
+        setZoomRange(null);
+      } else {
+        setZoomRange({ start: newStart, end: newEnd });
+      }
+      e.preventDefault();
+    }
+  };
+
+  const handleTouchEnd = () => {
+    touchRef.current = { lastX: 0, startDist: 0, startZoom: null, isPinching: false, centerX: 0 };
+  };
+
+  const handleTouchStartWithDoubleTap = (e) => {
+    const now = Date.now();
+    if (now - lastTouchTime.current < 300) {
+      e.preventDefault();
+      setZoomRange(null);
+      return;
+    }
+    lastTouchTime.current = now;
+    handleTouchStart(e);
+  };
 
   const hasCostLine = activeCostPts.length > 0 && (avgCost > 0 || (lots && lots.length > 0));
   const color = isUp ? "#00B98A" : "#FF4B55";
@@ -406,8 +681,21 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
   const latestCost = activeCostPts.length > 0 ? activeCostPts[activeCostPts.length - 1].cost : 0;
 
   return (
-    <div ref={containerRef} style={{ width: "100%", position: "relative", userSelect: "none" }}
-      onMouseMove={handleMouseMove} onMouseLeave={() => setHovered(null)}>
+    <div ref={containerRef}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseLeave}
+      onTouchStart={handleTouchStartWithDoubleTap}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      style={{
+        width: "100%",
+        position: "relative",
+        userSelect: "none",
+        cursor: zoomRange ? (dragStart && dragStart.type === "pan" ? "grabbing" : "grab") : "crosshair",
+        touchAction: "none"
+      }}>
       <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: "block", cursor: "crosshair" }}>
         <defs>
           {/* Gradient for gain area (above cost) */}
@@ -464,6 +752,20 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
           <line key={i} x1={x} y1={PAD_T} x2={x} y2={H - PAD_B}
             stroke="#F1F5F9" strokeWidth="1" />
         ))}
+
+        {/* Drag selection rectangle overlay */}
+        {dragStart && dragStart.type === "zoom" && dragEnd && (
+          <rect
+            x={Math.min(dragStart.x, dragEnd.x)}
+            y={PAD_T}
+            width={Math.abs(dragStart.x - dragEnd.x)}
+            height={iH}
+            fill="var(--primary)"
+            opacity="0.15"
+            stroke="var(--primary)"
+            strokeWidth="1"
+          />
+        )}
 
         {/* ── Fill areas with Clipping ── */}
         {hasCostLine && costLinePath && fillValueArea && fillCostArea && activeCostPts.length >= 2 ? (
@@ -649,6 +951,7 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
   const [chartData, setChartData] = useState(null);
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState(null);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
 
   const isThai = asset?.symbol?.endsWith(".BK");
   const isCashAsset = asset?.type === "fiat" || asset?.category === "fiat";
@@ -839,14 +1142,6 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
               <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>{asset.name}</div>
             </div>
           </div>
-          {!isCashAsset && (
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 18, fontWeight: 800, color: isUp ? "var(--gain)" : "var(--loss)" }}>
-                {isUp ? "▲" : "▼"} {fmtPct(changePct)}
-              </div>
-              <div style={{ fontSize: 12, color: "var(--text-faint)" }}>วันนี้</div>
-            </div>
-          )}
           <button className="btn-close ripple-btn" onClick={onClose} style={{ width: 36, height: 36 }}>
             <X size={18} />
           </button>
@@ -913,44 +1208,26 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
         {/* ── TF Selector ── */}
         {!isCashAsset && (
           <div className="asset-detail-tf-bar">
-            <div className="chart-range-tabs">
-              {TF_OPTIONS.map(t => (
-                <button key={t}
-                  className={`chart-range-tab${tf === t ? " active" : ""} ripple-btn`}
-                  onClick={() => setTf(t)}>
-                  {t}
-                </button>
-              ))}
-            </div>
-            <div style={{ fontSize: 11, color: "var(--text-faint)", fontWeight: 600 }}>
-              {tf === "1D" ? "รายนาที (5m)" : tf === "5D" ? "รายชั่วโมง" : tf === "1W" ? "ราย 30 นาที" : tf === "5Y" ? "รายสัปดาห์" : tf === "ตั้งแต่ซื้อ" ? "ตั้งแต่เริ่มลงทุน" : "รายวัน"}
-            </div>
-          </div>
-        )}
-
-        {/* ── Lot legend ── */}
-        {!isCashAsset && lots.length > 0 && (
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", padding: "0 4px", marginBottom: 8 }}>
-            {lots.map((lot, i) => (
-              <div key={lot.id || i} style={{
-                display: "flex", alignItems: "center", gap: 5,
-                background: "#FFFBEB", border: "1px solid #FCD34D",
-                borderRadius: 8, padding: "3px 8px", fontSize: 11
-              }}>
-                <div style={{
-                  width: 16, height: 16, borderRadius: "50%", background: "#F59E0B",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  color: "white", fontWeight: 900, fontSize: 9
-                }}>{i + 1}</div>
-                <span style={{ fontWeight: 700, color: "#92400E" }}>
-                  {fmtDateShort(lot.date)} · {fmtQty(lot.qty)} × {fmtUSD(isThai ? lot.price / exchangeRate : lot.price)}
-                </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div className="chart-range-tabs">
+                {TF_OPTIONS.map(t => (
+                  <button key={t}
+                    className={`chart-range-tab${tf === t ? " active" : ""} ripple-btn`}
+                    onClick={() => setTf(t)}>
+                    {t}
+                  </button>
+                ))}
               </div>
-            ))}
-            <div style={{ display: "flex", alignItems: "center", gap: 5, background: "#EEECFF", border: "1px solid #C3C7FA", borderRadius: 8, padding: "3px 8px", fontSize: 11 }}>
-              <div style={{ width: 20, height: 2, background: "#5236FF", borderTop: "2px dashed #5236FF" }} />
-              <span style={{ fontWeight: 700, color: "#5236FF" }}>ราคาทุนเฉลี่ย {fmtUSD(avgCostUSD)}</span>
+              <div style={{ fontSize: 11, color: "var(--text-faint)", fontWeight: 600 }}>
+                {tf === "1D" ? "รายนาที (5m)" : tf === "5D" ? "รายชั่วโมง" : tf === "1W" ? "ราย 30 นาที" : tf === "5Y" ? "รายสัปดาห์" : tf === "ตั้งแต่ซื้อ" ? "ตั้งแต่เริ่มลงทุน" : "รายวัน"}
+              </div>
             </div>
+            {lots.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 5, background: "#EEECFF", border: "1px solid #C3C7FA", borderRadius: 8, padding: "3px 8px", fontSize: 11 }}>
+                <div style={{ width: 14, height: 2, background: "#5236FF", borderTop: "2px dashed #5236FF" }} />
+                <span style={{ fontWeight: 700, color: "#5236FF" }}>ราคาทุนเฉลี่ย {fmtUSD(avgCostUSD)}</span>
+              </div>
+            )}
           </div>
         )}
 
@@ -999,91 +1276,120 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
 
         {/* ── Purchase History Table ── */}
         {lots.length > 0 && (
-          <div className="asset-detail-lots">
-            <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
-              {isCashAsset ? <History size={14} /> : <ShoppingCart size={14} />} {isCashAsset ? "ประวัติการฝาก/ถอนเงินสด" : "ประวัติธุรกรรมซื้อ/ขาย"} ({lots.length} รายการ)
+          <div className="asset-detail-lots" style={{ paddingBottom: 24 }}>
+            <div 
+              onClick={() => setHistoryExpanded(!historyExpanded)}
+              style={{
+                fontSize: 13,
+                fontWeight: 800,
+                color: "var(--text-main)",
+                marginBottom: historyExpanded ? 12 : 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                cursor: "pointer",
+                padding: "10px 14px",
+                background: "#F8FAFC",
+                border: "1px solid var(--border)",
+                borderRadius: "12px",
+                userSelect: "none"
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {isCashAsset ? <History size={14} /> : <ShoppingCart size={14} />} 
+                {isCashAsset ? "ประวัติการฝาก/ถอนเงินสด" : "ประวัติธุรกรรมซื้อ/ขาย"} ({lots.length} รายการ)
+              </div>
+              {historyExpanded ? <ChevronUp size={16} style={{ color: "var(--text-muted)" }} /> : <ChevronDown size={16} style={{ color: "var(--text-muted)" }} />}
             </div>
-            <div style={{ border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                <thead>
-                  <tr style={{ background: "#F8FAFC" }}>
-                    <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 700, color: "var(--text-muted)" }}>ครั้ง</th>
-                    {!isCashAsset && <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 700, color: "var(--text-muted)" }}>ประเภท</th>}
-                    <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 700, color: "var(--text-muted)" }}>วันที่ทำรายการ</th>
-                    <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: "var(--text-muted)" }}>{isCashAsset ? "จำนวนเงิน" : "จำนวน"}</th>
-                    <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: "var(--text-muted)" }}>{isCashAsset ? "อัตราแลกเปลี่ยน" : "ราคาทำรายการ"}</th>
-                    <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: "var(--text-muted)" }}>{isCashAsset ? "มูลค่ารวม (USD)" : "มูลค่าธุรกรรม (USD)"}</th>
-                    {!isCashAsset && <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: "var(--text-muted)" }}>P&L (USD)</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {[...processedLots].reverse().map((lot, i) => {
-                    const isBuy = lot.type === "BUY";
-                    return (
-                      <tr key={lot.id || i} style={{ borderTop: "1px solid var(--border)" }}>
-                        <td style={{ padding: "9px 12px" }}>
-                          <div style={{
-                            width: 20, height: 20, borderRadius: "50%", background: "#F59E0B",
-                            display: "inline-flex", alignItems: "center", justifyContent: "center",
-                            color: "white", fontWeight: 900, fontSize: 10
-                          }}>{processedLots.length - i}</div>
-                        </td>
-                        {!isCashAsset && (
+
+            {historyExpanded && (
+              <div style={{ 
+                border: "1px solid var(--border)", 
+                borderRadius: 14, 
+                overflowY: "auto", 
+                maxHeight: "220px" 
+              }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ background: "#F8FAFC", position: "sticky", top: 0, zIndex: 1, boxShadow: "0 1px 0 var(--border)" }}>
+                      <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 700, color: "var(--text-muted)" }}>ครั้ง</th>
+                      {!isCashAsset && <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 700, color: "var(--text-muted)" }}>ประเภท</th>}
+                      <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 700, color: "var(--text-muted)" }}>วันที่ทำรายการ</th>
+                      <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: "var(--text-muted)" }}>{isCashAsset ? "จำนวนเงิน" : "จำนวน"}</th>
+                      <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: "var(--text-muted)" }}>{isCashAsset ? "อัตราแลกเปลี่ยน" : "ราคาทำรายการ"}</th>
+                      <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: "var(--text-muted)" }}>{isCashAsset ? "มูลค่ารวม (USD)" : "มูลค่าธุรกรรม (USD)"}</th>
+                      {!isCashAsset && <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: "var(--text-muted)" }}>P&L (USD)</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...processedLots].reverse().map((lot, i) => {
+                      const isBuy = lot.type === "BUY";
+                      return (
+                        <tr key={lot.id || i} style={{ borderTop: "1px solid var(--border)" }}>
                           <td style={{ padding: "9px 12px" }}>
-                            {isBuy ? (
-                              <span style={{ fontSize: 10, fontWeight: 700, color: "#16A34A", background: "#DCFCE7", padding: "2px 6px", borderRadius: 4 }}>ซื้อ (BUY)</span>
-                            ) : (
-                              <span style={{ fontSize: 10, fontWeight: 700, color: "#DC2626", background: "#FEE2E2", padding: "2px 6px", borderRadius: 4 }}>ขาย (SELL)</span>
-                            )}
+                            <div style={{
+                              width: 20, height: 20, borderRadius: "50%", background: "#F59E0B",
+                              display: "inline-flex", alignItems: "center", justifyContent: "center",
+                              color: "white", fontWeight: 900, fontSize: 10
+                            }}>{processedLots.length - i}</div>
                           </td>
-                        )}
-                        <td style={{ padding: "9px 12px", color: "var(--text-muted)" }}>
-                          {fmtDateShort(lot.date)} {lot.time ? `· ${lot.time} น.` : ""}
-                        </td>
-                        <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 600 }}>
-                          {isBuy ? "+" : "-"}{fmtQty(Math.abs(lot.lotQty))} {isCashAsset ? asset.symbol : ""}
-                        </td>
-                        <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 600 }}>
-                          {fmtUSD(lot.lotPriceUSD)}
-                        </td>
-                        <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 700 }}>
-                          {fmtUSD(Math.abs(lot.transactionValueUSD))}
-                        </td>
-                        {!isCashAsset && (
-                          <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 800, color: lot.pnl >= 0 ? "var(--gain)" : "var(--loss)" }}>
-                            <div>
-                              {lot.pnl >= 0 ? "+" : ""}{fmtUSD(lot.pnl)}
-                            </div>
-                            <div style={{ fontSize: 10, opacity: 0.85 }}>
-                              ({lot.pnl >= 0 ? "▲" : "▼"}{fmtPct(lot.pnlPct)})
-                              <span style={{ fontSize: 9, opacity: 0.7, marginLeft: 4, fontWeight: "normal" }}>
-                                {isBuy ? "ยังไม่รับรู้" : "รับรู้แล้ว"}
-                              </span>
-                            </div>
+                          {!isCashAsset && (
+                            <td style={{ padding: "9px 12px" }}>
+                              {isBuy ? (
+                                <span style={{ fontSize: 10, fontWeight: 700, color: "#16A34A", background: "#DCFCE7", padding: "2px 6px", borderRadius: 4 }}>ซื้อ (BUY)</span>
+                              ) : (
+                                <span style={{ fontSize: 10, fontWeight: 700, color: "#DC2626", background: "#FEE2E2", padding: "2px 6px", borderRadius: 4 }}>ขาย (SELL)</span>
+                              )}
+                            </td>
+                          )}
+                          <td style={{ padding: "9px 12px", color: "var(--text-muted)" }}>
+                            {fmtDateShort(lot.date)} {lot.time ? `· ${lot.time} น.` : ""}
                           </td>
-                        )}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr style={{ borderTop: "2px solid var(--border)", background: "var(--primary-light)" }}>
-                    <td colSpan={isCashAsset ? 2 : 3} style={{ padding: "9px 12px", fontWeight: 800, color: "var(--primary)" }}>ถือครองปัจจุบัน</td>
-                    <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 800, color: "var(--primary)" }}>{fmtQty(asset.qty)} {isCashAsset ? asset.symbol : ""}</td>
-                    <td style={{ padding: "9px 12px", textAlign: "right", fontSize: 11, color: "var(--text-muted)" }}>
-                      {isCashAsset ? "—" : `avg ${fmtUSD(avgCostUSD)}`}
-                    </td>
-                    <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 800, color: "var(--primary)" }}>{fmtUSD(totalCostUSD)}</td>
-                    {!isCashAsset && (
-                      <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 900, color: gainUp ? "var(--gain)" : "var(--loss)" }}>
-                        {gainUp ? "+" : ""}{fmtUSD(totalGainUSD)}
-                        <div style={{ fontSize: 10 }}>{fmtPct(totalGainPct)}</div>
+                          <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 600 }}>
+                            {isBuy ? "+" : "-"}{fmtQty(Math.abs(lot.lotQty))} {isCashAsset ? asset.symbol : ""}
+                          </td>
+                          <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 600 }}>
+                            {fmtUSD(lot.lotPriceUSD)}
+                          </td>
+                          <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 700 }}>
+                            {fmtUSD(Math.abs(lot.transactionValueUSD))}
+                          </td>
+                          {!isCashAsset && (
+                            <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 800, color: lot.pnl >= 0 ? "var(--gain)" : "var(--loss)" }}>
+                              <div>
+                                {lot.pnl >= 0 ? "+" : ""}{fmtUSD(lot.pnl)}
+                              </div>
+                              <div style={{ fontSize: 10, opacity: 0.85 }}>
+                                ({lot.pnl >= 0 ? "▲" : "▼"}{fmtPct(lot.pnlPct)})
+                                <span style={{ fontSize: 9, opacity: 0.7, marginLeft: 4, fontWeight: "normal" }}>
+                                  {isBuy ? "ยังไม่รับรู้" : "รับรู้แล้ว"}
+                                </span>
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ borderTop: "2px solid var(--border)", background: "var(--primary-light)", position: "sticky", bottom: 0, zIndex: 1, boxShadow: "0 -2px 0 var(--border)" }}>
+                      <td colSpan={isCashAsset ? 2 : 3} style={{ padding: "9px 12px", fontWeight: 800, color: "var(--primary)" }}>ถือครองปัจจุบัน</td>
+                      <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 800, color: "var(--primary)" }}>{fmtQty(asset.qty)} {isCashAsset ? asset.symbol : ""}</td>
+                      <td style={{ padding: "9px 12px", textAlign: "right", fontSize: 11, color: "var(--text-muted)" }}>
+                        {isCashAsset ? "—" : `avg ${fmtUSD(avgCostUSD)}`}
                       </td>
-                    )}
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
+                      <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 800, color: "var(--primary)" }}>{fmtUSD(totalCostUSD)}</td>
+                      {!isCashAsset && (
+                        <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 900, color: gainUp ? "var(--gain)" : "var(--loss)" }}>
+                          {gainUp ? "+" : ""}{fmtUSD(totalGainUSD)}
+                          <div style={{ fontSize: 10 }}>{fmtPct(totalGainPct)}</div>
+                        </td>
+                      )}
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
           </div>
         )}
       </div>
