@@ -191,7 +191,7 @@ const SparklineChart = React.memo(function SparklineChart({ closes }) {
 function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate }) {
   const svgRef = useRef(null);
   const [hovered, setHovered] = useState(null); // { idx, x, y, value, date }
-  const [dims, setDims] = useState({ w: 800, h: 220 });
+  const [dims, setDims] = useState({ w: 800, h: 350 });
 
   // Responsive resizing
   useEffect(() => {
@@ -202,8 +202,8 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
         setDims({
           w: e.contentRect.width,
           h: isMobile 
-            ? Math.min(380, Math.max(240, e.contentRect.width * 0.70))
-            : Math.min(300, Math.max(180, e.contentRect.width * 0.32))
+            ? Math.min(420, Math.max(280, e.contentRect.width * 0.75))
+            : Math.min(450, Math.max(350, e.contentRect.width * 0.55))
         });
       }
     });
@@ -225,10 +225,10 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
 
   const RANGES = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "5Y", "MAX"];
 
-  // Unique lot purchase dates for markers
-  const lotMarkers = useMemo(() => {
-    if (!assets || !history || history.length < 2) return [];
-    const markers = [];
+  // Group transaction lots by history index
+  const transactionsByIdx = useMemo(() => {
+    if (!assets || !history || history.length < 2) return {};
+    const map = {};
     assets.forEach(asset => {
       (asset.lots || []).forEach(lot => {
         // Find closest date in history
@@ -238,22 +238,31 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
           if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
         });
         if (bestIdx >= 0 && bestDiff < 7 * 86400000) {
-          markers.push({ date: lot.date, symbol: asset.symbol, idx: bestIdx });
+          if (!map[bestIdx]) map[bestIdx] = [];
+          map[bestIdx].push({
+            symbol: asset.symbol,
+            type: lot.type || "BUY",
+            qty: lot.qty,
+            price: lot.price,
+            date: lot.date
+          });
         }
       });
     });
-    // Deduplicate by index (if multiple buys on same date)
-    const seenIdx = new Set();
-    const uniqueMarkers = [];
-    markers.forEach(m => {
-      if (!seenIdx.has(m.idx)) {
-        seenIdx.add(m.idx);
-        const x = PAD_L + (m.idx / (history.length - 1)) * iW;
-        uniqueMarkers.push({ ...m, x });
-      }
+    return map;
+  }, [assets, history]);
+
+  // Unique lot purchase dates for markers
+  const lotMarkers = useMemo(() => {
+    if (!history || history.length < 2) return [];
+    return Object.keys(transactionsByIdx).map(idxStr => {
+      const idx = parseInt(idxStr, 10);
+      const txs = transactionsByIdx[idx];
+      const primarySymbol = txs[0]?.symbol || "";
+      const x = PAD_L + (idx / (history.length - 1)) * iW;
+      return { idx, x, symbol: primarySymbol, txs };
     });
-    return uniqueMarkers;
-  }, [assets, history, iW]);
+  }, [transactionsByIdx, history, iW, PAD_L]);
 
   const { pts, costPts, yMin, yMax, isUp, color } = useMemo(() => {
     if (!history || history.length < 2) return { pts: [], costPts: [], yMin: 0, yMax: 1, isUp: true, color: "var(--gain)" };
@@ -427,7 +436,13 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
 
       <div className="chart-area-wrapper" ref={svgRef}
         onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}
-        style={{ cursor: "crosshair", position: "relative" }}>
+        style={{ 
+          cursor: "crosshair", 
+          position: "relative",
+          maxWidth: isMobile ? "100%" : "650px",
+          margin: "0 auto",
+          width: "100%"
+        }}>
         <svg
           viewBox={`0 0 ${W} ${H}`}
           className="chart-svg"
@@ -561,10 +576,13 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
             <g key={i}>
               <line x1={m.x} y1={PAD_T} x2={m.x} y2={H - PAD_B}
                 stroke="#F59E0B" strokeWidth="1.5" strokeDasharray="5 4" opacity="0.8" />
-              <circle cx={m.x} cy={PAD_T + 10} r="6" fill="#F59E0B" />
-              <text x={m.x} y={PAD_T + 13} textAnchor="middle" fontSize="8" fill="white" fontWeight="800" fontFamily="Outfit,sans-serif">
+              <circle cx={m.x} cy={PAD_T + 10} r="7" fill="#F59E0B" style={{ cursor: "pointer" }} />
+              <text x={m.x} y={PAD_T + 13} textAnchor="middle" fontSize="8" fill="white" fontWeight="800" fontFamily="Outfit,sans-serif" style={{ cursor: "pointer", pointerEvents: "none" }}>
                 {m.symbol.slice(0, 1)}
               </text>
+              <title>
+                {m.txs.map(t => `${t.type === "BUY" ? "ซื้อ" : "ขาย"} ${t.symbol} ${t.qty.toLocaleString()} หุ้น @ ${fmt.usd(t.price)}`).join("\n")}
+              </title>
             </g>
           ))}
 
@@ -641,13 +659,15 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
         {hovered && (() => {
           const diff = hovered.value - hovered.cost;
           const diffPct = hovered.cost > 0 ? (diff / hovered.cost) * 100 : 0;
+          const txs = transactionsByIdx[hovered.idx];
           return (
             <div className="chart-tooltip-box" style={{
-              top: Math.max(10, Math.min(H - 90 - 45, hovered.y - 45)) + "px",
+              top: Math.max(10, Math.min(H - 180, hovered.y - 45)) + "px",
               left: (hovered.x / W) * 100 + "%",
               opacity: 1,
               transform: hovered.x < W / 2 ? "translateX(15px)" : "translateX(calc(-100% - 15px))",
-              zIndex: 100
+              zIndex: 100,
+              pointerEvents: "none"
             }}>
               <div style={{ fontSize: 10, opacity: 0.75, marginBottom: 2 }}>
                 {(() => {
@@ -675,6 +695,23 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
                       </span>
                     </div>
                   </>
+                )}
+                {txs && txs.length > 0 && (
+                  <div style={{
+                    marginTop: 6,
+                    borderTop: "1px dashed rgba(255,255,255,0.2)",
+                    paddingTop: 6,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 3
+                  }}>
+                    <span style={{ fontSize: 10, color: "#F59E0B", fontWeight: 800, display: "flex", alignItems: "center", gap: 4 }}>🛒 ธุรกรรมในวันนี้:</span>
+                    {txs.map((tx, idx) => (
+                      <span key={idx} style={{ fontSize: 10, color: "#FFF", opacity: 0.9 }}>
+                        • {tx.type === "BUY" ? "ซื้อ" : "ขาย"} {tx.symbol} {tx.qty.toLocaleString()} หุ้น @ {fmt.usd(tx.price)}
+                      </span>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
@@ -2092,6 +2129,50 @@ export default function Dashboard({ user, onLogout, showToast }) {
     }
   };
 
+  /* ── CLEAR PORTFOLIO ── */
+  const handleClearPortfolio = async () => {
+    if (!confirm("⚠️ คุณต้องการล้างข้อมูลหุ้นและธุรกรรมทั้งหมดในพอร์ตใช่หรือไม่? (ชื่อเล่นและรูปโปรไฟล์ของคุณจะไม่ถูกลบ)")) return;
+    try {
+      setAssets([]);
+      await fetch("/api/portfolio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
+        body: JSON.stringify([]),
+      });
+      showToast("🗑️ ล้างข้อมูลพอร์ตหุ้นเรียบร้อยแล้ว!", "success");
+      setProfileModalOpen(false);
+    } catch (err) {
+      showToast("ล้างข้อมูลไม่สำเร็จ: " + err.message, "error");
+    }
+  };
+
+  /* ── CLEAR ALL DATA ── */
+  const handleClearAllData = async () => {
+    if (!confirm("⚠️ คำเตือน: คุณต้องการล้างข้อมูลทุกอย่างทั้งหมด (ทั้งข้อมูลหุ้น, ชื่อเล่น, และรูปโปรไฟล์) กลับเป็นค่าเริ่มต้นใช่หรือไม่?")) return;
+    try {
+      setAssets([]);
+      await fetch("/api/portfolio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
+        body: JSON.stringify([]),
+      });
+
+      setProfilePic("");
+      setNickname("");
+      setNewNickname("");
+      setPortfolioName("StockVault");
+      localStorage.removeItem(`profile_pic_${user.username}`);
+      localStorage.removeItem(`profile_nickname_${user.username}`);
+      localStorage.removeItem(`portfolio_name_${user.username}`);
+      await syncProfileToServer("StockVault", "", "");
+
+      showToast("🗑️ ล้างข้อมูลทั้งหมดในระบบเรียบร้อยแล้ว!", "success");
+      setProfileModalOpen(false);
+    } catch (err) {
+      showToast("ล้างข้อมูลไม่สำเร็จ: " + err.message, "error");
+    }
+  };
+
   /* ── DELETE ASSET ── */
   const handleDeleteAsset = async (assetToDelete) => {
     if (!confirm(`ลบ ${assetToDelete.symbol} ออกจากพอร์ตใช่ไหม?`)) return;
@@ -2408,14 +2489,24 @@ export default function Dashboard({ user, onLogout, showToast }) {
               <div className="hero-meta" style={{ marginTop: 10, borderTop: "1px dashed rgba(255,255,255,0.2)", paddingTop: 10 }}>
                 <div className="hero-meta-item">
                   <span className="hero-meta-label">รับรู้แล้ว (Realized)</span>
-                  <span className="hero-meta-value" style={{ color: totalRealizedUSD >= 0 ? "#6EE7B7" : "#FCA5A5", fontWeight: 700 }}>
-                    {totalRealizedUSD >= 0 ? "+" : ""}{fmt.usd(totalRealizedUSD)}
+                  <span className="hero-meta-value" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
+                    <span style={{ color: totalRealizedUSD >= 0 ? "#6EE7B7" : "#FCA5A5", fontWeight: 700 }}>
+                      {totalRealizedUSD >= 0 ? "+" : ""}{fmt.usd(totalRealizedUSD)}
+                    </span>
+                    <span style={{ fontSize: 11, color: "rgba(255, 255, 255, 0.9)", fontWeight: 600 }}>
+                      ({totalRealizedUSD >= 0 ? "+" : ""}{fmt.thb(totalRealizedUSD * exchangeRate)})
+                    </span>
                   </span>
                 </div>
                 <div className="hero-meta-item" style={{ textAlign: "right" }}>
                   <span className="hero-meta-label">ยังไม่รับรู้ (Unrealized)</span>
-                  <span className="hero-meta-value" style={{ color: totalUnrealizedUSD >= 0 ? "#6EE7B7" : "#FCA5A5", fontWeight: 700 }}>
-                    {totalUnrealizedUSD >= 0 ? "+" : ""}{fmt.usd(totalUnrealizedUSD)}
+                  <span className="hero-meta-value" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+                    <span style={{ color: totalUnrealizedUSD >= 0 ? "#6EE7B7" : "#FCA5A5", fontWeight: 700 }}>
+                      {totalUnrealizedUSD >= 0 ? "+" : ""}{fmt.usd(totalUnrealizedUSD)}
+                    </span>
+                    <span style={{ fontSize: 11, color: "rgba(255, 255, 255, 0.9)", fontWeight: 600 }}>
+                      ({totalUnrealizedUSD >= 0 ? "+" : ""}{fmt.thb(totalUnrealizedUSD * exchangeRate)})
+                    </span>
                   </span>
                 </div>
               </div>
@@ -3063,7 +3154,65 @@ export default function Dashboard({ user, onLogout, showToast }) {
               </div>
 
 
-              {/* SECTION 5: USER ACCOUNT & LOGOUT */}
+              {/* SECTION 5: DATA MANAGEMENT */}
+              <div style={{
+                background: "#FFF5F5",
+                border: "1px solid #FEE2E2",
+                borderRadius: "16px",
+                padding: "16px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 12
+              }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "#EF4444", borderBottom: "1.5px solid #FCA5A5", paddingBottom: 6, display: "block" }}>
+                  ⚠️ การจัดการข้อมูล (Data Management)
+                </span>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <button
+                    className="btn ripple-btn"
+                    onClick={handleClearPortfolio}
+                    style={{
+                      height: 40,
+                      fontSize: 12,
+                      background: "white",
+                      color: "#EF4444",
+                      border: "1.5px solid #EF4444",
+                      fontWeight: 700,
+                      borderRadius: "12px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6
+                    }}
+                  >
+                    🗑️ ล้างเฉพาะข้อมูลพอร์ตหุ้น
+                  </button>
+                  <button
+                    className="btn ripple-btn"
+                    onClick={handleClearAllData}
+                    style={{
+                      height: 40,
+                      fontSize: 12,
+                      background: "#EF4444",
+                      color: "white",
+                      border: "none",
+                      fontWeight: 700,
+                      borderRadius: "12px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6,
+                      boxShadow: "0 4px 12px rgba(239, 68, 68, 0.15)"
+                    }}
+                  >
+                    🔥 ล้างข้อมูลทั้งหมดในระบบ (ลบทุกอย่าง)
+                  </button>
+                </div>
+              </div>
+
+              {/* SECTION 6: USER ACCOUNT & LOGOUT */}
               <div style={{
                 background: "#FFF5F5",
                 border: "1px solid #FEE2E2",

@@ -47,10 +47,10 @@ export default function Login({ onLoginSuccess, onNavigateToRegister, showToast 
       <div className="auth-card">
         {/* App Logo */}
         <div className="auth-logo">
-          D!
+          AG
         </div>
         
-        <h1 className="auth-title">ยินดีต้อนรับสู่ Dime!</h1>
+        <h1 className="auth-title">ยินดีต้อนรับสู่ Antigravity Tracker</h1>
         <p className="auth-subtitle">ระบบติดตามพอร์ตสินทรัพย์สหรัฐ คริปโต ทองคำ และเงินสด</p>
 
         <form onSubmit={handleSubmit}>
@@ -142,21 +142,6 @@ export default function Login({ onLoginSuccess, onNavigateToRegister, showToast 
           >
             สมัครสมาชิกใหม่ที่นี่
           </button>
-        </div>
-
-        {/* Tip for pre-configured login */}
-        <div style={{ 
-          marginTop: "32px", 
-          backgroundColor: "#F1F5F9", 
-          padding: "12px 16px", 
-          borderRadius: "16px", 
-          fontSize: "12px", 
-          color: "#475569",
-          textAlign: "left"
-        }}>
-          💡 <strong>สำหรับแอดมิน:</strong> สามารถเข้าใช้งานได้ทันทีด้วยบัญชี:<br />
-          • ชื่อผู้ใช้: <code style={{ color: "var(--primary)", fontWeight: "bold" }}>admin</code><br />
-          • รหัสผ่าน: <code style={{ color: "var(--primary)", fontWeight: "bold" }}>123456</code>
         </div>
       </div>
     </div>

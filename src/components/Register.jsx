@@ -84,7 +84,7 @@ export default function Register({ onNavigateToLogin, showToast }) {
 
         {/* App Logo */}
         <div className="auth-logo">
-          D!
+          AG
         </div>
         
         <h1 className="auth-title">สมัครสมาชิกใหม่</h1>
