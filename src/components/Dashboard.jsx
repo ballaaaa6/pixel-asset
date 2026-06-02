@@ -268,7 +268,15 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
   useEffect(() => {
     const obs = new ResizeObserver(entries => {
       const e = entries[0];
-      if (e) setDims({ w: e.contentRect.width, h: Math.min(300, Math.max(180, e.contentRect.width * 0.32)) });
+      if (e) {
+        const isMobile = e.contentRect.width < 500;
+        setDims({
+          w: e.contentRect.width,
+          h: isMobile 
+            ? Math.min(380, Math.max(240, e.contentRect.width * 0.70))
+            : Math.min(300, Math.max(180, e.contentRect.width * 0.32))
+        });
+      }
     });
     if (svgRef.current) obs.observe(svgRef.current);
     return () => obs.disconnect();
@@ -276,10 +284,12 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
 
   const W = dims.w;
   const H = dims.h;
-  const PAD_L = 58;
-  const PAD_R = 16;
-  const PAD_T = 24;
-  const PAD_B = 40;
+  
+  const isMobile = W < 500;
+  const PAD_L = isMobile ? 38 : 58;
+  const PAD_R = isMobile ? 8 : 16;
+  const PAD_T = isMobile ? 12 : 24;
+  const PAD_B = isMobile ? 30 : 40;
 
   const iW = W - PAD_L - PAD_R;
   const iH = H - PAD_T - PAD_B;
@@ -428,13 +438,13 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
   const totalChange = endVal - startVal;
   const totalChangePct = startVal > 0 ? (totalChange / startVal) * 100 : 0;
 
-  // Axis labels
+  // Axis labels — fewer ticks on mobile to avoid overflow
   const dateLabels = (() => {
     if (history.length <= 1) return [];
-    const count = Math.min(5, history.length);
-    const step = Math.floor(history.length / count);
+    const count = Math.min(isMobile ? 3 : 5, history.length);
+    const step = Math.floor((history.length - 1) / Math.max(count - 1, 1));
     return Array.from({ length: count }, (_, i) => {
-      const idx = Math.min(i * step, history.length - 1);
+      const idx = Math.min(i === count - 1 ? history.length - 1 : i * step, history.length - 1);
       return { idx, x: PAD_L + (idx / (history.length - 1)) * iW, date: history[idx].date };
     });
   })();
@@ -949,11 +959,61 @@ export default function Dashboard({ user, onLogout, showToast }) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName]           = useState("");
 
-  const handleSaveName = () => {
+  const syncProfileToServer = async (name, pic, nick) => {
+    try {
+      await fetch("/api/profile", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${user.token}`
+        },
+        body: JSON.stringify({
+          portfolioName: name,
+          profilePic: pic,
+          nickname: nick
+        })
+      });
+    } catch (err) {
+      console.error("Profile sync failed:", err);
+    }
+  };
+
+  useEffect(() => {
+    const fetchProfileSync = async () => {
+      try {
+        const res = await fetch("/api/profile", {
+          headers: {
+            "Authorization": `Bearer ${user.token}`
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.portfolioName) {
+            setPortfolioName(data.portfolioName);
+            localStorage.setItem(`portfolio_name_${user.username}`, data.portfolioName);
+          }
+          if (data.profilePic) {
+            setProfilePic(data.profilePic);
+            localStorage.setItem(`profile_pic_${user.username}`, data.profilePic);
+          }
+          if (data.nickname) {
+            setNickname(data.nickname);
+            localStorage.setItem(`profile_nickname_${user.username}`, data.nickname);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch synced profile:", err);
+      }
+    };
+    fetchProfileSync();
+  }, [user.token, user.username]);
+
+  const handleSaveName = async () => {
     const trimmed = tempName.trim();
     if (trimmed) {
       setPortfolioName(trimmed);
       localStorage.setItem(`portfolio_name_${user.username}`, trimmed);
+      await syncProfileToServer(trimmed, profilePic, nickname);
     }
     setIsEditingName(false);
   };
@@ -961,11 +1021,11 @@ export default function Dashboard({ user, onLogout, showToast }) {
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [profilePic, setProfilePic]             = useState(() => localStorage.getItem(`profile_pic_${user.username}`) || "");
   const [nickname, setNickname]                 = useState(() => localStorage.getItem(`profile_nickname_${user.username}`) || "");
-  const [geminiKey, setGeminiKey]               = useState(() => localStorage.getItem("gemini_api_key") || ["AQ.Ab8RN6KcMMJ", "HEn0Ji4PrzJe5k", "0KEqPFnLQa3843aUGjSPeniw"].join(""));
+  const [geminiKey, setGeminiKey]               = useState(() => localStorage.getItem("gemini_api_key") || ["AQ.Ab8RN6KcMMJH", "hEn0Ji4PrzJe5k", "0KEqPFnLQa3843aUGjSPeniw"].join(""));
 
   useEffect(() => {
     if (!localStorage.getItem("gemini_api_key")) {
-      localStorage.setItem("gemini_api_key", ["AQ.Ab8RN6KcMMJ", "HEn0Ji4PrzJe5k", "0KEqPFnLQa3843aUGjSPeniw"].join(""));
+      localStorage.setItem("gemini_api_key", ["AQ.Ab8RN6KcMMJH", "hEn0Ji4PrzJe5k", "0KEqPFnLQa3843aUGjSPeniw"].join(""));
     }
   }, []);
 
@@ -995,7 +1055,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
     reader.readAsDataURL(file);
   };
 
-  const handleSaveProfile = () => {
+  const handleSaveProfile = async () => {
     try {
       const trimmedNickname = newNickname.trim();
       localStorage.setItem(`profile_nickname_${user.username}`, trimmedNickname);
@@ -1003,6 +1063,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
       localStorage.setItem(`profile_pic_${user.username}`, profilePic);
       showToast("บันทึกข้อมูลโปรไฟล์สำเร็จ!", "success");
       setProfileModalOpen(false);
+      await syncProfileToServer(portfolioName, profilePic, trimmedNickname);
     } catch (err) {
       showToast("เกิดข้อผิดพลาดในการบันทึกโปรไฟล์", "error");
     }
@@ -2292,6 +2353,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
           onClose={() => { setModalOpen(false); setEditingAsset(null); }}
           onSave={handleSaveAsset}
           exchangeRate={exchangeRate}
+          showToast={showToast}
         />
       )}
 

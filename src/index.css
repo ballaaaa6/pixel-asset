@@ -809,7 +809,8 @@ html, body {
 .chart-area-wrapper {
   position: relative;
   min-height: 180px;
-  margin: 0 -4px;
+  width: 100%;
+  margin: 0;
 }
 
 .chart-svg { width: 100%; overflow: visible; display: block; }
@@ -1162,11 +1163,10 @@ html, body {
   background: rgba(15, 23, 42, 0.5);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  display: flex;
-  align-items: flex-start; /* Centered scrollable fixed overlay layout */
-  justify-content: center;
+  display: grid;
+  place-items: center;
   z-index: 1000;
-  padding: 40px 16px;
+  padding: 16px;
   overflow-y: auto; /* Allow full vertical modal scroll on small screens */
   animation: fadeInOverlay 0.2s ease-out;
 }
@@ -1551,10 +1551,9 @@ html, body {
   background: rgba(15, 23, 42, 0.45);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  display: flex;
-  align-items: flex-start; /* Centered scrollable fixed overlay layout */
-  justify-content: center;
-  padding: 40px 16px;
+  display: grid;
+  place-items: center;
+  padding: 16px;
   overflow-y: auto; /* Allow full vertical detail popup scroll */
   animation: fadeInOverlay 0.2s ease-out;
 }
@@ -1648,4 +1647,21 @@ html, body {
   width: 16px;
   height: 16px;
   border-width: 2px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE OVERRIDES (≤ 500px)
+═══════════════════════════════════════════════════════════════ */
+@media (max-width: 500px) {
+  .card {
+    padding: 12px !important;
+  }
+  .hero-card {
+    padding: 16px !important;
+  }
+  /* Ensure chart SVG tooltip has room to breathe */
+  .chart-tooltip-box {
+    font-size: 11px;
+    padding: 6px 10px;
+  }
 }

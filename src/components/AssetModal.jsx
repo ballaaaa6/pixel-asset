@@ -180,7 +180,7 @@ const fmtDate  = (s) => s ? new Date(s + "T00:00:00").toLocaleDateString("th-TH"
 const fmtUSD   = (n) => n == null ? "—" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: n < 1 ? 4 : 2 }).format(n);
 const fmtQty   = (n) => n == null ? "—" : new Intl.NumberFormat("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 6 }).format(n);
 
-export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exchangeRate }) {
+export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exchangeRate, showToast }) {
   const [type,        setType]        = useState("stock");
   const [symbol,      setSymbol]      = useState("");
   const [name,        setName]        = useState("");
@@ -214,13 +214,21 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
   const [scannedQueue, setScannedQueue] = useState([]);
   const [scanningStatus, setScanningStatus] = useState({ active: false, total: 0, completed: 0 });
 
+  const triggerToast = (msg, toastType = "success") => {
+    if (showToast) {
+      showToast(msg, toastType);
+    } else {
+      alert(msg);
+    }
+  };
+
   const processReceiptImages = async (files) => {
     if (!files || files.length === 0) return;
     const fileList = Array.from(files);
     setScanning(true);
     setScanningStatus({ active: true, total: fileList.length, completed: 0 });
 
-    const key = localStorage.getItem("gemini_api_key") || ["AQ.Ab8RN6KcMMJ", "HEn0Ji4PrzJe5k", "0KEqPFnLQa3843aUGjSPeniw"].join("");
+    const key = localStorage.getItem("gemini_api_key") || ["AQ.Ab8RN6KcMMJH", "hEn0Ji4PrzJe5k", "0KEqPFnLQa3843aUGjSPeniw"].join("");
     const newScannedItems = [];
     const errors = [];
 
@@ -265,7 +273,7 @@ Analyze the image and extract:
 
 Respond ONLY with a JSON object containing these keys. Do not include markdown formatting or backticks.`;
 
-          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -273,21 +281,25 @@ Respond ONLY with a JSON object containing these keys. Do not include markdown f
                 {
                   parts: [
                     { text: prompt },
-                    { inlineData: { mimeType: file.type || "image/png", data: base64Data } }
+                    { inlineData: { mimeType: file.type || "image/jpeg", data: base64Data } }
                   ]
                 }
-              ],
-              generationConfig: {
-                responseMimeType: "application/json"
-              }
+              ]
             })
           });
 
+          if (!res.ok) {
+            const errBody = await res.json().catch(() => ({}));
+            throw new Error(errBody?.error?.message || `HTTP ${res.status}`);
+          }
+
           const resJson = await res.json();
           const rawText = resJson.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (!rawText) throw new Error("AI ไม่สามารถแกะข้อความจากรูปภาพได้");
+          if (!rawText) throw new Error("AI ไม่ส่งคืนข้อมูลกลับมา – ลองอัพโหลดรูปใหม่");
 
-          const data = JSON.parse(rawText.trim());
+          // Strip optional markdown code fences  ```json ... ``` 
+          const cleanText = rawText.trim().replace(/^```[\w]*\n?/, "").replace(/\n?```$/, "").trim();
+          const data = JSON.parse(cleanText);
           if (data.symbol) {
             newScannedItems.push({
               id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -324,14 +336,14 @@ Respond ONLY with a JSON object containing these keys. Do not include markdown f
         setDate(item.date);
         setTxType(item.transactionType);
         setConfirmed(true);
-        alert(`🤖 สแกนใบเสร็จสำเร็จ!\nดึงข้อมูล: ${item.symbol} (${item.transactionType === "BUY" ? "ซื้อ/ฝาก" : "ขาย/ถอน"} · ${item.qty} หน่วย @ $${item.avgPrice})`);
+        triggerToast(`🤖 สแกนใบเสร็จสำเร็จ!\nดึงข้อมูล: ${item.symbol} (${item.transactionType === "BUY" ? "ซื้อ/ฝาก" : "ขาย/ถอน"} · ${item.qty} หน่วย @ $${item.avgPrice})`, "success");
       } else {
         setScannedQueue(prev => [...prev, ...newScannedItems]);
       }
     }
 
     if (errors.length > 0) {
-      alert(`⚠️ การสแกนเสร็จสิ้นโดยมีข้อผิดพลาดบางรายการ:\n${errors.join("\n")}`);
+      triggerToast(`⚠️ การสแกนเสร็จสิ้นโดยมีข้อผิดพลาดบางรายการ:\n${errors.join("\n")}`, "warning");
     }
 
     setScanning(false);
@@ -521,15 +533,15 @@ Respond ONLY with a JSON object containing these keys. Do not include markdown f
   const handleSubmit = (e) => {
     e.preventDefault();
     const pQty   = parseFloat(qty);
-    if (!symbol.trim())            { alert("เลือกสินทรัพย์ก่อนนะครับ"); return; }
-    if (isNaN(pQty) || pQty <= 0) { alert("ใส่จำนวนให้ถูกต้อง (มากกว่า 0)"); return; }
+    if (!symbol.trim())            { triggerToast("เลือกสินทรัพย์ก่อนนะครับ", "error"); return; }
+    if (isNaN(pQty) || pQty <= 0) { triggerToast("ใส่จำนวนให้ถูกต้อง (มากกว่า 0)", "error"); return; }
 
     let pPrice = 1.0;
     if (type === "fiat") {
       pPrice = currencyRate;
     } else {
       pPrice = parseFloat(price);
-      if (isNaN(pPrice) || pPrice < 0) { alert("ใส่ราคาทุนให้ถูกต้อง"); return; }
+      if (isNaN(pPrice) || pPrice < 0) { triggerToast("ใส่ราคาทุนให้ถูกต้อง", "error"); return; }
     }
 
     onSave({
@@ -550,17 +562,17 @@ Respond ONLY with a JSON object containing these keys. Do not include markdown f
 
     for (const item of scannedQueue) {
       if (!item.symbol.trim()) {
-        alert("กรุณากรอกสัญลักษณ์สินทรัพย์ให้ครบถ้วน");
+        triggerToast("กรุณากรอกสัญลักษณ์สินทรัพย์ให้ครบถ้วน", "error");
         return;
       }
       const pQty = parseFloat(item.qty);
       if (isNaN(pQty) || pQty <= 0) {
-        alert(`กรุณากรอกจำนวนของ ${item.symbol} ให้ถูกต้อง (มากกว่า 0)`);
+        triggerToast(`กรุณากรอกจำนวนของ ${item.symbol} ให้ถูกต้อง (มากกว่า 0)`, "error");
         return;
       }
       const pPrice = parseFloat(item.avgPrice);
       if (item.type !== "fiat" && (isNaN(pPrice) || pPrice < 0)) {
-        alert(`กรุณากรอกราคาทุนต่อหน่วยของ ${item.symbol} ให้ถูกต้อง`);
+        triggerToast(`กรุณากรอกราคาทุนต่อหน่วยของ ${item.symbol} ให้ถูกต้อง`, "error");
         return;
       }
     }
