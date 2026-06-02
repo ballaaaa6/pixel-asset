@@ -3,39 +3,74 @@
  *
  * Strategy:
  * 1. Tesseract.js extracts raw text from image (tha+eng)
- * 2. Regex patterns specific to Dime! format extract fields
- * 3. No AI interpretation = deterministic, no quota, always free
+ * 2. Normalize Thai characters and spacing around numbers/decimals
+ * 3. Regex patterns specific to Dime! format extract fields
+ * 4. Verify all required fields (symbol, qty, price) are present.
+ *    If any are missing, return success: false to trigger AI fallback.
  */
 
 import { createWorker } from "tesseract.js";
 
-// Thai month → zero-padded month number (various OCR outputs)
-const THAI_MONTH_MAP = {
-  // Common OCR garbles
-  "0.9.": "06", "o.9.": "06", "O.9.": "06", "0.ค.": "05", "o.ค.": "05", "O.ค.": "05",
-  // Standard abbreviations
-  "ม.ค.": "01", "ก.พ.": "02", "มี.ค.": "03", "เม.ย.": "04",
-  "พ.ค.": "05", "มิ.ย.": "06", "ก.ค.":  "07", "ส.ค.":  "08",
-  "ก.ย.": "09", "ต.ค.":  "10", "พ.ย.":  "11", "ธ.ค.":  "12",
-  // Full forms
-  "มกราคม": "01", "กุมภาพันธ์": "02", "มีนาคม":   "03",
-  "เมษายน": "04", "พฤษภาคม":   "05", "มิถุนายน": "06",
-  "กรกฎาคม":"07", "สิงหาคม":   "08", "กันยายน":  "09",
-  "ตุลาคม": "10", "พฤศจิกายน": "11", "ธันวาคม":  "12",
-};
+/** Normalize OCR raw text to handle Thai Unicode variants and number spacing */
+function normalizeOcrText(rawText) {
+  if (!rawText) return "";
+  let t = rawText.normalize("NFC");
 
+  // 1. Normalize Thai SARA AM: U+0E4D (NIKHAHIT) + U+0E32 (SARA AA) -> U+0E33 (SARA AM)
+  t = t.replace(/\u0e4d\u0e32/g, "\u0e33");
+
+  // 2. Remove space around decimal points in numbers (e.g. "51 . 62" -> "51.62")
+  t = t.replace(/(\d+)\s*\.\s*(\d+)/g, "$1.$2");
+
+  // 3. Remove space around commas in numbers (e.g. "10, 000" -> "10,000")
+  t = t.replace(/(\d+)\s*,\s*(\d+)/g, "$1,$2");
+
+  return t;
+}
+
+/** Robust Thai date parser supporting abbreviations with optional dots and spaces */
 function parseThaiDate(text) {
-  for (const [thMonth, numMonth] of Object.entries(THAI_MONTH_MAP)) {
-    const escaped = thMonth.replace(/\./g, "\\.").replace(/[()]/g, "\\$&");
-    const re = new RegExp(`(\\d{1,2})\\s*${escaped}\\s*(\\d{2,4})`);
-    const m = text.match(re);
-    if (m) {
-      const day  = String(parseInt(m[1])).padStart(2, "0");
-      let year   = parseInt(m[2]);
-      if (year < 100)  year = year + 1957;   // "69" → 2026, "68" → 2025
-      if (year > 2400) year = year - 543;    // 4-digit BE → CE
-      if (year > 2100) year = year - 543;    // double-check
-      return `${year}-${numMonth}-${day}`;
+  if (!text) return null;
+
+  const months = [
+    { num: "01", names: ["ม.ค.", "มกราคม"] },
+    { num: "02", names: ["ก.พ.", "กุมภาพันธ์"] },
+    { num: "03", names: ["มี.ค.", "มีนาคม"] },
+    { num: "04", names: ["เม.ย.", "เมษายน"] },
+    { num: "05", names: ["พ.ค.", "พฤษภาคม", "0.ค.", "o.ค.", "O.ค."] },
+    { num: "06", names: ["มิ.ย.", "มิถุนายน", "0.9.", "o.9.", "O.9."] },
+    { num: "07", names: ["ก.ค.", "กรกฎาคม"] },
+    { num: "08", names: ["ส.ค.", "สิงหาคม"] },
+    { num: "09", names: ["ก.ย.", "กันยายน"] },
+    { num: "10", names: ["ต.ค.", "ตุลาคม"] },
+    { num: "11", names: ["พ.ย.", "พฤศจิกายน"] },
+    { num: "12", names: ["ธ.ค.", "ธันวาคม"] }
+  ];
+
+  for (const m of months) {
+    for (const name of m.names) {
+      let pattern = "";
+      if (name.includes(".")) {
+        // e.g. "พ.ค." -> "พ\.?\s*ค\.?" to match "พ.ค.", "พ.ค", "พ ค", "พค"
+        pattern = name.split("").map(c => {
+          if (c === ".") return "\\.?";
+          return c;
+        }).join("\\s*");
+      } else {
+        pattern = name;
+      }
+
+      // Match day (1-2 digits) + spaces + month pattern + spaces + year (2 or 4 digits)
+      const re = new RegExp(`(\\d{1,2})\\s*(${pattern})\\s*(\\d{2,4})`, "i");
+      const match = text.match(re);
+      if (match) {
+        const day = String(parseInt(match[1])).padStart(2, "0");
+        let year = parseInt(match[3]);
+        if (year < 100) year = year + 1957; // "68" -> 2025
+        if (year > 2400) year = year - 543;
+        if (year > 2100) year = year - 543;
+        return `${year}-${m.num}-${day}`;
+      }
     }
   }
   return null;
@@ -63,7 +98,9 @@ function extractCleanNumbers(block) {
  */
 export function parseDimeReceipt(rawText) {
   if (!rawText || rawText.trim().length < 20) return null;
-  const text = rawText;
+  
+  // Normalize character variants and spacing issues first
+  const text = normalizeOcrText(rawText);
 
   // Extract the first few lines to find transaction type & ticker
   const firstLines = text.split(/[\r\n]+/).slice(0, 4).join("\n");
@@ -116,17 +153,15 @@ export function parseDimeReceipt(rawText) {
   if (/ทอง|Gold|XAU/i.test(text) && !CRYPTO.has(symbol)) category = "gold";
 
   // ──────────────────────────────────────────────────────────────────────────
-  // Quantity — หุ้น may be garbled by Tesseract (missing tone marks, read as Au, iu, Ku, etc.)
+  // Quantity — หุ้น may be garbled by Tesseract
   // ──────────────────────────────────────────────────────────────────────────
   let qty = null;
 
   // Extract the text section between the Exchange/Header and the Price Table Header
-  // Negative lookahead to avoid matching "ราคาตลาด"
   const headerMatch = text.match(/(?:NASDAQ|NYSE|BATS|SET|ASX|ซื้อ|ขาย|do|uo)[\s\S]*?(?=ราคา(?!ตลาด)|ธาคา(?!ตลาด)|ธาศา|รากา|ราค(?!ตลาด|าตลาด)|คุณตั้ง|ตั้ง|ได้จริง)/i);
   if (headerMatch) {
     const sectionText = headerMatch[0];
     const unitPattern = /(?:หุ้น|หุน|ห[ุูu][้o]?[นn]|[Aa][uu]|[Ii][uu]|[Uu][uu]|[Hh][uu][nN]|[Aa][nN]|[Uu][nN]|[Kk][uu]|[ศสช][ุูu][้o]?[นn]|shares?|หน่วย|หนวย|หน[วว][ยย]|units?|เหรียญ|เหรียณ|coins?)/i;
-    // Escaped correctly for constructor RegExp
     const qtyUnitMatch = sectionText.match(new RegExp(`(\\d+(?:,\\d{3})*(?:\\.\\d+)?)\\s*${unitPattern.source}`, "i"));
     if (qtyUnitMatch) {
       qty = parseFloat(qtyUnitMatch[1].replace(/,/g, ""));
@@ -148,8 +183,6 @@ export function parseDimeReceipt(rawText) {
   let price = null;
   let qtyFromTable = null;
 
-  // Find the block between the price-label row and the total row
-  // Support garbled labels like "ธาศาที่คุณตั้ง" or "ราคาที่ได้959" or "ธาคา" (in sell slips)
   const priceBlockMatch = text.match(
     /(?:ราคา(?!ตลาด)|ธาคา(?!ตลาด)|ธาศา|รากา|ราค(?!ตลาด|าตลาด)|คุณตั้ง|ได้จริง|ได้จ|ได้959|ได้จ5)[\s\S]*?(?=ยอดที่|ยอด|มูลค่า|ค่าคอม|คุณได้รับ|$)/i
   );
@@ -186,6 +219,16 @@ export function parseDimeReceipt(rawText) {
     if (!price && usdValues.length > 0) {
       price = usdValues[usdValues.length - 1]; // rightmost = executed price
     }
+
+    // Flat block-level fallback if line-by-line or currency match was partial
+    if ((!price || (!qty && !qtyFromTable)) && allNums.length >= 2) {
+      if (transactionType === "BUY" && !qty) {
+        if (!price) price = allNums[0];
+        if (!qtyFromTable) qtyFromTable = allNums[1];
+      } else {
+        if (!price) price = allNums[allNums.length - 1];
+      }
+    }
     
     // If layout analysis didn't find qty, filter allNums
     if (!qty && !qtyFromTable) {
@@ -204,7 +247,6 @@ export function parseDimeReceipt(rawText) {
   // Final fallback using a global search in case header matching failed
   if (!qty) {
     const unitPattern = /(?:หุ้น|หุน|ห[ุูu][้o]?[นn]|[Aa][uu]|[Ii][uu]|[Uu][uu]|[Hh][uu][nN]|[Aa][nN]|[Uu][nN]|[Kk][uu]|[ศสช][ุูu][้o]?[นn]|shares?|หน่วย|หนวย|หน[วว][ยย]|units?|เหรียญ|เหรียณ|coins?)/i;
-    // Escaped correctly for constructor RegExp
     const globalMatch = text.match(new RegExp(`(\\d+(?:,\\d{3})*(?:\\.\\d+)?)\\s*${unitPattern.source}`, "i"));
     if (globalMatch) {
       qty = parseFloat(globalMatch[1].replace(/,/g, ""));
@@ -216,7 +258,7 @@ export function parseDimeReceipt(rawText) {
     const execSection = text.match(/(?:ราคาที่ได้จริง|ราคาที่ได้|ได้จริง|ราคาที่ได้959|ราคที่ได้จ5|ธาคา|รวยกีโช้จ5)[\s\S]{0,150}/i);
     if (execSection) {
       const allUSD = [];
-      const usdRe = /(?:^|[\s,()\-+*/])(\d+(?:,\d{3})*(?:\.\d+)?)\s*(?:USD|บรอ|บรอ|บรอ|บรอ|บรอ)(?=$|[\s,()\-+*/])/gi;
+      const usdRe = /(?:^|[\s,()\-+*/])(\d+(?:,\d{3})*(?:\.\d+)?)\s*(?:USD|บรอ|บรอ|บรอ|บรอ|บรอ|บรั|บรต|บธ|บธิ|บธุ|บธ|บร)(?=$|[\s,()\-+*/])/gi;
       let m;
       while ((m = usdRe.exec(execSection[0])) !== null) {
         allUSD.push(parseAmt(m[1]));
@@ -249,8 +291,8 @@ export function parseDimeReceipt(rawText) {
     name:            symbol.toUpperCase(),
     category,
     transactionType,
-    qty:             qty  ?? 1,
-    price:           price ?? 0,
+    qty,
+    price,
     date,
   };
 }
@@ -279,8 +321,8 @@ export async function ocrReceiptFile(file, onProgress) {
     if (import.meta.env?.DEV) console.log("[OCR raw]", text);
 
     const parsed = parseDimeReceipt(text);
-    if (!parsed) {
-      return { success: false, error: "ไม่พบข้อมูลรายการ (อาจไม่ใช่สลิป Dime!)", rawText: text };
+    if (!parsed || !parsed.symbol || !parsed.qty || !parsed.price) {
+      return { success: false, error: "ไม่สามารถอ่านข้อมูลหุ้น จำนวน หรือราคาได้ครบถ้วน", rawText: text };
     }
     return { success: true, ...parsed, rawText: text };
   } catch (err) {
