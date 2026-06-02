@@ -245,12 +245,7 @@ let _worker = null;
 
 async function getWorker() {
   if (_worker) return _worker;
-  _worker = await createWorker("tha+eng", 1, {
-    workerPath: "https://cdn.jsdelivr.net/npm/tesseract.js@7/dist/worker.min.js",
-    langPath:   "https://tessdata.projectnaptha.com/4.0.0",
-    corePath:   "https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core-simd-lstm.wasm.js",
-    logger:     () => {},
-  });
+  _worker = await createWorker("tha+eng");
   await _worker.setParameters({ preserve_interword_spaces: "1" });
   return _worker;
 }

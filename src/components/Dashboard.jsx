@@ -797,7 +797,7 @@ function DonutChart({ segments, totalAssets, hasAssets }) {
 /* ═══════════════════════════════════════════════════════════════
    KPI CARDS ROW
 ═══════════════════════════════════════════════════════════════ */
-function KPIRow({ totalUSD, totalTHB, todayChange, todayChangePct, totalGain, totalGainPct, bestAsset, loading }) {
+function KPIRow({ totalUSD, totalTHB, todayChange, todayChangeTHB, todayChangePct, totalGain, totalGainTHB, totalGainPct, bestAsset, loading }) {
   if (loading) {
     return (
       <div className="kpi-row stagger-1">
@@ -826,8 +826,11 @@ function KPIRow({ totalUSD, totalTHB, todayChange, todayChangePct, totalGain, to
       <div className={`kpi-card ${todayUp ? "gain-card" : "loss-card"}`}>
         <div className="kpi-label">📅 วันนี้</div>
         <div className="kpi-value" style={{ color: todayUp ? "var(--gain)" : "var(--loss)" }}>
-          {todayChange !== 0 ? (todayUp ? "+" : "") + fmt.usd(Math.abs(todayChange)) : "—"}
+          {todayChange !== 0 ? (todayUp ? "+" : "-") + fmt.usd(Math.abs(todayChange)) : "—"}
         </div>
+        {todayChange !== 0 && (
+          <div className="kpi-sub">{todayUp ? "+" : "-"}{fmt.thb(Math.abs(todayChangeTHB))}</div>
+        )}
         {todayChange !== 0 && (
           <div className={`kpi-badge ${todayUp ? "up" : "down"}`}>
             {todayUp ? "▲" : "▼"} {fmt.pct(todayChangePct)}
@@ -838,8 +841,11 @@ function KPIRow({ totalUSD, totalTHB, todayChange, todayChangePct, totalGain, to
       <div className={`kpi-card ${totalUp ? "gain-card" : "loss-card"}`}>
         <div className="kpi-label">📊 กำไร/ขาดทุนรวม</div>
         <div className="kpi-value" style={{ color: totalUp ? "var(--gain)" : "var(--loss)" }}>
-          {totalGain !== 0 ? (totalUp ? "+" : "") + fmt.usd(Math.abs(totalGain)) : "—"}
+          {totalGain !== 0 ? (totalUp ? "+" : "-") + fmt.usd(Math.abs(totalGain)) : "—"}
         </div>
+        {totalGain !== 0 && (
+          <div className="kpi-sub">{totalUp ? "+" : "-"}{fmt.thb(Math.abs(totalGainTHB))}</div>
+        )}
         {totalGain !== 0 && (
           <div className={`kpi-badge ${totalUp ? "up" : "down"}`}>
             {totalUp ? "▲" : "▼"} {fmt.pct(totalGainPct)}
@@ -1837,8 +1843,10 @@ export default function Dashboard({ user, onLogout, showToast }) {
           totalUSD={hasPrices ? totalUSD : null}
           totalTHB={hasPrices ? totalUSD * exchangeRate : null}
           todayChange={hasPrices ? todayChangeUSD : 0}
+          todayChangeTHB={hasPrices ? todayChangeUSD * exchangeRate : 0}
           todayChangePct={hasPrices ? todayChangePct : 0}
           totalGain={hasPrices ? totalGainUSD : 0}
+          totalGainTHB={hasPrices ? totalGainUSD * exchangeRate : 0}
           totalGainPct={hasPrices ? totalGainPct : 0}
           bestAsset={hasPrices ? bestAsset : null}
           loading={!hasPrices && assets.length > 0}
