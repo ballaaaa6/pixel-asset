@@ -1492,84 +1492,110 @@ export default function Dashboard({ user, onLogout, showToast }) {
 
   /* ── SAVE ASSET (Purchase Lots System) ── */
   const handleSaveAsset = async (formData) => {
-    // AssetModal sends: symbol, name, type (=category), qty, avgPrice (=price per unit), date
-    const sym      = (formData.symbol || "").trim().toUpperCase();
-    const name     = (formData.name   || sym).trim();
-    const newQty   = parseFloat(formData.qty);
-    const newPrice = parseFloat(formData.avgPrice ?? formData.price ?? 0);
-    const buyDate  = formData.date || new Date().toISOString().split("T")[0];
-    const category = formData.type ?? formData.category ?? "stock";
+    const isBatch = Array.isArray(formData);
+    const transactions = isBatch ? formData : [formData];
 
-    if (!sym)                              { showToast("เลือกสินทรัพย์ก่อนนะครับ", "error"); return; }
-    if (isNaN(newQty) || newQty <= 0)     { showToast("ใส่จำนวนให้ถูกต้อง", "error"); return; }
-    if (isNaN(newPrice) || newPrice < 0)  { showToast("ใส่ราคาทุนให้ถูกต้อง", "error"); return; }
-
-    const isSell = formData.transactionType === "SELL";
+    // Sort transactions by date ascending (oldest first)
+    const sortedTx = [...transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
 
     try {
       let updatedAssets = [...assets];
-      const existingIdx = updatedAssets.findIndex(a => a.symbol === sym);
 
-      if (isSell) {
-        if (existingIdx < 0) {
-          showToast(`คุณไม่มี ${sym} ในพอร์ตเพื่อทำรายการขาย/ถอน`, "error");
-          return;
+      for (const tx of sortedTx) {
+        const sym      = (tx.symbol || "").trim().toUpperCase();
+        const name     = (tx.name   || sym).trim();
+        const newQty   = parseFloat(tx.qty);
+        const newPrice = parseFloat(tx.avgPrice ?? tx.price ?? 0);
+        const buyDate  = tx.date || new Date().toISOString().split("T")[0];
+        const category = tx.type ?? tx.category ?? "stock";
+
+        if (!sym) {
+          if (!isBatch) showToast("เลือกสินทรัพย์ก่อนนะครับ", "error");
+          continue;
         }
-        const existing = updatedAssets[existingIdx];
-        if (newQty > existing.qty) {
-          showToast(`จำนวนที่ระบุมากกว่าจำนวนที่ถืออยู่ (ปัจจุบันมี ${fmt.qty(existing.qty)} ${sym})`, "error");
-          return;
+        if (isNaN(newQty) || newQty <= 0) {
+          if (!isBatch) showToast("ใส่จำนวนให้ถูกต้อง", "error");
+          continue;
         }
-      }
+        if (isNaN(newPrice) || newPrice < 0) {
+          if (!isBatch) showToast("ใส่ราคาทุนให้ถูกต้อง", "error");
+          continue;
+        }
 
-      /* ── New lot to add ── */
-      const newLot = {
-        id:    `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        date:  buyDate,
-        qty:   isSell ? -newQty : newQty,
-        price: newPrice,
-      };
+        const isSell = tx.transactionType === "SELL";
+        const existingIdx = updatedAssets.findIndex(a => a.symbol === sym);
 
-      if (existingIdx >= 0) {
-        /* ── Append transaction lot and update totals ── */
-        const existing  = updatedAssets[existingIdx];
-        const oldLots   = existing.lots || [];
-        const allLots   = [...oldLots, newLot];
-        const totalQty  = allLots.reduce((s, l) => s + l.qty, 0);
-        
-        // Recompute average cost solely from positive (buy) lots
-        const buyLots = allLots.filter(l => l.qty > 0);
-        const buyQty  = buyLots.reduce((s, l) => s + l.qty, 0);
-        const buyCost = buyLots.reduce((s, l) => s + l.qty * l.price, 0);
-        const avgCost = buyQty > 0 ? buyCost / buyQty : 0;
+        if (isSell) {
+          if (existingIdx < 0) {
+            if (!isBatch) {
+              showToast(`คุณไม่มี ${sym} ในพอร์ตเพื่อทำรายการขาย/ถอน`, "error");
+              return;
+            } else {
+              showToast(`⚠️ คำเตือน: ตรวจพบการขาย ${sym} โดยไม่มีรายการซื้อ ยอดคงเหลือจะติดลบ`, "warning");
+            }
+          } else {
+            const existing = updatedAssets[existingIdx];
+            if (newQty > existing.qty) {
+              if (!isBatch) {
+                showToast(`จำนวนที่ระบุมากกว่าจำนวนที่ถืออยู่ (ปัจจุบันมี ${fmt.qty(existing.qty)} ${sym})`, "error");
+                return;
+              } else {
+                showToast(`⚠️ คำเตือน: ยอดขาย ${sym} (${fmt.qty(newQty)}) มากกว่ายอดคงเหลือ (${fmt.qty(existing.qty)}) ยอดจะติดลบ`, "warning");
+              }
+            }
+          }
+        }
 
-        updatedAssets[existingIdx] = {
-          ...existing,
-          lots:    allLots,
-          qty:     totalQty,
-          avgCost: avgCost,
+        const newLot = {
+          id:    `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          date:  buyDate,
+          qty:   isSell ? -newQty : newQty,
+          price: newPrice,
         };
-        
-        const isCash = category === "fiat";
-        showToast(
-          isSell
-            ? `✅ ${isCash ? "ถอนเงินสด" : "ขายออก"} ${sym} ${fmt.qty(newQty)} หน่วยสำเร็จ`
-            : `✅ ${isCash ? "ฝากเพิ่ม" : "ซื้อเพิ่ม"} ${sym} ${fmt.qty(newQty)} หน่วยสำเร็จ`,
-          "success"
-        );
-      } else {
-        /* ── Brand new asset ── */
-        updatedAssets.push({
-          id:       Date.now().toString(),
-          symbol:   sym,
-          name,
-          category,
-          lots:     [newLot],
-          qty:      newQty,
-          avgCost:  newPrice,
-        });
-        const isCash = category === "fiat";
-        showToast(`✅ เพิ่ม ${isCash ? "เงินสด" : "สินทรัพย์"} ${sym} เข้าพอร์ตแล้ว`, "success");
+
+        if (existingIdx >= 0) {
+          const existing  = updatedAssets[existingIdx];
+          const oldLots   = existing.lots || [];
+          const allLots   = [...oldLots, newLot];
+          const totalQty  = allLots.reduce((s, l) => s + l.qty, 0);
+
+          // Recompute average cost solely from positive (buy) lots
+          const buyLots = allLots.filter(l => l.qty > 0);
+          const buyQty  = buyLots.reduce((s, l) => s + l.qty, 0);
+          const buyCost = buyLots.reduce((s, l) => s + l.qty * l.price, 0);
+          const avgCost = buyQty > 0 ? buyCost / buyQty : 0;
+
+          updatedAssets[existingIdx] = {
+            ...existing,
+            lots:    allLots,
+            qty:     totalQty,
+            avgCost: avgCost,
+          };
+          
+          if (!isBatch) {
+            const isCash = category === "fiat";
+            showToast(
+              isSell
+                ? `✅ ${isCash ? "ถอนเงินสด" : "ขายออก"} ${sym} ${fmt.qty(newQty)} หน่วยสำเร็จ`
+                : `✅ ${isCash ? "ฝากเพิ่ม" : "ซื้อเพิ่ม"} ${sym} ${fmt.qty(newQty)} หน่วยสำเร็จ`,
+              "success"
+            );
+          }
+        } else {
+          updatedAssets.push({
+            id:       `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            symbol:   sym,
+            name,
+            category,
+            lots:     [newLot],
+            qty:      isSell ? -newQty : newQty,
+            avgCost:  newPrice,
+          });
+          if (!isBatch) {
+            const isCash = category === "fiat";
+            showToast(`✅ เพิ่ม ${isCash ? "เงินสด" : "สินทรัพย์"} ${sym} เข้าพอร์ตแล้ว`, "success");
+          }
+        }
       }
 
       setAssets(updatedAssets);
@@ -1583,6 +1609,10 @@ export default function Dashboard({ user, onLogout, showToast }) {
       setEditingAsset(null);
       await fetchPrices(updatedAssets);
       fetchSparklines(updatedAssets, chartRange);
+
+      if (isBatch) {
+        showToast(`✅ นำเข้าธุรกรรมทั้งหมด ${sortedTx.length} รายการสำเร็จ!`, "success");
+      }
     } catch (err) {
       showToast("บันทึกไม่สำเร็จ: " + err.message, "error");
     }

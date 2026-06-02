@@ -211,88 +211,142 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
   const qtyInputRef  = useRef(null);
   const fileInputRef = useRef(null);
   const [scanning, setScanning] = useState(false);
+  const [scannedQueue, setScannedQueue] = useState([]);
+  const [scanningStatus, setScanningStatus] = useState({ active: false, total: 0, completed: 0 });
 
-  const processReceiptImage = async (file) => {
-    if (!file) return;
+  const processReceiptImages = async (files) => {
+    if (!files || files.length === 0) return;
+    const fileList = Array.from(files);
     setScanning(true);
-    try {
-      const base64Data = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result.split(",")[1]);
-        reader.onerror = (err) => reject(err);
-      });
+    setScanningStatus({ active: true, total: fileList.length, completed: 0 });
 
-      const key = localStorage.getItem("gemini_api_key") || ["AQ.Ab8RN6KcMMJ", "HEn0Ji4PrzJe5k", "0KEqPFnLQa3843aUGjSPeniw"].join("");
+    const key = localStorage.getItem("gemini_api_key") || ["AQ.Ab8RN6KcMMJ", "HEn0Ji4PrzJe5k", "0KEqPFnLQa3843aUGjSPeniw"].join("");
+    const newScannedItems = [];
+    const errors = [];
 
-      const prompt = `You are a receipt parser. Extract transaction details from this Dime! app receipt image.
-Respond ONLY with a JSON object. Do not include any markdown formatting, backticks, or comments.
-JSON format:
-{
-  "symbol": "STOCK_TICKER",
-  "transactionType": "BUY" or "SELL",
-  "qty": NUMBER_OF_SHARES,
-  "price": PRICE_PER_SHARE_IN_USD,
-  "date": "YYYY-MM-DD"
-}
-Notes:
-- The symbol should be upper case (e.g. "MU" or "ASML"). If it's a cash/fiat transaction, extract the currency ticker.
-- transactionType: If the receipt says 'ซื้อ', use 'BUY'. If it says 'ขาย', use 'SELL'.
-- qty: The quantity of shares or cash units.
-- price: The actual price per unit (ราคาที่ได้รับจริง) in USD or original currency.
-- date: Convert the execution date (วันที่คำสั่งสำเร็จ) (e.g. '19 พ.ค. 69' -> 2026-05-19, or '14 พ.ค. 69' -> 2026-05-14). Note that Thai year '69' corresponds to Buddhist Era 2569, which is Gregorian year 2026. If date is empty, use today's date.`;
+    const getBase64 = (file) => new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result.split(",")[1]);
+      reader.onerror = (err) => reject(err);
+    });
 
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { text: prompt },
-                { inlineData: { mimeType: file.type || "image/png", data: base64Data } }
-              ]
-            }
-          ],
-          generationConfig: {
-            responseMimeType: "application/json"
-          }
-        })
-      });
-
-      const resJson = await res.json();
-      const rawText = resJson.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!rawText) throw new Error("AI ไม่สามารถแกะลายมือหรือวิเคราะห์ภาพนี้ได้");
-
-      const data = JSON.parse(rawText.trim());
-      if (data.symbol) {
-        setSymbol(data.symbol.toUpperCase());
-        setQuery(data.symbol.toUpperCase());
-        setQty(data.qty ? data.qty.toString() : "");
-        setPrice(data.price ? data.price.toString() : "");
-        if (data.date) setDate(data.date);
-        if (data.transactionType) setTxType(data.transactionType);
-        setConfirmed(true);
-        alert(`🤖 สแกนใบเสร็จสำเร็จ!\nดึงข้อมูล: ${data.symbol.toUpperCase()} (${data.transactionType === "BUY" ? "ซื้อ/ฝาก" : "ขาย/ถอน"} · ${data.qty} หน่วย @ $${data.price})`);
-      } else {
-        throw new Error("ไม่พบข้อมูลสัญลักษณ์หุ้นในใบเสร็จ");
+    const chunkArray = (array, size) => {
+      const chunked = [];
+      for (let i = 0; i < array.length; i += size) {
+        chunked.push(array.slice(i, i + size));
       }
-    } catch (err) {
-      alert("❌ เกิดข้อผิดพลาดในการสแกนสลิป: " + err.message);
-    } finally {
-      setScanning(false);
+      return chunked;
+    };
+
+    const fileChunks = chunkArray(fileList, 3);
+    let completedCount = 0;
+
+    for (const chunk of fileChunks) {
+      await Promise.all(chunk.map(async (file) => {
+        try {
+          const base64Data = await getBase64(file);
+          
+          const prompt = `You are a receipt parser. Extract transaction details from this financial receipt or transaction slip.
+It could be from any broker (e.g., Dime!, Webull, InnovestX, Bitkub, Binance) or standard banking app.
+Analyze the image and extract:
+1. symbol: The stock ticker or asset symbol (e.g., AAPL, NVDA, BTC, THB, GC=F). Convert to uppercase.
+2. name: The company or asset name (e.g., Apple Inc, Spot Gold).
+3. category: Classify the asset type into one of these strings: "stock", "crypto", "gold", "fiat" (for cash).
+   - Use "crypto" for cryptocurrencies like BTC, ETH, SOL, etc.
+   - Use "gold" for gold assets like Spot Gold, GC=F, etc.
+   - Use "fiat" for cash deposits or withdrawals (THB, USD).
+   - Use "stock" for equities (US stocks, Thai stocks, ETFs like SPY, QQQ, etc.).
+4. transactionType: Either "BUY" (for buy/deposit/inflow) or "SELL" (for sell/withdraw/outflow).
+5. qty: The quantity of assets bought or sold (number). For cash, this is the deposit/withdrawal amount.
+6. price: The price per unit of the asset (number). For cash, this is 1.
+7. date: The transaction date in ISO format YYYY-MM-DD.
+   - For Thai year format (e.g. '69' corresponds to Buddhist Era 2569, which is Gregorian year 2026). If date is empty, use today's date.
+
+Respond ONLY with a JSON object containing these keys. Do not include markdown formatting or backticks.`;
+
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    { text: prompt },
+                    { inlineData: { mimeType: file.type || "image/png", data: base64Data } }
+                  ]
+                }
+              ],
+              generationConfig: {
+                responseMimeType: "application/json"
+              }
+            })
+          });
+
+          const resJson = await res.json();
+          const rawText = resJson.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (!rawText) throw new Error("AI ไม่สามารถแกะข้อความจากรูปภาพได้");
+
+          const data = JSON.parse(rawText.trim());
+          if (data.symbol) {
+            newScannedItems.push({
+              id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              symbol: data.symbol.toUpperCase(),
+              name: data.name || data.symbol.toUpperCase(),
+              type: data.category || "stock",
+              qty: data.qty ? parseFloat(data.qty) || "" : "",
+              avgPrice: data.price ? parseFloat(data.price) || "" : "",
+              date: data.date || new Date().toISOString().split("T")[0],
+              transactionType: data.transactionType || "BUY"
+            });
+          } else {
+            throw new Error("ไม่พบสัญลักษณ์หุ้นหรือสินทรัพย์");
+          }
+        } catch (err) {
+          console.error("OCR Error for file " + file.name, err);
+          errors.push(`${file.name}: ${err.message}`);
+        } finally {
+          completedCount++;
+          setScanningStatus(prev => ({ ...prev, completed: completedCount }));
+        }
+      }));
     }
+
+    if (newScannedItems.length > 0) {
+      if (newScannedItems.length === 1 && scannedQueue.length === 0) {
+        const item = newScannedItems[0];
+        setSymbol(item.symbol);
+        setQuery(item.symbol);
+        setName(item.name);
+        setType(item.type);
+        setQty(item.qty ? item.qty.toString() : "");
+        setPrice(item.avgPrice ? item.avgPrice.toString() : "");
+        setDate(item.date);
+        setTxType(item.transactionType);
+        setConfirmed(true);
+        alert(`🤖 สแกนใบเสร็จสำเร็จ!\nดึงข้อมูล: ${item.symbol} (${item.transactionType === "BUY" ? "ซื้อ/ฝาก" : "ขาย/ถอน"} · ${item.qty} หน่วย @ $${item.avgPrice})`);
+      } else {
+        setScannedQueue(prev => [...prev, ...newScannedItems]);
+      }
+    }
+
+    if (errors.length > 0) {
+      alert(`⚠️ การสแกนเสร็จสิ้นโดยมีข้อผิดพลาดบางรายการ:\n${errors.join("\n")}`);
+    }
+
+    setScanning(false);
+    setScanningStatus({ active: false, total: 0, completed: 0 });
   };
 
   const handleDropReceipt = (e) => {
     e.preventDefault();
-    const file = e.dataTransfer.files?.[0];
-    if (file) processReceiptImage(file);
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) processReceiptImages(files);
   };
 
   const handleFileSelect = (e) => {
-    const file = e.target.files?.[0];
-    if (file) processReceiptImage(file);
+    const files = e.target.files;
+    if (files && files.length > 0) processReceiptImages(files);
   };
 
   const filteredCurrencies = useMemo(() => {
@@ -349,6 +403,7 @@ Notes:
       setSuggestions([]);
     }
     setShowHistory(false);
+    setScannedQueue([]);
   }, [isOpen, editingAsset]);
 
   /* ─── Dynamic Currency Rate Fetching ─── */
@@ -488,10 +543,34 @@ Notes:
     });
   };
 
+  /* ─── Batch Submit ─── */
+  const handleBatchSubmit = (e) => {
+    e.preventDefault();
+    if (scannedQueue.length === 0) return;
+
+    for (const item of scannedQueue) {
+      if (!item.symbol.trim()) {
+        alert("กรุณากรอกสัญลักษณ์สินทรัพย์ให้ครบถ้วน");
+        return;
+      }
+      const pQty = parseFloat(item.qty);
+      if (isNaN(pQty) || pQty <= 0) {
+        alert(`กรุณากรอกจำนวนของ ${item.symbol} ให้ถูกต้อง (มากกว่า 0)`);
+        return;
+      }
+      const pPrice = parseFloat(item.avgPrice);
+      if (item.type !== "fiat" && (isNaN(pPrice) || pPrice < 0)) {
+        alert(`กรุณากรอกราคาทุนต่อหน่วยของ ${item.symbol} ให้ถูกต้อง`);
+        return;
+      }
+    }
+
+    onSave(scannedQueue);
+  };
+
   /* ─── Purchase history from lots ─── */
   const lots = editingAsset?.lots || [];
 
-  /* ════════════════════ RENDER ════════════════════ */
   return (
     <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal-content" style={{ maxWidth: 500 }}>
@@ -500,16 +579,19 @@ Notes:
         <div className="modal-header">
           <h2 className="modal-title">
             {editingAsset
-              ? `➕ ซื้อเพิ่ม ${editingAsset.symbol}`
-              : "เพิ่มสินทรัพย์ใหม่"}
+              ? (txType === "SELL" 
+                  ? (type === "fiat" ? `📤 ถอนเงินสด ${editingAsset.symbol}` : `🔴 ขายสินทรัพย์ ${editingAsset.symbol}`)
+                  : (type === "fiat" ? `📥 ฝากเงินสด ${editingAsset.symbol}` : `🟢 ซื้อสินทรัพย์ ${editingAsset.symbol}`)
+                )
+              : (scannedQueue.length > 0 ? `📋 ตรวจสอบคิวสแกน (${scannedQueue.length} รายการ)` : "เพิ่มสินทรัพย์ใหม่")}
           </h2>
           <button onClick={onClose} className="btn-close"><X size={18} /></button>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={scannedQueue.length > 0 ? handleBatchSubmit : handleSubmit}>
           <div className="modal-body">
 
-            {/* ── Dime! Receipt Scan Zone ── */}
+            {/* ── Receipt Scan Zone ── */}
             <div style={{
               background: "linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)",
               border: "2px dashed var(--primary)",
@@ -531,26 +613,170 @@ Notes:
                 ref={fileInputRef}
                 style={{ display: "none" }}
                 accept="image/*"
+                multiple
                 onChange={handleFileSelect}
               />
               {scanning ? (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
                   <div className="spinner" style={{ width: 24, height: 24, borderColor: "var(--primary) transparent var(--primary) transparent" }} />
-                  <span style={{ fontSize: 13, fontWeight: 700, color: "var(--primary)", animation: "pulse 1.5s infinite" }}>🤖 AI กำลังวิเคราะห์สลิป Dime! ของคุณ...</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "var(--primary)", animation: "pulse 1.5s infinite" }}>
+                    {scanningStatus.active 
+                      ? `🤖 AI กำลังวิเคราะห์ใบเสร็จ (${scanningStatus.completed}/${scanningStatus.total})...`
+                      : "🤖 AI กำลังวิเคราะห์รูปภาพ..."}
+                  </span>
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
                   <span style={{ fontSize: 22 }}>📸</span>
-                  <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)" }}>อัปโหลดสลิป Dime! เพื่อกรอกออโต้</span>
-                  <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500 }}>ลากและวางรูปภาพสลิปใบเสร็จ หรือกดเพื่อเลือกไฟล์</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)" }}>อัปโหลดรูปภาพใบเสร็จเพื่อกรอกออโต้</span>
+                  <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500 }}>รองรับหลายรูปภาพพร้อมกัน · ลากและวางหรือเลือกไฟล์</span>
                 </div>
               )}
             </div>
 
-            {/* ── Category selector (only for new asset) ── */}
-            {!editingAsset && (
-              <div className="form-group">
-                <label className="form-label">ประเภทสินทรัพย์</label>
+            {scannedQueue.length > 0 ? (
+              <>
+                <div style={{
+                  background: "#F8FAFC",
+                  border: "1px solid var(--border)",
+                  borderRadius: "16px",
+                  padding: "16px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 12,
+                  maxHeight: "380px",
+                  overflowY: "auto"
+                }}>
+                  {scannedQueue.map((item, idx) => (
+                    <div key={item.id} style={{
+                      background: "#FFFFFF",
+                      border: "1px solid var(--border)",
+                      borderRadius: "12px",
+                      padding: "12px",
+                      position: "relative",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 10
+                    }}>
+                      <button type="button" onClick={() => {
+                        setScannedQueue(prev => prev.filter(q => q.id !== item.id));
+                      }} style={{
+                        position: "absolute",
+                        top: 10,
+                        right: 10,
+                        border: "none",
+                        background: "transparent",
+                        color: "var(--loss)",
+                        cursor: "pointer"
+                      }}>
+                        <Trash2 size={16} />
+                      </button>
+
+                      {/* Header Row: Symbol & Category & TxType */}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, paddingRight: 24 }}>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: 3 }}>Ticker/สัญลักษณ์</label>
+                          <input type="text" className="form-input" style={{ height: 32, padding: "0 8px", fontSize: 12, textTransform: "uppercase" }}
+                            value={item.symbol} onChange={e => {
+                              const updated = [...scannedQueue];
+                              updated[idx].symbol = e.target.value.toUpperCase();
+                              updated[idx].name = e.target.value.toUpperCase();
+                              setScannedQueue(updated);
+                            }}
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: 3 }}>ประเภทสินทรัพย์</label>
+                          <select className="form-input" style={{ height: 32, padding: "0 4px", fontSize: 12, background: "transparent" }}
+                            value={item.type} onChange={e => {
+                              const updated = [...scannedQueue];
+                              updated[idx].type = e.target.value;
+                              setScannedQueue(updated);
+                            }}
+                          >
+                            <option value="stock">หุ้น (Stock)</option>
+                            <option value="crypto">คริปโต (Crypto)</option>
+                            <option value="gold">ทองคำ (Gold)</option>
+                            <option value="fiat">เงินสด (Fiat)</option>
+                          </select>
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: 3 }}>ประเภทรายการ</label>
+                          <select className="form-input" style={{ height: 32, padding: "0 4px", fontSize: 12, background: "transparent" }}
+                            value={item.transactionType} onChange={e => {
+                              const updated = [...scannedQueue];
+                              updated[idx].transactionType = e.target.value;
+                              setScannedQueue(updated);
+                            }}
+                          >
+                            <option value="BUY">{item.type === "fiat" ? "ฝากเงินสด" : "ซื้อ (BUY)"}</option>
+                            <option value="SELL">{item.type === "fiat" ? "ถอนเงินสด" : "ขาย (SELL)"}</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Body Row: Qty & Price & Date */}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: 3 }}>จำนวน</label>
+                          <input type="number" step="any" className="form-input" style={{ height: 32, padding: "0 8px", fontSize: 12 }}
+                            value={item.qty} onChange={e => {
+                              const updated = [...scannedQueue];
+                              updated[idx].qty = e.target.value;
+                              setScannedQueue(updated);
+                            }}
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: 3 }}>{item.type === "fiat" ? "เรทแลกเปลี่ยน" : "ราคาทุนต่อหน่วย"}</label>
+                          <input type="number" step="any" className="form-input" style={{ height: 32, padding: "0 8px", fontSize: 12 }}
+                            disabled={item.type === "fiat" && item.symbol === "THB"}
+                            value={item.avgPrice} onChange={e => {
+                              const updated = [...scannedQueue];
+                              updated[idx].avgPrice = e.target.value;
+                              setScannedQueue(updated);
+                            }}
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: 3 }}>วันที่สั่งซื้อ</label>
+                          <input type="date" className="form-input" style={{ height: 32, padding: "0 4px", fontSize: 12 }}
+                            value={item.date} onChange={e => {
+                              const updated = [...scannedQueue];
+                              updated[idx].date = e.target.value;
+                              setScannedQueue(updated);
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Small drag & drop for more files */}
+                <div style={{
+                  background: "linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%)",
+                  border: "1px dashed var(--primary)",
+                  borderRadius: "12px",
+                  padding: "10px",
+                  textAlign: "center",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                  marginTop: 12
+                }}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={handleDropReceipt}
+                onClick={() => fileInputRef.current?.click()}
+                >
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "var(--primary)" }}>➕ อัปโหลดรูปภาพใบเสร็จเพิ่ม...</span>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* ── Category selector (only for new asset) ── */}
+                {!editingAsset && (
+                  <div className="form-group">
+                    <label className="form-label">ประเภทสินทรัพย์</label>
                 <div className="category-selector">
                   {[
                     { key: "stock",  emoji: "🇺🇸", label: "หุ้น" },
@@ -940,6 +1166,8 @@ Notes:
                 </span>
               </div>
             )}
+          </>
+        )}
 
           </div>
 
@@ -951,9 +1179,14 @@ Notes:
             </button>
             <button type="submit" className="btn btn-primary ripple-btn"
               style={{ height: 48, flex: 1 }}
-              disabled={!symbol}>
+              disabled={scannedQueue.length === 0 && !symbol}>
               <Save size={16} />
-              {editingAsset ? `บันทึก (ซื้อเพิ่ม ${qty ? fmtQty(parseFloat(qty) || 0) : "?"} หน่วย)` : "เพิ่มเข้าพอร์ต"}
+              {editingAsset 
+                ? (txType === "SELL"
+                    ? (type === "fiat" ? `ถอนเงินสด -${qty ? fmtQty(parseFloat(qty) || 0) : "?"} THB` : `ขายออก -${qty ? fmtQty(parseFloat(qty) || 0) : "?"} หน่วย`)
+                    : (type === "fiat" ? `ฝากเงินสด +${qty ? fmtQty(parseFloat(qty) || 0) : "?"} THB` : `ซื้อเพิ่ม +${qty ? fmtQty(parseFloat(qty) || 0) : "?"} หน่วย`)
+                  )
+                : (scannedQueue.length > 0 ? `ยืนยันและนำเข้าทั้งหมด (${scannedQueue.length} รายการ)` : "เพิ่มเข้าพอร์ต")}
             </button>
           </div>
         </form>
