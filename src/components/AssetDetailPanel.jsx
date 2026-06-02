@@ -684,6 +684,14 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
               <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>{asset.name}</div>
             </div>
           </div>
+          {!isCashAsset && (
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: isUp ? "var(--gain)" : "var(--loss)" }}>
+                {isUp ? "▲" : "▼"} {fmtPct(changePct)}
+              </div>
+              <div style={{ fontSize: 12, color: "var(--text-faint)" }}>วันนี้</div>
+            </div>
+          )}
           <button className="btn-close ripple-btn" onClick={onClose} style={{ width: 36, height: 36 }}>
             <X size={18} />
           </button>
@@ -708,10 +716,10 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
         </div>
 
         {/* ── KPI Mini Grid ── */}
-        <div className="asset-detail-kpi-grid">
+        <div className="asset-detail-kpi-grid" style={{ gridTemplateColumns: isCashAsset ? "repeat(3, 1fr)" : "repeat(4, 1fr)" }}>
           <div className="asset-detail-kpi">
             <div className="asset-detail-kpi-label">จำนวนถือ</div>
-            <div className="asset-detail-kpi-val">{fmtQty(asset.qty)} หน่วย</div>
+            <div className="asset-detail-kpi-val">{fmtQty(asset.qty)} {asset.symbol}</div>
           </div>
           <div className="asset-detail-kpi">
             <div className="asset-detail-kpi-label">ราคาทุนเฉลี่ย</div>
@@ -721,30 +729,34 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
             <div className="asset-detail-kpi-label">มูลค่าปัจจุบัน</div>
             <div className="asset-detail-kpi-val">{fmtUSD(valueUSD)}</div>
           </div>
-          <div className={`asset-detail-kpi ${gainUp ? "gain-kpi" : "loss-kpi"}`}>
-            <div className="asset-detail-kpi-label">กำไร/ขาดทุนรวม</div>
-            <div className="asset-detail-kpi-val" style={{ color: gainUp ? "var(--gain)" : "var(--loss)", fontWeight: 900 }}>
-              {gainUp ? "+" : ""}{fmtUSD(totalGainUSD)}
-              <span style={{ fontSize: 11, marginLeft: 4 }}>({fmtPct(totalGainPct)})</span>
+          {!isCashAsset && (
+            <div className={`asset-detail-kpi ${gainUp ? "gain-kpi" : "loss-kpi"}`}>
+              <div className="asset-detail-kpi-label">กำไร/ขาดทุนรวม</div>
+              <div className="asset-detail-kpi-val" style={{ color: gainUp ? "var(--gain)" : "var(--loss)", fontWeight: 900 }}>
+                {gainUp ? "+" : ""}{fmtUSD(totalGainUSD)}
+                <span style={{ fontSize: 11, marginLeft: 4 }}>({fmtPct(totalGainPct)})</span>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* ── TF Selector ── */}
-        <div className="asset-detail-tf-bar">
-          <div className="chart-range-tabs">
-            {TF_OPTIONS.map(t => (
-              <button key={t}
-                className={`chart-range-tab${tf === t ? " active" : ""} ripple-btn`}
-                onClick={() => setTf(t)}>
-                {t}
-              </button>
-            ))}
+        {!isCashAsset && (
+          <div className="asset-detail-tf-bar">
+            <div className="chart-range-tabs">
+              {TF_OPTIONS.map(t => (
+                <button key={t}
+                  className={`chart-range-tab${tf === t ? " active" : ""} ripple-btn`}
+                  onClick={() => setTf(t)}>
+                  {t}
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--text-faint)", fontWeight: 600 }}>
+              {tf === "1D" ? "รายนาที (5m)" : tf === "5D" ? "รายชั่วโมง" : tf === "1W" ? "ราย 30 นาที" : tf === "5Y" ? "รายสัปดาห์" : "รายวัน"}
+            </div>
           </div>
-          <div style={{ fontSize: 11, color: "var(--text-faint)", fontWeight: 600 }}>
-            {tf === "1D" ? "รายนาที (5m)" : tf === "5D" ? "รายชั่วโมง" : tf === "1W" ? "ราย 30 นาที" : tf === "5Y" ? "รายสัปดาห์" : "รายวัน"}
-          </div>
-        </div>
+        )}
 
         {/* ── Lot legend ── */}
         {lots.length > 0 && (
@@ -773,33 +785,35 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
         )}
 
         {/* ── Chart ── */}
-        <div className="asset-detail-chart-container">
-          {loading ? (
-            <div style={{ height: 250, display: "flex", alignItems: "center", justifyContent: "center", gap: 10, color: "var(--text-muted)" }}>
-              <div className="spinner sm" />
-              <span style={{ fontSize: 13, fontWeight: 600 }}>กำลังโหลดกราฟ {tf}...</span>
-            </div>
-          ) : error ? (
-            <div style={{ height: 250, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, color: "var(--text-muted)" }}>
-              <span style={{ fontSize: 28 }}>⚠️</span>
-              <span style={{ fontSize: 13 }}>โหลดกราฟไม่สำเร็จ: {error}</span>
-              <button className="btn btn-secondary ripple-btn" style={{ height: 36, fontSize: 12 }}
-                onClick={() => setTf(prev => { const t = prev; setTimeout(() => setTf(t), 50); return prev; })}>
-                ลองใหม่
-              </button>
-            </div>
-          ) : chartData?.candles ? (
-            <AssetChart
-              candles={chartData.candles}
-              avgCost={avgCost}
-              lots={lots}
-              tf={tf}
-              isThai={isThai}
-              exchangeRate={exchangeRate}
-              asset={asset}
-            />
-          ) : null}
-        </div>
+        {!isCashAsset && (
+          <div className="asset-detail-chart-container">
+            {loading ? (
+              <div style={{ height: 250, display: "flex", alignItems: "center", justifyContent: "center", gap: 10, color: "var(--text-muted)" }}>
+                <div className="spinner sm" />
+                <span style={{ fontSize: 13, fontWeight: 600 }}>กำลังโหลดกราฟ {tf}...</span>
+              </div>
+            ) : error ? (
+              <div style={{ height: 250, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, color: "var(--text-muted)" }}>
+                <span style={{ fontSize: 28 }}>⚠️</span>
+                <span style={{ fontSize: 13 }}>โหลดกราฟไม่สำเร็จ: {error}</span>
+                <button className="btn btn-secondary ripple-btn" style={{ height: 36, fontSize: 12 }}
+                  onClick={() => setTf(prev => { const t = prev; setTimeout(() => setTf(t), 50); return prev; })}>
+                  ลองใหม่
+                </button>
+              </div>
+            ) : chartData?.candles ? (
+              <AssetChart
+                candles={chartData.candles}
+                avgCost={avgCost}
+                lots={lots}
+                tf={tf}
+                isThai={isThai}
+                exchangeRate={exchangeRate}
+                asset={asset}
+              />
+            ) : null}
+          </div>
+        )}
 
         {/* ── Purchase History Table ── */}
         {lots.length > 0 && (
@@ -846,9 +860,13 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
                         <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 700 }}>
                           {fmtUSD(lotCostUSD)}
                         </td>
-                        <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 800, color: lotGain >= 0 ? "var(--gain)" : "var(--loss)" }}>
-                          {lotGain >= 0 ? "+" : ""}{fmtUSD(lotGain)}
-                          <div style={{ fontSize: 10, opacity: 0.8 }}>{fmtPct(lotGainPct)}</div>
+                        <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 800, color: isCashAsset ? "var(--text-faint)" : (lotGain >= 0 ? "var(--gain)" : "var(--loss)") }}>
+                          {isCashAsset ? "—" : (
+                            <>
+                              {lotGain >= 0 ? "+" : ""}{fmtUSD(lotGain)}
+                              <div style={{ fontSize: 10, opacity: 0.8 }}>{fmtPct(lotGainPct)}</div>
+                            </>
+                          )}
                         </td>
                       </tr>
                     );

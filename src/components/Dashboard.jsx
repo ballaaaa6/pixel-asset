@@ -1719,9 +1719,9 @@ export default function Dashboard({ user, onLogout, showToast }) {
                         {sortedAssets.map((asset, idx) => {
                           const pData = prices[asset.symbol];
                           const flash = priceFlash[asset.symbol];
-                          const sp = (asset.symbol === "THB" || asset.symbol === "USD") ? [1.0, 1.0, 1.0] : sparklines[asset.symbol]?.closes;
                           const weightPct = totalUSD > 0 ? (asset.valueUSD / totalUSD) * 100 : 0;
                           const isBest = bestAsset?.symbol === asset.symbol;
+                          const isCashAsset = asset.type === "fiat" || asset.category === "fiat";
 
                           const isSelected = selectedAsset?.id === asset.id;
                           return (
@@ -1743,7 +1743,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                                     <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 2 }}>
                                       <span className="asset-symbol">{asset.symbol}</span>
                                       <span className={`badge-type ${asset.category || "stock"}`}>{asset.category || "stock"}</span>
-                                      {isBest && (
+                                      {!isCashAsset && isBest && (
                                         <span className="best-badge">🏆 Best</span>
                                       )}
                                     </div>
@@ -1763,13 +1763,15 @@ export default function Dashboard({ user, onLogout, showToast }) {
                                   <div className="skeleton skeleton-text" style={{ width: 70, height: 16, marginLeft: "auto" }} />
                                 ) : (
                                   <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10 }}>
-                                    <SparklineChart closes={(asset.symbol === "THB" || asset.symbol === "USD") ? [1.0, 1.0, 1.0] : sparklines[asset.symbol]?.closes} />
+                                    {!isCashAsset && sparklines[asset.symbol]?.closes && (
+                                      <SparklineChart closes={sparklines[asset.symbol].closes} />
+                                    )}
                                     <div>
                                       <div className={`num-tick`} style={{ fontWeight: 700, fontSize: 14 }}>
                                         {fmt.usd(asset.priceUSD)}
                                       </div>
                                       <div className="price-thb">{fmt.thb(asset.priceUSD * exchangeRate)}</div>
-                                      {asset.extPrice != null && (
+                                      {!isCashAsset && asset.extPrice != null && (
                                         <div style={{ fontSize: 10, fontWeight: 700, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 2 }}>
                                           {asset.extType}: {fmt.usd(asset.extPrice)} ({fmt.pct(asset.extChangePct)})
                                         </div>
@@ -1794,7 +1796,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
 
                               {/* Gain/Loss */}
                               <td style={{ textAlign: "right" }}>
-                                {!hasPrices || asset.costUSD === 0 ? (
+                                {!hasPrices || asset.costUSD === 0 || isCashAsset ? (
                                   <span style={{ color: "var(--text-faint)", fontSize: 13 }}>—</span>
                                 ) : (
                                   <div className={`pnl-cell ${asset.gainUSD >= 0 ? "positive" : "negative"}`}>
@@ -1806,8 +1808,8 @@ export default function Dashboard({ user, onLogout, showToast }) {
 
                               {/* Today */}
                               <td style={{ textAlign: "right" }}>
-                                {!hasPrices ? (
-                                  <div className="skeleton skeleton-text" style={{ width: 60, height: 14, marginLeft: "auto" }} />
+                                {!hasPrices || isCashAsset ? (
+                                  <span style={{ color: "var(--text-faint)", fontSize: 13 }}>—</span>
                                 ) : (
                                   <div className={`pnl-cell ${asset.todayPct >= 0 ? "positive" : "negative"}`}>
                                     <div style={{ fontSize: 13 }}>{fmt.pct(asset.todayPct)}</div>
@@ -1846,6 +1848,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                       const flash = priceFlash[asset.symbol];
                       const sp    = (asset.symbol === "THB" || asset.symbol === "USD") ? [1.0, 1.0, 1.0] : sparklines[asset.symbol]?.closes;
                       const isBest = bestAsset?.symbol === asset.symbol;
+                      const isCashAsset = asset.type === "fiat" || asset.category === "fiat";
 
                       return (
                         <div key={asset.id || asset.symbol}
@@ -1864,7 +1867,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                               <div>
                                 <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
                                   <span className="asset-symbol">{asset.symbol}</span>
-                                  {isBest && <span className="best-badge">🏆</span>}
+                                  {!isCashAsset && isBest && <span className="best-badge">🏆</span>}
                                 </div>
                                 <div className="asset-fullname">{asset.name}</div>
                                 <MarketBadge state={pData?.marketState} />
@@ -1875,7 +1878,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                                 <>
                                   <div className="mobile-card-price">{fmt.usd(asset.priceUSD)}</div>
                                   <div className="price-thb">{fmt.thb(asset.priceUSD * exchangeRate)}</div>
-                                  {asset.extPrice != null && (
+                                  {!isCashAsset && asset.extPrice != null && (
                                     <div style={{ fontSize: 9, fontWeight: 700, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 2 }}>
                                       {asset.extType}: {fmt.usd(asset.extPrice)} ({fmt.pct(asset.extChangePct)})
                                     </div>
@@ -1888,7 +1891,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                           </div>
 
                           {/* Sparkline full row */}
-                          {sp && (
+                          {!isCashAsset && sp && (
                             <div className="mobile-sparkline">
                               <SparklineChart closes={sp} />
                               <span style={{ fontSize: 11, marginLeft: 8, color: sp[sp.length-1] >= sp[0] ? "var(--gain)" : "var(--loss)", fontWeight: 700 }}>
@@ -1904,14 +1907,14 @@ export default function Dashboard({ user, onLogout, showToast }) {
                             </div>
                             <div className="mobile-stat">
                               <span className="mobile-stat-label">กำไร/ขาดทุน</span>
-                              <span className="mobile-stat-value" style={{ color: asset.gainUSD >= 0 ? "var(--gain)" : "var(--loss)" }}>
-                                {hasPrices && asset.costUSD > 0 ? fmt.pct(asset.gainPct) : "—"}
+                              <span className="mobile-stat-value" style={{ color: isCashAsset ? "var(--text-faint)" : (asset.gainUSD >= 0 ? "var(--gain)" : "var(--loss)") }}>
+                                {isCashAsset ? "—" : (hasPrices && asset.costUSD > 0 ? fmt.pct(asset.gainPct) : "—")}
                               </span>
                             </div>
                             <div className="mobile-stat">
                               <span className="mobile-stat-label">วันนี้</span>
-                              <span className="mobile-stat-value" style={{ color: asset.todayPct >= 0 ? "var(--gain)" : "var(--loss)" }}>
-                                {hasPrices ? fmt.pct(asset.todayPct) : "—"}
+                              <span className="mobile-stat-value" style={{ color: isCashAsset ? "var(--text-faint)" : (asset.todayPct >= 0 ? "var(--gain)" : "var(--loss)") }}>
+                                {isCashAsset ? "—" : (hasPrices ? fmt.pct(asset.todayPct) : "—")}
                               </span>
                             </div>
                           </div>
