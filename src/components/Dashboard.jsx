@@ -2115,17 +2115,13 @@ export default function Dashboard({ user, onLogout, showToast }) {
       return;
     }
 
-    // Find a reference symbol to get dates (uppercase matching)
-    const refSym = Object.keys(sparklines).find(k => sparklines[k]?.dates?.length > 1);
-    if (!refSym) { setPortfolioHistory([]); return; }
-
-    // Parse and sort price points for each symbol to allow robust closest-date lookups without index bugs
+    // Parse and sort price points for each symbol to allow robust closest-date lookups
     const symbolPriceHistories = {};
     Object.keys(sparklines).forEach(sym => {
       const symData = sparklines[sym];
       if (symData && symData.dates && symData.dates.length > 0) {
         const points = symData.dates.map((d, idx) => ({
-          dateStr: d.split("T")[0],
+          dateStr: d, // Keep full ISO string for time-based matching
           price: symData.closes[idx]
         })).filter(p => p.price != null && p.price > 0);
         // Sort by dateStr ascending
@@ -2136,25 +2132,101 @@ export default function Dashboard({ user, onLogout, showToast }) {
 
     const getPriceOnDate = (sym, targetDateStr) => {
       const points = symbolPriceHistories[sym.toUpperCase()];
-      if (!points || points.length === 0) return null;
-      // Find latest price on or before targetDateStr
-      for (let i = points.length - 1; i >= 0; i--) {
-        if (points[i].dateStr <= targetDateStr) {
-          return points[i].price;
+      
+      // If we are looking for today's price (or a future date), use the live price if available
+      const todayStr = new Date().toISOString().split("T")[0];
+      if (targetDateStr.startsWith(todayStr)) {
+        const livePrice = prices[sym.toUpperCase()]?.price;
+        if (livePrice != null && livePrice > 0) {
+          return livePrice;
         }
       }
-      // Fallback to first available price if targetDateStr is before the first point
-      return points[0].price;
+
+      if (points && points.length > 0) {
+        // Find latest price on or before targetDateStr (lexicographical comparison)
+        for (let i = points.length - 1; i >= 0; i--) {
+          if (points[i].dateStr <= targetDateStr) {
+            return points[i].price;
+          }
+        }
+        // Fallback to first available price if targetDateStr is before the first point
+        return points[0].price;
+      }
+
+      // Fallback to live price from fetchPrices
+      const livePrice = prices[sym.toUpperCase()]?.price;
+      if (livePrice != null && livePrice > 0) {
+        return livePrice;
+      }
+
+      // Fallback to asset's own average price/cost
+      const asset = assets.find(a => a.symbol.toUpperCase() === sym.toUpperCase());
+      if (asset) {
+        const avg = asset.avgCost ?? asset.avgPrice ?? 0;
+        if (avg > 0) return avg;
+      }
+      return null;
     };
 
-    const refDates = sparklines[refSym].dates;
-    let history = refDates.map((date, dayIdx) => {
+    // 1. Create a union of all dates across all sparklines
+    const allDatesSet = new Set();
+    Object.keys(sparklines).forEach(sym => {
+      const symData = sparklines[sym];
+      if (symData && symData.dates) {
+        symData.dates.forEach(d => {
+          if (d) allDatesSet.add(d);
+        });
+      }
+    });
+
+    if (allDatesSet.size === 0) {
+      setPortfolioHistory([]);
+      return;
+    }
+
+    // Add current live time to the timeline so the graph ends exactly at the current live valuation
+    const nowISO = new Date().toISOString();
+    allDatesSet.add(nowISO);
+
+    // Sort timeline ascending
+    let timeline = Array.from(allDatesSet).sort((a, b) => a.localeCompare(b));
+
+    // 2. Find the earliest stock/asset purchase date (excluding fiat cash if we have stocks)
+    let earliestDate = null;
+    const hasNonCash = assets.some(a => a.type !== "fiat" && a.category !== "fiat");
+    assets.forEach(asset => {
+      const isCash = asset.type === "fiat" || asset.category === "fiat";
+      if (hasNonCash && isCash) return;
+      const assetLots = asset.lots && asset.lots.length > 0 ? asset.lots : [];
+      assetLots.forEach(lot => {
+        if (lot && lot.date && lot.date !== "1970-01-01") {
+          if (!earliestDate || lot.date < earliestDate) {
+            earliestDate = lot.date;
+          }
+        }
+      });
+    });
+
+    if (earliestDate) {
+      const earliestStr = earliestDate.split("T")[0];
+      // Filter out timeline dates that are strictly before earliestStr date
+      timeline = timeline.filter(d => d.split("T")[0] >= earliestStr);
+
+      // Prepend exact first purchase date if the timeline starts after it
+      if (timeline.length > 0 && timeline[0].split("T")[0] > earliestStr) {
+        timeline.unshift(earliestStr + "T00:00:00.000Z");
+      } else if (timeline.length === 0) {
+        timeline.push(earliestStr + "T00:00:00.000Z");
+      }
+    }
+
+    // 3. Compute portfolio values for each date in the timeline
+    let history = timeline.map((date) => {
       let totalUSD = 0;
       let totalCostUSD = 0;
       const currentDateStr = date.split("T")[0];
 
       assets.forEach(asset => {
-        // Fallback to virtual lot if lots are empty/undefined (older data format or imported backup)
         const assetLots = asset.lots && asset.lots.length > 0
           ? asset.lots
           : [{ id: "virtual", date: "1970-01-01", qty: asset.qty, price: (asset.avgCost ?? asset.avgPrice ?? 0) }];
@@ -2188,7 +2260,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
             priceUSD = 1.0;
           } else {
             const ticker = getCurrencyTicker(asset.symbol);
-            const priceVal = getPriceOnDate(ticker, currentDateStr);
+            const priceVal = getPriceOnDate(ticker, date);
             if (priceVal != null && priceVal > 0) {
               if (["EUR", "GBP", "AUD", "NZD"].includes(asset.symbol)) {
                 priceUSD = priceVal;
@@ -2206,86 +2278,39 @@ export default function Dashboard({ user, onLogout, showToast }) {
           return;
         }
 
-        const price = getPriceOnDate(asset.symbol, currentDateStr);
+        const price = getPriceOnDate(asset.symbol, date);
+        // Robust fallback: if sparkline price is null/missing, use live price or purchase price
+        let priceUSD = 0;
         if (price != null && price > 0) {
-          const priceUSD = isThai ? price / exchangeRate : price;
-          const valueUSD = priceUSD * qtyOnDate;
-          totalUSD += valueUSD;
-          totalCostUSD += costOnDateUSD;
+          priceUSD = isThai ? price / exchangeRate : price;
+        } else {
+          const livePrice = prices[asset.symbol.toUpperCase()]?.price;
+          if (livePrice != null && livePrice > 0) {
+            priceUSD = isThai ? livePrice / exchangeRate : livePrice;
+          } else {
+            priceUSD = qtyOnDate > 0 ? costOnDateUSD / qtyOnDate : 0;
+          }
         }
+        const valueUSD = priceUSD * qtyOnDate;
+        totalUSD += valueUSD;
+        totalCostUSD += costOnDateUSD;
       });
 
       return { date, value: totalUSD, cost: totalCostUSD };
-    }).filter(d => d.value > 0);
-
-    // Filter out leading flatlines before the first major purchase
-    let earliestDate = null;
-    const hasNonCash = assets.some(a => a.type !== "fiat" && a.category !== "fiat");
-    assets.forEach(asset => {
-      const isCash = asset.type === "fiat" || asset.category === "fiat";
-      if (hasNonCash && isCash) return;
-      const assetLots = asset.lots && asset.lots.length > 0 ? asset.lots : [];
-      assetLots.forEach(lot => {
-        if (lot && lot.date && lot.date !== "1970-01-01") {
-          if (!earliestDate || lot.date < earliestDate) {
-            earliestDate = lot.date;
-          }
-        }
-      });
     });
 
-    if (earliestDate) {
-      const earliestStr = earliestDate.split("T")[0];
-      history = history.filter(d => d.date.split("T")[0] >= earliestStr);
+    // Clean history points
+    history = history.filter(d => d.value > 0);
 
-      // Prepend exact first purchase date to make the chart and markers start exactly on purchase day
-      if (history.length > 0 && history[0].date.split("T")[0] > earliestStr) {
-        let initialVal = 0;
-        let initialCost = 0;
-        assets.forEach(asset => {
-          const assetLots = asset.lots && asset.lots.length > 0 ? asset.lots : [];
-          const lotsOnEarliest = assetLots.filter(lot => lot && lot.date && lot.date <= earliestStr);
-          if (lotsOnEarliest.length === 0) return;
-          const qty = lotsOnEarliest.reduce((sum, l) => sum + (l.qty || 0), 0);
-          const isThai = asset.symbol.toUpperCase().endsWith(".BK");
-          const isCash = asset.type === "fiat" || asset.category === "fiat";
-          const costUSD = lotsOnEarliest.reduce((sum, l) => {
-            let priceUSD = isThai ? (l.price || 0) / exchangeRate : (l.price || 0);
-            if (isCash) {
-              priceUSD = asset.symbol === "USD" ? 1.0 : (l.price || getCurrencyPriceUSD(asset.symbol, prices, exchangeRate));
-            }
-            return sum + (l.qty || 0) * priceUSD;
-          }, 0);
-
-          let priceUSD = 0;
-          if (isCash) {
-            priceUSD = asset.symbol === "USD" ? 1.0 : (getPriceOnDate(getCurrencyTicker(asset.symbol), earliestStr) || (1.0 / (exchangeRate || 35.0)));
-          } else {
-            const price = getPriceOnDate(asset.symbol, earliestStr);
-            priceUSD = price ? (isThai ? price / exchangeRate : price) : (qty > 0 ? costUSD / qty : 0);
-          }
-          initialVal += priceUSD * qty;
-          initialCost += costUSD;
-        });
-
-        history.unshift({
-          date: earliestStr + "T00:00:00.000Z",
-          value: initialVal,
-          cost: initialCost
-        });
-      }
-    }
-
-    // If there is only 1 historical point (e.g. bought asset today), pad it to the day before
-    // to prevent the chart from disappearing due to length < 2 guard!
+    // If there is only 1 historical point, pad it to the day before to prevent length < 2 guard
     if (history.length === 1) {
       const singlePoint = history[0];
-      const prevDate = new Date(new Date(singlePoint.date) - 86400000).toISOString().split("T")[0];
+      const prevDate = new Date(new Date(singlePoint.date) - 86400000).toISOString();
       history.unshift({ date: prevDate, value: singlePoint.value, cost: singlePoint.cost });
     }
 
     setPortfolioHistory(history);
-  }, [sparklines, assets, exchangeRate]);
+  }, [sparklines, assets, prices, exchangeRate]);
 
   /* ── CHART RANGE CHANGE ── */
   const handleRangeChange = useCallback((r) => {

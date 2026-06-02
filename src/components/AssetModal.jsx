@@ -303,30 +303,53 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
     if (!files || files.length === 0) return;
     const fileList = Array.from(files);
     setScanning(true);
-    setScanningStatus({ active: true, total: fileList.length, completed: 0 });
+    setScanningStatus({ active: true, total: fileList.length, completed: 0, stage: "กำลังเตรียมไฟล์..." });
 
     const newScannedItems = [];
     const fileErrors = {};
+    const succeededIndices = new Set();
+
+    // Helper for concurrency-limited parallel execution
+    const limitConcurrency = async (items, limit, fn) => {
+      const results = [];
+      const executing = new Set();
+      for (const item of items) {
+        const p = Promise.resolve().then(() => fn(item));
+        results.push(p);
+        executing.add(p);
+        const clean = () => executing.delete(p);
+        p.then(clean, clean);
+        if (executing.size >= limit) {
+          await Promise.race(executing);
+        }
+      }
+      return Promise.all(results);
+    };
 
     // ══════════════════════════════════════════════════════════════════════
-    // PRIMARY: Tesseract.js OCR + regex parser (free, offline, no quota)
+    // PRIMARY: Parallel Tesseract.js OCR + regex parser (concurrency = 4)
     // ══════════════════════════════════════════════════════════════════════
-    const succeededIndices = new Set();
-    let tesseractFailed = false;
+    setScanningStatus(prev => ({ ...prev, stage: "Tesseract OCR: กำลังสแกนตัวอักษรขนานกัน..." }));
+    
+    let tessCompletedCount = 0;
+    const tesseractItems = fileList.map((file, idx) => ({ file, idx }));
+    
     try {
-      for (let i = 0; i < fileList.length; i++) {
-        setScanningStatus(prev => ({ ...prev, completed: i }));
-        const result = await ocrReceiptFile(fileList[i], (stage) => {
-          setScanningStatus(prev => ({ ...prev, completed: i, stage }));
+      await limitConcurrency(tesseractItems, 4, async ({ file, idx }) => {
+        const result = await ocrReceiptFile(file, (stage) => {
+          setScanningStatus(prev => ({
+            ...prev,
+            stage: `รูปที่ ${idx + 1}: ${stage === "reading" ? "อ่านข้อความ" : "วิเคราะห์สลิป"}...`
+          }));
         });
 
         // Store rawText on the file object for the text batch AI fallback
-        fileList[i]._rawText = result?.rawText || "";
+        file._rawText = result?.rawText || "";
 
         if (result.success) {
-          succeededIndices.add(i);
+          succeededIndices.add(idx);
           newScannedItems.push({
-            id: `${Date.now()}-tess-${i}`,
+            id: `${Date.now()}-tess-${idx}`,
             symbol:          result.symbol,
             name:            result.name || result.symbol,
             type:            result.category || "stock",
@@ -337,21 +360,17 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
             transactionType: result.transactionType || "BUY",
           });
         } else {
-          // Tesseract succeeded technically but couldn't parse the receipt
-          // → try the API fallback for this specific image
-          fileErrors[i] = `รูป ${i + 1}: ${result.error || "อ่านไม่ได้"} (ลองใช้ AI fallback)`;
-          tesseractFailed = true;
+          fileErrors[idx] = `รูป ${idx + 1}: ${result.error || "อ่านไม่ได้"} (ลองใช้ AI)`;
         }
-        setScanningStatus(prev => ({ ...prev, completed: i + 1 }));
-      }
+
+        tessCompletedCount++;
+        setScanningStatus(prev => ({
+          ...prev,
+          completed: tessCompletedCount
+        }));
+      });
     } catch (tessErr) {
-      console.warn("Tesseract failed entirely:", tessErr.message);
-      tesseractFailed = true;
-      for (let i = 0; i < fileList.length; i++) {
-        if (!succeededIndices.has(i)) {
-          fileErrors[i] = `รูป ${i + 1}: Tesseract failed (${tessErr.message})`;
-        }
-      }
+      console.warn("Tesseract batch run had errors:", tessErr.message);
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -374,20 +393,29 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
         }
       } catch (e) {}
 
-      // If we have a Gemini API Key, we use the highly efficient Text-only Batch Fallback!
+      // ──────────────────────────────────────────────────────────────────────
+      // 2.2 Text-only Gemini Batch Fallback (grouped in chunks of 5)
+      // ──────────────────────────────────────────────────────────────────────
       if (geminiKey) {
-        setScanningStatus(prev => ({ ...prev, stage: "AI Text Batch Parsing..." }));
-        try {
-          // Prepare raw text blocks for the failed images
-          const failedRawTexts = failedIndices.map(i => {
-            return {
-              index: i,
-              rawText: fileList[i]._rawText || ""
-            };
-          }).filter(item => item.rawText.trim().length > 10);
+        // Collect failed files that successfully extracted at least some raw text blocks
+        const textFailedItems = failedIndices.map(i => ({
+          index: i,
+          rawText: fileList[i]._rawText || ""
+        })).filter(item => item.rawText.trim().length > 10);
 
-          if (failedRawTexts.length > 0) {
-            const prompt = `This is a list of raw OCR text blocks extracted from Dime! app trading receipts (Thai broker).
+        if (textFailedItems.length > 0) {
+          // Chunk failed texts into groups of at most 5
+          const textChunks = [];
+          for (let i = 0; i < textFailedItems.length; i += 5) {
+            textChunks.push(textFailedItems.slice(i, i + 5));
+          }
+
+          for (let c = 0; c < textChunks.length; c++) {
+            const chunk = textChunks[c];
+            setScanningStatus(prev => ({ ...prev, stage: `AI Text Chunk: กำลังดึงข้อมูลกลุ่มที่ ${c + 1}/${textChunks.length}...` }));
+
+            try {
+              const prompt = `This is a list of raw OCR text blocks extracted from Dime! app trading receipts (Thai broker).
 Please clean up and parse each block to extract the transaction details.
 For each block, extract:
 - transactionType: "BUY" or "SELL" (look for "ซื้อ" / "ชื้อ" for BUY, "ขาย" for SELL)
@@ -400,7 +428,7 @@ For each block, extract:
 - time: Transaction time in HH:MM format (e.g. "15:40")
 
 Here are the OCR text blocks:
-${failedRawTexts.map(item => `
+${chunk.map(item => `
 --- SLIP INDEX: ${item.index} ---
 ${item.rawText}
 `).join("\n")}
@@ -420,93 +448,183 @@ Respond with ONLY a valid JSON array matching this schema (no markdown wrapping,
   }
 ]`;
 
-            const bodyObj = {
-              contents: [{ parts: [{ text: prompt }] }],
-              generationConfig: { responseMimeType: "application/json" }
-            };
+              const bodyObj = {
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { responseMimeType: "application/json" }
+              };
 
-            const response = await callGemini(geminiKey, bodyObj);
-            const candidateText = response?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-            const jsonMatch = candidateText.match(/\[[\s\S]*\]/);
-            if (jsonMatch) {
-              const parsedArray = JSON.parse(jsonMatch[0]);
-              if (Array.isArray(parsedArray)) {
-                parsedArray.forEach(parsedData => {
-                  const idx = parsedData.index;
-                  if (idx != null && failedIndices.includes(idx)) {
-                    let sym = String(parsedData.symbol).toUpperCase().replace(/[^A-Z0-9.-]/g, "");
-                    if (sym === "เบ" || sym === "เน" || sym === "เม" || sym === "เU") sym = "MU";
-                    if (sym === "กอ" || sym === "กO") sym = "KO";
+              const response = await callGemini(geminiKey, bodyObj);
+              const candidateText = response?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+              const jsonMatch = candidateText.match(/\[[\s\S]*\]/);
+              if (jsonMatch) {
+                const parsedArray = JSON.parse(jsonMatch[0]);
+                if (Array.isArray(parsedArray)) {
+                  parsedArray.forEach(parsedData => {
+                    const idx = parsedData.index;
+                    if (idx != null && failedIndices.includes(idx)) {
+                      let sym = String(parsedData.symbol).toUpperCase().replace(/[^A-Z0-9.-]/g, "");
+                      if (sym === "เบ" || sym === "เน" || sym === "เม" || sym === "เU") sym = "MU";
+                      if (sym === "กอ" || sym === "กO") sym = "KO";
 
-                    let qtyVal = parseFloat(parsedData.qty) || 1;
-                    let priceVal = parseFloat(parsedData.price) || 0;
+                      let qtyVal = parseFloat(parsedData.qty) || 1;
+                      let priceVal = parseFloat(parsedData.price) || 0;
 
-                    let parsedDate = parsedData.date;
-                    if (!parsedDate || !parsedDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                      parsedDate = new Date().toISOString().split("T")[0];
+                      let parsedDate = parsedData.date;
+                      if (!parsedDate || !parsedDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                        parsedDate = new Date().toISOString().split("T")[0];
+                      }
+
+                      newScannedItems.push({
+                        id: `${Date.now()}-ai-${idx}`,
+                        symbol:          sym,
+                        name:            parsedData.name || sym,
+                        type:            parsedData.category || "stock",
+                        qty:             String(qtyVal),
+                        avgPrice:        String(priceVal),
+                        date:            parsedDate,
+                        time:            parsedData.time || "",
+                        transactionType: parsedData.transactionType || "BUY"
+                      });
+                      succeededIndices.add(idx);
+                      delete fileErrors[idx];
                     }
-
-                    newScannedItems.push({
-                      id: `${Date.now()}-ai-${idx}`,
-                      symbol:          sym,
-                      name:            parsedData.name || sym,
-                      type:            parsedData.category || "stock",
-                      qty:             String(qtyVal),
-                      avgPrice:        String(priceVal),
-                      date:            parsedDate,
-                      time:            parsedData.time || "",
-                      transactionType: parsedData.transactionType || "BUY"
-                    });
-                    succeededIndices.add(idx);
-                    delete fileErrors[idx];
-                  }
-                });
+                  });
+                }
               }
+            } catch (err) {
+              console.error(`AI Text Batch chunk ${c + 1} failed:`, err.message);
             }
           }
-        } catch (err) {
-          console.error("AI Text Batch parsing failed:", err.message);
-          // Mark all failed indices with the batch error
-          failedIndices.forEach(idx => {
-            if (!succeededIndices.has(idx)) {
-              fileErrors[idx] = `รูป ${idx + 1} (AI Text Batch): ${err.message}`;
-            }
-          });
         }
       }
 
-      // If any files still failed or we don't have geminiKey, fall back to standard image-based endpoint (or Workers AI)
+      // ──────────────────────────────────────────────────────────────────────
+      // 2.3 Vision AI Fallback (Gemini single bundled calls / Workers AI fallback)
+      // ──────────────────────────────────────────────────────────────────────
       const remainingFailedIndices = failedIndices.filter(i => !succeededIndices.has(i));
       if (remainingFailedIndices.length > 0) {
-        for (const i of remainingFailedIndices) {
-          setScanningStatus(prev => ({ ...prev, completed: i, stage: "AI Vision Fallback..." }));
-          const file = fileList[i];
-          try {
-            const { base64, mime } = await compressImage(file);
-            let parsedData = null;
+        if (geminiKey) {
+          // Gemini Vision Batch Fallback: compress images, chunk into groups of 3
+          setScanningStatus(prev => ({ ...prev, stage: "AI Vision Batch: กำลังประมวลผล..." }));
+          
+          const remainingImages = [];
+          for (const idx of remainingFailedIndices) {
+            try {
+              const { base64, mime } = await compressImage(fileList[idx]);
+              remainingImages.push({ index: idx, base64, mime });
+            } catch (compressErr) {
+              fileErrors[idx] = `รูป ${idx + 1} (Compression): ${compressErr.message}`;
+            }
+          }
 
-            if (geminiKey) {
-              // Call client-side Gemini Vision (individually as safety fallback)
-              const prompt = `This is a stock trading receipt from Dime! app. Extract in JSON format:
-{
-  "transactionType": "BUY" or "SELL",
-  "symbol": "TICKER",
-  "name": "NAME",
-  "qty": number,
-  "price": number,
-  "date": "YYYY-MM-DD",
-  "time": "HH:MM"
-}`;
+          const visionChunks = [];
+          for (let i = 0; i < remainingImages.length; i += 3) {
+            visionChunks.push(remainingImages.slice(i, i + 3));
+          }
+
+          for (let c = 0; c < visionChunks.length; c++) {
+            const chunk = visionChunks[c];
+            setScanningStatus(prev => ({ ...prev, stage: `AI Vision Chunk: กำลังสแกนกลุ่มที่ ${c + 1}/${visionChunks.length}...` }));
+
+            try {
+              const prompt = `These are stock trading receipt images from the Dime! app (Thai broker).
+Please analyze each image and extract the transaction details in a JSON array.
+For each item, specify:
+- index: The index number corresponding to the image (e.g. the SLIP INDEX number shown below)
+- transactionType: "BUY" or "SELL" (look for "ซื้อ" / "ชื้อ" for BUY, "ขาย" for SELL)
+- symbol: Stock ticker in uppercase (e.g. NVDA, AAPL, MU, SCB-GOLD, K-USA)
+- name: Stock name or symbol
+- category: "stock" or "crypto" or "gold" or "fiat"
+- qty: Quantity of shares/units (numeric)
+- price: Executed price per share/unit (numeric, look for "ราคาที่ได้จริง" - DO NOT use the total price, extract the price per share)
+- date: Transaction date in YYYY-MM-DD format (Buddhist Era year conversion: "68" -> 2568 BE -> 2025 CE, "69" -> 2569 BE -> 2026 CE. Months: ม.ค.=01, ก.พ.=02, มี.ค.=03, เม.ย.=04, พ.ค.=05, มิ.ย.=06, ก.ค.=07, ส.ค.=08, ก.ย.=09, ต.ค.=10, พ.ย.=11, ธ.ค.=12)
+- time: Transaction time in HH:MM format (e.g. "15:40" or "02:22")
+
+Format the response strictly as a JSON array matching this schema:
+[
+  {
+    "index": number,
+    "transactionType": "BUY" | "SELL",
+    "symbol": "STRING",
+    "name": "STRING",
+    "category": "stock" | "crypto" | "gold" | "fiat",
+    "qty": number,
+    "price": number,
+    "date": "YYYY-MM-DD",
+    "time": "HH:MM"
+  }
+]`;
+
+              const parts = [
+                { text: prompt }
+              ];
+
+              chunk.forEach(img => {
+                parts.push({ text: `\n--- SLIP INDEX: ${img.index} ---` });
+                parts.push({ inlineData: { mimeType: img.mime, data: img.base64 } });
+              });
+
               const bodyObj = {
-                contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: mime, data: base64 } }] }],
+                contents: [{ parts }],
                 generationConfig: { responseMimeType: "application/json" }
               };
+
               const response = await callGemini(geminiKey, bodyObj);
               const candidateText = response?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-              const jsonMatch = candidateText.match(/\{[\s\S]*\}/);
-              if (jsonMatch) parsedData = JSON.parse(jsonMatch[0]);
-            } else {
-              // Call Cloudflare Workers AI /api/ocr via proxy
+              const jsonMatch = candidateText.match(/\[[\s\S]*\]/);
+              if (jsonMatch) {
+                const parsedArray = JSON.parse(jsonMatch[0]);
+                if (Array.isArray(parsedArray)) {
+                  parsedArray.forEach(parsedData => {
+                    const idx = parsedData.index;
+                    const matchedImg = chunk.find(item => item.index === idx);
+                    if (idx != null && matchedImg) {
+                      let sym = String(parsedData.symbol).toUpperCase().replace(/[^A-Z0-9.-]/g, "");
+                      if (sym === "เบ" || sym === "เน" || sym === "เม" || sym === "เU") sym = "MU";
+                      if (sym === "กอ" || sym === "กO") sym = "KO";
+
+                      let qtyVal = parseFloat(parsedData.qty) || 1;
+                      let priceVal = parseFloat(parsedData.price) || 0;
+                      let parsedDate = parsedData.date;
+                      if (!parsedDate || !parsedDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                        parsedDate = new Date().toISOString().split("T")[0];
+                      }
+
+                      newScannedItems.push({
+                        id: `${Date.now()}-ai-${idx}`,
+                        symbol:          sym,
+                        name:            parsedData.name || sym,
+                        type:            parsedData.category || "stock",
+                        qty:             String(qtyVal),
+                        avgPrice:        String(priceVal),
+                        date:            parsedDate,
+                        time:            parsedData.time || "",
+                        transactionType: parsedData.transactionType || "BUY"
+                      });
+                      succeededIndices.add(idx);
+                      delete fileErrors[idx];
+                    }
+                  });
+                }
+              }
+            } catch (visionErr) {
+              console.error(`AI Vision Batch chunk ${c+1} failed:`, visionErr.message);
+              chunk.forEach(img => {
+                if (!succeededIndices.has(img.index)) {
+                  fileErrors[img.index] = `รูป ${img.index + 1} (AI Vision): ${visionErr.message}`;
+                }
+              });
+            }
+          }
+        } else {
+          // Workers AI Fallback (without geminiKey)
+          for (const idx of remainingFailedIndices) {
+            setScanningStatus(prev => ({ ...prev, completed: idx, stage: `Workers AI Fallback: รูปที่ ${idx + 1}...` }));
+            const file = fileList[idx];
+            try {
+              const { base64, mime } = await compressImage(file);
+              let parsedData = null;
+
               const res = await fetch("/api/ocr", {
                 method: "POST",
                 headers: {
@@ -519,46 +637,45 @@ Respond with ONLY a valid JSON array matching this schema (no markdown wrapping,
                 const resData = await res.json();
                 if (resData.results && resData.results.length > 0) parsedData = resData.results[0];
               }
-            }
 
-            if (parsedData && parsedData.symbol) {
-              let sym = String(parsedData.symbol).toUpperCase().replace(/[^A-Z0-9.-]/g, "");
-              if (sym === "เบ" || sym === "เน" || sym === "เม" || sym === "เU") sym = "MU";
-              if (sym === "กอ" || sym === "กO") sym = "KO";
+              if (parsedData && parsedData.symbol) {
+                let sym = String(parsedData.symbol).toUpperCase().replace(/[^A-Z0-9.-]/g, "");
+                if (sym === "เบ" || sym === "เน" || sym === "เม" || sym === "เU") sym = "MU";
+                if (sym === "กอ" || sym === "กO") sym = "KO";
 
-              let qtyVal = parseFloat(parsedData.qty) || 1;
-              let priceVal = parseFloat(parsedData.price) || 0;
-              let parsedDate = parsedData.date;
-              if (!parsedDate || !parsedDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                parsedDate = new Date().toISOString().split("T")[0];
+                let qtyVal = parseFloat(parsedData.qty) || 1;
+                let priceVal = parseFloat(parsedData.price) || 0;
+                let parsedDate = parsedData.date;
+                if (!parsedDate || !parsedDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                  parsedDate = new Date().toISOString().split("T")[0];
+                }
+
+                newScannedItems.push({
+                  id: `${Date.now()}-ai-${idx}`,
+                  symbol:          sym,
+                  name:            parsedData.name || sym,
+                  type:            parsedData.category || "stock",
+                  qty:             String(qtyVal),
+                  avgPrice:        String(priceVal),
+                  date:            parsedDate,
+                  time:            parsedData.time || "",
+                  transactionType: parsedData.transactionType || "BUY"
+                });
+                succeededIndices.add(idx);
+                delete fileErrors[idx];
+              } else {
+                throw new Error("ไม่สามารถดึงข้อมูลรายการหุ้นได้สำเร็จ");
               }
-
-              newScannedItems.push({
-                id: `${Date.now()}-ai-${i}`,
-                symbol:          sym,
-                name:            parsedData.name || sym,
-                type:            parsedData.category || "stock",
-                qty:             String(qtyVal),
-                avgPrice:        String(priceVal),
-                date:            parsedDate,
-                time:            parsedData.time || "",
-                transactionType: parsedData.transactionType || "BUY"
-              });
-              succeededIndices.add(i);
-              delete fileErrors[i];
-            } else {
-              throw new Error("ไม่สามารถดึงข้อมูลรายการหุ้นได้สำเร็จ");
+            } catch (err) {
+              console.error(`Fallback failed for image ${idx + 1}:`, err.message);
+              fileErrors[idx] = `รูป ${idx + 1} (Workers AI Fallback): ${err.message}`;
             }
-          } catch (err) {
-            console.error(`Fallback failed for image ${i + 1}:`, err.message);
-            fileErrors[i] = `รูป ${i + 1} (Fallback): ${err.message}`;
           }
         }
       }
     }
 
     setScanningStatus(prev => ({ ...prev, completed: fileList.length }));
-
 
     if (newScannedItems.length > 0) {
       if (newScannedItems.length === 1 && scannedQueue.length === 0) {

@@ -1221,7 +1221,7 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
     }
 
     const targetSymbol = isCashAsset ? getCurrencyTicker(asset.symbol) : asset.symbol;
-    const fetchTf = tf === "ตั้งแต่ซื้อ" ? "5Y" : tf;
+    const fetchTf = tf === "ตั้งแต่ซื้อ" ? "MAX" : tf;
     fetch(`/api/prices?history=${encodeURIComponent(targetSymbol)}&tf=${fetchTf}`)
       .then(r => r.json())
       .then(data => {
@@ -1462,7 +1462,27 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
                     if (sortedLots.length > 0) {
                       const firstDate = sortedLots[0].date;
                       const filtered = chartData.candles.filter(c => c.date.split("T")[0] >= firstDate);
-                      if (filtered.length >= 2) return filtered;
+                      if (filtered.length >= 2) {
+                        return filtered;
+                      } else if (filtered.length === 1) {
+                        const single = filtered[0];
+                        const prevDate = new Date(new Date(single.date) - 86400000).toISOString();
+                        return [
+                          { ...single, date: prevDate },
+                          single
+                        ];
+                      } else {
+                        // If no candles are >= firstDate (e.g. firstDate is today/in future)
+                        // Take the last candle in chartData.candles and pad it
+                        if (chartData.candles.length > 0) {
+                          const lastCandle = chartData.candles[chartData.candles.length - 1];
+                          const prevDate = new Date(new Date(lastCandle.date) - 86400000).toISOString();
+                          return [
+                            { ...lastCandle, date: prevDate },
+                            lastCandle
+                          ];
+                        }
+                      }
                     }
                   }
                   return chartData.candles;
