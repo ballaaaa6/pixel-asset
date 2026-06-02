@@ -793,6 +793,30 @@ function DonutChart({ segments, totalAssets, hasAssets }) {
   );
 }
 
+function getRealizedPnL(lots) {
+  if (!lots || !lots.length) return 0;
+  const sortedLots = [...lots].sort((a, b) => new Date(a.date) - new Date(b.date));
+  let realized = 0;
+  let currentQty = 0;
+  let currentAvgCost = 0;
+  for (const lot of sortedLots) {
+    const lotQty = lot.qty;
+    const lotPrice = lot.price;
+    if (lotQty > 0) {
+      const newQty = currentQty + lotQty;
+      const newCost = (currentQty * currentAvgCost) + (lotQty * lotPrice);
+      currentAvgCost = newQty > 0 ? newCost / newQty : 0;
+      currentQty = newQty;
+    } else if (lotQty < 0) {
+      const sellQty = Math.abs(lotQty);
+      const gain = (lotPrice - currentAvgCost) * sellQty;
+      realized += gain;
+      currentQty = Math.max(0, currentQty - sellQty);
+    }
+  }
+  return realized;
+}
+
 
 /* ═══════════════════════════════════════════════════════════════
    KPI CARDS ROW
@@ -1433,10 +1457,11 @@ export default function Dashboard({ user, onLogout, showToast }) {
 
 
   /* ── COMPUTED PORTFOLIO TOTALS ── */
-  const { totalUSD, totalCostUSD, todayChangeUSD, bestAsset, sortedAssets, donutSegments } = useMemo(() => {
-    if (!assets.length) return { totalUSD: 0, totalCostUSD: 0, todayChangeUSD: 0, bestAsset: null, sortedAssets: [], donutSegments: [] };
+  const { totalUSD, totalCostUSD, todayChangeUSD, totalRealizedUSD, bestAsset, sortedAssets, donutSegments } = useMemo(() => {
+    if (!assets.length) return { totalUSD: 0, totalCostUSD: 0, todayChangeUSD: 0, totalRealizedUSD: 0, bestAsset: null, sortedAssets: [], donutSegments: [] };
 
     let totVal = 0, totCost = 0, totToday = 0;
+    let totRealized = 0;
     let bestSym = null, bestPct = -Infinity;
 
     const computed = assets.map(a => {
@@ -1444,12 +1469,30 @@ export default function Dashboard({ user, onLogout, showToast }) {
       totVal   += c.valueUSD;
       totCost  += c.costUSD;
       totToday += c.todayChg;
-      if (c.gainPct > bestPct && (a.avgCost > 0 || a.avgPrice > 0)) { bestPct = c.gainPct; bestSym = a; }
-      return { ...a, ...c };
+      
+      const realized = getRealizedPnL(a.lots || []);
+      totRealized += realized;
+
+      const assetWithPnL = {
+        ...a,
+        ...c,
+        realizedPnL: realized,
+        unrealizedPnL: a.qty > 0 ? (c.valueUSD - c.costUSD) : 0,
+        totalPnL: realized + (a.qty > 0 ? (c.valueUSD - c.costUSD) : 0)
+      };
+
+      if (c.gainPct > bestPct && a.qty > 0 && (a.avgCost > 0 || a.avgPrice > 0)) { 
+        bestPct = c.gainPct; 
+        bestSym = a; 
+      }
+      return assetWithPnL;
     });
 
-    // Sort
-    const sorted = [...computed].sort((a, b) => {
+    // Filter out assets with qty <= 0.00001 (fully sold-out) from active list
+    const activeAssets = computed.filter(a => a.qty > 0.00001);
+
+    // Sort active
+    const sorted = [...activeAssets].sort((a, b) => {
       if (!sortConfig.key) return b.valueUSD - a.valueUSD;
       const dir = sortConfig.dir === "asc" ? 1 : -1;
       switch (sortConfig.key) {
@@ -1463,7 +1506,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
 
     // Donut segments grouped by category
     const catMap = {};
-    computed.forEach(a => {
+    activeAssets.forEach(a => {
       const cat = a.category || "stock";
       if (!catMap[cat]) catMap[cat] = 0;
       catMap[cat] += a.valueUSD;
@@ -1477,13 +1520,15 @@ export default function Dashboard({ user, onLogout, showToast }) {
       totalUSD: totVal,
       totalCostUSD: totCost,
       todayChangeUSD: totToday,
+      totalRealizedUSD: totRealized,
       bestAsset: bestSym ? { symbol: bestSym.symbol, pct: bestPct } : null,
       sortedAssets: sorted,
       donutSegments: donut,
     };
   }, [assets, prices, exchangeRate, sortConfig, computeAsset]);
 
-  const totalGainUSD = totalUSD - totalCostUSD;
+  const totalUnrealizedUSD = totalUSD - totalCostUSD;
+  const totalGainUSD = totalUnrealizedUSD + totalRealizedUSD;
   const totalGainPct = totalCostUSD > 0 ? (totalGainUSD / totalCostUSD) * 100 : 0;
   const todayChangePct = totalCostUSD > 0 ? (todayChangeUSD / (totalUSD - todayChangeUSD)) * 100 : 0;
 
@@ -1896,14 +1941,28 @@ export default function Dashboard({ user, onLogout, showToast }) {
               <div className="hero-divider" />
               <div className="hero-meta">
                 <div className="hero-meta-item">
-                  <span className="hero-meta-label">สินทรัพย์</span>
-                  <span className="hero-meta-value">{assets.length} รายการ</span>
+                  <span className="hero-meta-label">สินทรัพย์ที่ถืออยู่</span>
+                  <span className="hero-meta-value">{assets.filter(a => a.qty > 0.00001).length} รายการ</span>
                 </div>
                 <div className="hero-meta-item" style={{ textAlign: "right" }}>
                   <span className="hero-meta-label">ต้นทุนรวม</span>
                   <span className="hero-meta-value" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
                     <span>{fmt.usd(totalCostUSD)}</span>
                     <span style={{ fontSize: 11, color: "rgba(255, 255, 255, 0.9)", fontWeight: 600 }}>({ "฿" + new Intl.NumberFormat("th-TH", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(totalCostUSD * exchangeRate) })</span>
+                  </span>
+                </div>
+              </div>
+              <div className="hero-meta" style={{ marginTop: 10, borderTop: "1px dashed rgba(255,255,255,0.2)", paddingTop: 10 }}>
+                <div className="hero-meta-item">
+                  <span className="hero-meta-label">รับรู้แล้ว (Realized)</span>
+                  <span className="hero-meta-value" style={{ color: totalRealizedUSD >= 0 ? "#6EE7B7" : "#FCA5A5", fontWeight: 700 }}>
+                    {totalRealizedUSD >= 0 ? "+" : ""}{fmt.usd(totalRealizedUSD)}
+                  </span>
+                </div>
+                <div className="hero-meta-item" style={{ textAlign: "right" }}>
+                  <span className="hero-meta-label">ยังไม่รับรู้ (Unrealized)</span>
+                  <span className="hero-meta-value" style={{ color: totalUnrealizedUSD >= 0 ? "#6EE7B7" : "#FCA5A5", fontWeight: 700 }}>
+                    {totalUnrealizedUSD >= 0 ? "+" : ""}{fmt.usd(totalUnrealizedUSD)}
                   </span>
                 </div>
               </div>
@@ -1962,9 +2021,9 @@ export default function Dashboard({ user, onLogout, showToast }) {
               <div className="control-bar">
                 <div className="section-title">
                   📋 สินทรัพย์ของฉัน
-                  {assets.length > 0 && (
+                  {sortedAssets.length > 0 && (
                     <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-muted)", background: "#F1F5F9", padding: "2px 10px", borderRadius: 8 }}>
-                      {assets.length} รายการ
+                      {sortedAssets.length} รายการ
                     </span>
                   )}
                 </div>
@@ -1983,7 +2042,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
               </div>
 
               {/* ── EMPTY STATE ── */}
-              {assets.length === 0 ? (
+              {sortedAssets.length === 0 ? (
                 <div className="empty-state">
                   <div className="empty-icon">📊</div>
                   <div className="empty-title">พอร์ตยังว่างอยู่</div>
