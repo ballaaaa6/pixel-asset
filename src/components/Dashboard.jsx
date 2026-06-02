@@ -202,8 +202,8 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
         setDims({
           w: e.contentRect.width,
           h: isMobile 
-            ? Math.min(420, Math.max(280, e.contentRect.width * 0.75))
-            : Math.min(450, Math.max(350, e.contentRect.width * 0.55))
+            ? Math.min(480, Math.max(300, e.contentRect.width * 0.85))
+            : Math.min(520, Math.max(380, e.contentRect.width * 0.62))
         });
       }
     });
@@ -215,10 +215,10 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
   const H = dims.h;
   
   const isMobile = W < 500;
-  const PAD_L = isMobile ? 38 : 58;
-  const PAD_R = isMobile ? 8 : 16;
-  const PAD_T = isMobile ? 12 : 24;
-  const PAD_B = isMobile ? 30 : 40;
+  const PAD_L = isMobile ? 36 : 52;
+  const PAD_R = isMobile ? 6 : 10;
+  const PAD_T = isMobile ? 8 : 14;
+  const PAD_B = isMobile ? 24 : 32;
 
   const iW = W - PAD_L - PAD_R;
   const iH = H - PAD_T - PAD_B;
@@ -439,8 +439,6 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
         style={{ 
           cursor: "crosshair", 
           position: "relative",
-          maxWidth: isMobile ? "100%" : "650px",
-          margin: "0 auto",
           width: "100%"
         }}>
         <svg
@@ -2686,14 +2684,14 @@ export default function Dashboard({ user, onLogout, showToast }) {
                                     <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
                                       <MarketBadge state={pData?.marketState} />
                                       <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", background: "#F1F5F9", padding: "1px 6px", borderRadius: 4 }}>
-                                        สัดส่วน: {weightPct.toFixed(1)}%
+                                        {weightPct.toFixed(1)}%
                                       </span>
                                     </div>
                                   </div>
                                 </div>
                               </td>
 
-                              {/* Price + Sparkline */}
+                              {/* Price */}
                               <td style={{ textAlign: "right" }}>
                                 {!hasPrices ? (
                                   <div className="skeleton skeleton-text" style={{ width: 70, height: 16, marginLeft: "auto" }} />
@@ -2701,9 +2699,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
                                   <span style={{ color: "var(--text-faint)", fontSize: 13 }}>—</span>
                                 ) : (
                                   <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10 }}>
-                                    {!isCashAsset && sparklines[asset.symbol]?.closes && (
-                                      <SparklineChart closes={sparklines[asset.symbol].closes} />
-                                    )}
                                     <div>
                                       {/* Line 1: Regular Price */}
                                       <div className={`num-tick`} style={{ fontWeight: 700, fontSize: 14 }}>
@@ -2863,15 +2858,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                             </div>
                           </div>
 
-                          {/* Sparkline full row */}
-                          {!isCashAsset && sp && (
-                            <div className="mobile-sparkline">
-                              <SparklineChart closes={sp} />
-                              <span style={{ fontSize: 11, marginLeft: 8, color: sp[sp.length-1] >= sp[0] ? "var(--gain)" : "var(--loss)", fontWeight: 700 }}>
-                                {sp.length > 1 ? fmt.pct(((sp[sp.length-1] - sp[0]) / sp[0]) * 100) : ""} (7 วัน)
-                              </span>
-                            </div>
-                          )}
+
 
                           <div className="mobile-card-stats">
                             <div className="mobile-stat">

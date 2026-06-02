@@ -357,7 +357,7 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
     return markers;
   }, [lots, candles, PAD_L, iW, isThai, exchangeRate]);
 
-  /* ── Hover handler (Maps cursor to active purchase region) ── */
+  /* ── Hover handler (Maps cursor to any candle) ── */
   const handleMouseMove = useCallback((e) => {
     if (!containerRef.current || !pts || pts.length < 2) return;
     const rect = containerRef.current.getBoundingClientRect();
@@ -365,16 +365,17 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
     const relX = (mouseXInSvg - PAD_L) / iW;
     const idx = Math.max(0, Math.min(Math.round(relX * (candles.length - 1)), candles.length - 1));
     const pt = pts[idx];
-    const costPt = costPts[idx];
-    if (pt && costPt) {
+    if (pt) {
+      const costPt = costPts[idx];
       setHovered({
         idx,
         x: pt.x,
         y: pt.y,
-        costY: costPt.y,
+        costY: costPt ? costPt.y : null,
         value: pt.value,
-        cost: costPt.cost,
-        date: pt.date
+        cost: costPt ? costPt.cost : null,
+        date: pt.date,
+        hasPurchased: pt.hasPurchased
       });
     }
   }, [pts, costPts, candles, PAD_L, iW, W]);
@@ -566,8 +567,8 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
             <line x1={hovered.x} y1={PAD_T} x2={hovered.x} y2={H - PAD_B}
               stroke="#94A3B8" strokeWidth="1" strokeDasharray="4 4" />
             <circle cx={hovered.x} cy={hovered.y} r="5"
-              fill="white" stroke={hovered.value >= hovered.cost ? "#00B98A" : "#FF4B55"} strokeWidth="2.5" />
-            {hovered.cost > 0 && (
+              fill="white" stroke={hovered.cost != null && hovered.value >= hovered.cost ? "#00B98A" : hovered.cost != null ? "#FF4B55" : "#94A3B8"} strokeWidth="2.5" />
+            {hovered.costY != null && (
               <circle cx={hovered.x} cy={hovered.costY} r="4"
                 fill="white" stroke="#5236FF" strokeWidth="2" />
             )}
@@ -592,14 +593,14 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
 
         {/* ── Hover tooltip ── */}
         {hovered && (() => {
-          const tipW = 140, tipH = 58;
+          const tipW = 160, tipH = hovered.cost != null ? 68 : 46;
           const tipX = hovered.x < W / 2
             ? Math.min(hovered.x + 15, W - PAD_R - tipW)
             : Math.max(PAD_L + 15, hovered.x - tipW - 15);
           const tipY = Math.max(PAD_T + 10, Math.min(H - PAD_B - tipH - 10, hovered.y - tipH / 2));
           
-          const diff = hovered.cost > 0 ? hovered.value - hovered.cost : 0;
-          const diffPct = hovered.cost > 0 ? (diff / hovered.cost) * 100 : 0;
+          const diff = hovered.cost != null ? hovered.value - hovered.cost : 0;
+          const diffPct = hovered.cost != null && hovered.cost > 0 ? (diff / hovered.cost) * 100 : 0;
           return (
             <g style={{ pointerEvents: "none" }}>
               <rect x={tipX} y={tipY} width={tipW} height={tipH} rx="10"
@@ -608,12 +609,12 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
                 fontSize="10" fill="#94A3B8" fontFamily="Outfit,sans-serif">
                 {fmtDate(hovered.date, tf)}
               </text>
-              <text x={tipX + tipW / 2} y={tipY + 30} textAnchor="middle"
+              <text x={tipX + tipW / 2} y={tipY + 31} textAnchor="middle"
                 fontSize="12" fill="white" fontWeight="800" fontFamily="Outfit,sans-serif">
                 ราคา: {fmtUSD(hovered.value)}
               </text>
-              {hovered.cost > 0 && (
-                <text x={tipX + tipW / 2} y={tipY + 45} textAnchor="middle"
+              {hovered.cost != null && (
+                <text x={tipX + tipW / 2} y={tipY + 51} textAnchor="middle"
                   fontSize="11" fill={diff >= 0 ? "#00B98A" : "#FF4B55"} fontWeight="800" fontFamily="Outfit,sans-serif">
                   ทุนเฉลี่ย: {fmtUSD(hovered.cost)} ({fmtPct(diffPct)})
                 </text>
