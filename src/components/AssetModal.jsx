@@ -296,114 +296,114 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
     setScanning(true);
     setScanningStatus({ active: true, total: fileList.length, completed: 0 });
 
-    // Use key from localStorage (entered via Settings ⚙️)
-    const stored = localStorage.getItem("gemini_api_key") || "";
-    const key = stored;
-    if (!key) {
-      triggerToast("❌ กรุณาตั้งค่า Gemini API Key ก่อน\nไปที่ ⚙️ Settings → Google Gemini API Key", "error");
-      setScanning(false);
-      setScanningStatus({ active: false, total: 0, completed: 0 });
-      return;
-    }
     const newScannedItems = [];
     const errors = [];
-    let completedCount = 0;
 
-    const BATCH_SIZE = 5; // Send up to 5 images per API call
-    const chunks = [];
-    for (let i = 0; i < fileList.length; i += BATCH_SIZE) {
-      chunks.push(fileList.slice(i, i + BATCH_SIZE));
-    }
+    try {
+      // ── Step 1: Compress all images in parallel ──
+      const compressed = await Promise.all(fileList.map(f => compressImage(f)));
+      setScanningStatus(prev => ({ ...prev, completed: Math.ceil(fileList.length * 0.2) }));
 
-    const basePromptField = `You are a financial receipt OCR parser. Each receipt may be from any broker or banking app (Dime!, Webull, InnovestX, Bitkub, Binance, etc.).
-For EACH image, extract:
-1. symbol: ticker/asset symbol (e.g. AAPL, BTC, THB). Uppercase.
-2. name: company or asset full name.
-3. category: one of "stock", "crypto", "gold", "fiat".
-   - crypto = BTC, ETH, SOL etc.  gold = Spot Gold, GC=F etc.  fiat = cash THB/USD.  stock = equities/ETFs.
-4. transactionType: "BUY" (buy/deposit/inflow) or "SELL" (sell/withdraw/outflow).
-5. qty: quantity bought/sold (number). For cash = deposit/withdrawal amount.
-6. price: price per unit in USD (number). For cash = 1.
-7. date: ISO format YYYY-MM-DD. Thai BE year: subtract 543 (e.g. "69" → 2026). If unclear use today.`;
-
-    for (const chunk of chunks) {
+      // ── Step 2: Try our own /api/ocr endpoint (Cloudflare Workers AI — no key needed) ──
+      let usedCloudflare = false;
       try {
-        // Compress all images in this chunk in parallel
-        const compressed = await Promise.all(chunk.map(f => compressImage(f)));
-
-        let resJson;
-        if (chunk.length === 1) {
-          // Single image → ask for a single JSON object (faster, more accurate)
-          const prompt = basePromptField + `\n\nRespond ONLY with a single JSON object (no markdown, no array).`;
-          resJson = await callGemini(key, {
-            contents: [{ parts: [
-              { text: prompt },
-              { inlineData: { mimeType: compressed[0].mime, data: compressed[0].base64 } }
-            ]}]
-          });
-          const rawText = resJson.candidates?.[0]?.content?.parts?.[0]?.text || "";
-          const clean = rawText.trim().replace(/^```[\w]*\n?/, "").replace(/\n?```$/, "").trim();
-          const data = JSON.parse(clean);
-          if (data.symbol) {
-            newScannedItems.push({
-              id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-              symbol: data.symbol.toUpperCase(),
-              name: data.name || data.symbol.toUpperCase(),
-              type: data.category || "stock",
-              qty: data.qty ? parseFloat(data.qty) || "" : "",
-              avgPrice: data.price ? parseFloat(data.price) || "" : "",
-              date: data.date || new Date().toISOString().split("T")[0],
-              transactionType: data.transactionType || "BUY"
-            });
-          } else {
-            throw new Error("ไม่พบสัญลักษณ์หุ้นหรือสินทรัพย์");
-          }
-          completedCount += 1;
-        } else {
-          // Multiple images → ask for a JSON array, one object per image
-          const prompt = basePromptField + `\n\nYou will receive ${chunk.length} images. Respond ONLY with a JSON array containing exactly ${chunk.length} objects in order (one per image). No markdown.`;
-          const parts = [{ text: prompt }];
-          compressed.forEach(c => parts.push({ inlineData: { mimeType: c.mime, data: c.base64 } }));
-
-          resJson = await callGemini(key, { contents: [{ parts }] });
-          const rawText = resJson.candidates?.[0]?.content?.parts?.[0]?.text || "";
-          const clean = rawText.trim().replace(/^```[\w]*\n?/, "").replace(/\n?```$/, "").trim();
-          let dataArr = JSON.parse(clean);
-          if (!Array.isArray(dataArr)) dataArr = [dataArr];
-
-          dataArr.forEach((data, i) => {
-            if (data.symbol) {
-              newScannedItems.push({
-                id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}-${i}`,
-                symbol: data.symbol.toUpperCase(),
-                name: data.name || data.symbol.toUpperCase(),
-                type: data.category || "stock",
-                qty: data.qty ? parseFloat(data.qty) || "" : "",
-                avgPrice: data.price ? parseFloat(data.price) || "" : "",
-                date: data.date || new Date().toISOString().split("T")[0],
-                transactionType: data.transactionType || "BUY"
-              });
-            } else {
-              errors.push(`รูป ${completedCount + i + 1}: ไม่พบสัญลักษณ์หุ้นหรือสินทรัพย์`);
-            }
-          });
-          completedCount += chunk.length;
-        }
-      } catch (err) {
-        console.error("OCR batch error:", err);
-        chunk.forEach((file, i) => {
-          errors.push(`${file.name || `รูป ${completedCount + i + 1}`}: ${err.message}`);
+        const token = localStorage.getItem("auth_token") || "";
+        const ocrRes = await fetch("/api/ocr", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            images: compressed.map(c => ({ base64: c.base64, mime: c.mime }))
+          })
         });
-        completedCount += chunk.length;
-      }
 
-      setScanningStatus(prev => ({ ...prev, completed: completedCount }));
+        if (ocrRes.ok) {
+          const ocrData = await ocrRes.json();
+          // AI binding available → use results
+          if (ocrData.results && Array.isArray(ocrData.results)) {
+            usedCloudflare = true;
+            ocrData.results.forEach(data => {
+              if (data.symbol) {
+                newScannedItems.push({
+                  id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}-${data.index}`,
+                  symbol: String(data.symbol).toUpperCase(),
+                  name: data.name || String(data.symbol).toUpperCase(),
+                  type: data.category || "stock",
+                  qty: parseFloat(data.qty) || "",
+                  avgPrice: parseFloat(data.price) || "",
+                  date: data.date || new Date().toISOString().split("T")[0],
+                  transactionType: data.transactionType || "BUY"
+                });
+              }
+            });
+            (ocrData.errors || []).forEach(e => errors.push(`รูป ${e.index + 1}: ${e.error}`));
+          } else if (ocrData.error === "AI_BINDING_UNAVAILABLE") {
+            throw new Error("AI_BINDING_UNAVAILABLE");
+          }
+        } else {
+          throw new Error(`/api/ocr HTTP ${ocrRes.status}`);
+        }
+      } catch (cfErr) {
+        // ── Step 3: Fallback to Gemini API if Cloudflare AI not available ──
+        console.warn("Cloudflare OCR failed, falling back to Gemini:", cfErr.message);
+        const geminiKey = localStorage.getItem("gemini_api_key") || "";
+        if (!geminiKey) {
+          throw new Error("ไม่สามารถใช้งาน OCR ได้\n• Cloudflare AI: ไม่พร้อมใช้งาน\n• Gemini API: ยังไม่ได้ตั้งค่า key\nไปที่ ⚙️ Settings เพื่อตั้งค่า Gemini API Key");
+        }
 
-      // Small pause between chunks to respect free-tier rate limits
-      if (chunks.indexOf(chunk) < chunks.length - 1) {
-        await new Promise(r => setTimeout(r, 2000));
+        // Process in chunks of 5 via Gemini
+        const BATCH_SIZE = 5;
+        const chunks = [];
+        for (let i = 0; i < compressed.length; i += BATCH_SIZE) {
+          chunks.push({ files: fileList.slice(i, i + BATCH_SIZE), imgs: compressed.slice(i, i + BATCH_SIZE), start: i });
+        }
+
+        const PROMPT_BASE = `You are a financial receipt OCR parser. Each receipt may be from any broker or banking app (Dime!, Webull, InnovestX, Bitkub, Binance, etc.).
+Extract: symbol (ticker, uppercase), name (full name), category ("stock"/"crypto"/"gold"/"fiat"), transactionType ("BUY"/"SELL"), qty (number), price (USD per unit), date (YYYY-MM-DD, Thai BE year -543).`;
+
+        for (const chunk of chunks) {
+          try {
+            let resJson;
+            if (chunk.imgs.length === 1) {
+              const prompt = PROMPT_BASE + "\n\nRespond ONLY with a single JSON object. No markdown.";
+              resJson = await callGemini(geminiKey, {
+                contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: chunk.imgs[0].mime, data: chunk.imgs[0].base64 } }] }]
+              });
+              const rawText = resJson.candidates?.[0]?.content?.parts?.[0]?.text || "";
+              const clean = rawText.trim().replace(/^```[\w]*\n?/, "").replace(/\n?```$/, "").trim();
+              const data = JSON.parse(clean.match(/\{[\s\S]*\}/)?.[0] || clean);
+              if (data.symbol) {
+                newScannedItems.push({ id: `${Date.now()}-g0`, symbol: data.symbol.toUpperCase(), name: data.name || data.symbol, type: data.category || "stock", qty: parseFloat(data.qty) || "", avgPrice: parseFloat(data.price) || "", date: data.date || new Date().toISOString().split("T")[0], transactionType: data.transactionType || "BUY" });
+              }
+            } else {
+              const prompt = PROMPT_BASE + `\n\nYou will see ${chunk.imgs.length} images. Respond ONLY with a JSON array of ${chunk.imgs.length} objects in order. No markdown.`;
+              const parts = [{ text: prompt }];
+              chunk.imgs.forEach(c => parts.push({ inlineData: { mimeType: c.mime, data: c.base64 } }));
+              resJson = await callGemini(geminiKey, { contents: [{ parts }] });
+              const rawText = resJson.candidates?.[0]?.content?.parts?.[0]?.text || "";
+              const clean = rawText.trim().replace(/^```[\w]*\n?/, "").replace(/\n?```$/, "").trim();
+              let dataArr = JSON.parse(clean.match(/\[[\s\S]*\]/)?.[0] || clean);
+              if (!Array.isArray(dataArr)) dataArr = [dataArr];
+              dataArr.forEach((data, i) => {
+                if (data.symbol) newScannedItems.push({ id: `${Date.now()}-g${chunk.start + i}`, symbol: data.symbol.toUpperCase(), name: data.name || data.symbol, type: data.category || "stock", qty: parseFloat(data.qty) || "", avgPrice: parseFloat(data.price) || "", date: data.date || new Date().toISOString().split("T")[0], transactionType: data.transactionType || "BUY" });
+                else errors.push(`รูป ${chunk.start + i + 1}: ไม่พบสัญลักษณ์`);
+              });
+            }
+            setScanningStatus(prev => ({ ...prev, completed: Math.min(fileList.length, prev.completed + chunk.imgs.length) }));
+            if (chunks.indexOf(chunk) < chunks.length - 1) await new Promise(r => setTimeout(r, 2000));
+          } catch (gErr) {
+            chunk.files.forEach((f, i) => errors.push(`${f.name || `รูป ${chunk.start + i + 1}`}: ${gErr.message}`));
+          }
+        }
       }
+    } catch (topErr) {
+      errors.push(topErr.message);
     }
+
+    setScanningStatus(prev => ({ ...prev, completed: fileList.length }));
+
 
     if (newScannedItems.length > 0) {
       if (newScannedItems.length === 1 && scannedQueue.length === 0) {
