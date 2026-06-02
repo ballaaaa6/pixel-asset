@@ -115,6 +115,16 @@ Output ONLY valid JSON, nothing else:
           date = new Date().toISOString().split("T")[0]; // fallback to today
         }
 
+        // Map common garbled Thai characters back to English symbols
+        let parsedSymbol = String(data.symbol).trim().toUpperCase();
+        if (parsedSymbol === "เบ" || parsedSymbol === "เน" || parsedSymbol === "เม" || parsedSymbol === "เU") {
+          parsedSymbol = "MU";
+        } else if (parsedSymbol === "กอ" || parsedSymbol === "กO") {
+          parsedSymbol = "KO";
+        } else {
+          parsedSymbol = parsedSymbol.replace(/[^A-Z.]/g, "");
+        }
+
         // Sanity-check price: if price > qty * 10000, it's probably the total not per-share
         let price = parseFloat(data.price) || 0;
         const qty = parseFloat(data.qty) || 1;
@@ -124,8 +134,8 @@ Output ONLY valid JSON, nothing else:
 
         results.push({
           index: i,
-          symbol: String(data.symbol).toUpperCase().replace(/[^A-Z.]/g, ""),
-          name: data.name || data.symbol,
+          symbol: parsedSymbol,
+          name: data.name || parsedSymbol,
           category: data.category || "stock",
           transactionType: data.transactionType || "BUY",
           qty,

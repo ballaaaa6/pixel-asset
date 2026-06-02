@@ -395,8 +395,14 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
           chunks.push({ files: fileList.slice(i, i + BATCH_SIZE), imgs: compressed.slice(i, i + BATCH_SIZE), start: i });
         }
 
-        const PROMPT_BASE = `You are a financial receipt OCR parser. Each receipt may be from any broker or banking app (Dime!, Webull, InnovestX, Bitkub, Binance, etc.).
-Extract: symbol (ticker, uppercase), name (full name), category ("stock"/"crypto"/"gold"/"fiat"), transactionType ("BUY"/"SELL"), qty (number), price (USD per unit), date (YYYY-MM-DD, Thai BE year -543).`;
+        const PROMPT_BASE = `You are a financial receipt OCR parser. Analyze the receipt image (which is typically from Dime! app, a Thai stock broker) and extract the following fields:
+1. "symbol": The stock ticker symbol in uppercase (e.g. MU, AAPL, ASML, NVDA). For US stocks on Dime!, look at the top line right after "ซื้อ" or "ขาย". If it says "ซื้อ MU", the symbol is "MU". (Map common OCR issues like "เบ" or "เน" to "MU").
+2. "name": Full name of the company or asset (e.g. "Micron Technology" for MU).
+3. "category": "stock", "crypto", "gold", or "fiat".
+4. "transactionType": "BUY" or "SELL".
+5. "qty": The number of shares/units purchased or sold. On Dime!, look for the number followed by "หุ้น" or "shares" or similar, like "3 หุ้น" -> qty is 3. Do NOT default to 1 if you can find the actual quantity.
+6. "price": The purchase or sale price per unit. Crucially, on Dime! receipts there are two columns: "ราคาที่คุณตั้ง" (limit price) and "ราคาที่ได้จริง" (executed price). You MUST extract the executed price ("ราคาที่ได้จริง") as the price per unit, NOT the limit price or the total cost.
+7. "date": Transaction date in YYYY-MM-DD format. On Dime!, convert the Buddhist Era year to CE (subtract 543 or add 1957, e.g., 69 -> 2026). Example: "19 พ.ค. 69" -> "2026-05-19".`;
 
         for (const chunk of chunks) {
           try {
