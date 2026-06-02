@@ -77,7 +77,64 @@ function AssetLogo({ symbol, category, style }) {
     if (cat === "gold" || symbol === "XAU") {
       return `https://images.financialmodelingprep.com/symbol/GLD.png`;
     }
-    return `https://images.financialmodelingprep.com/symbol/${cleanSymbol}.png`;
+    
+    // Stock (Clearbit Logo API with Domain Mapping)
+    const getStockDomain = (sym) => {
+      const map = {
+        AAPL: "apple.com",
+        MSFT: "microsoft.com",
+        GOOG: "google.com",
+        GOOGL: "google.com",
+        AMZN: "amazon.com",
+        META: "meta.com",
+        TSLA: "tesla.com",
+        NVDA: "nvidia.com",
+        NFLX: "netflix.com",
+        SNDK: "sandisk.com",
+        AMD: "amd.com",
+        INTC: "intel.com",
+        QCOM: "qualcomm.com",
+        BABA: "alibaba.com",
+        COIN: "coinbase.com",
+        PYPL: "paypal.com",
+        SQ: "block.xyz",
+        DIS: "disney.com",
+        V: "visa.com",
+        MA: "mastercard.com",
+        NKE: "nike.com",
+        SBUX: "starbucks.com",
+        KO: "cocacola.com",
+        PEP: "pepsico.com",
+        WMT: "walmart.com",
+        JPM: "jpmorganchase.com",
+        BAC: "bankofamerica.com",
+        XOM: "exxonmobil.com",
+        CVX: "chevron.com",
+        JNJ: "jnj.com",
+        PG: "pg.com",
+        MRK: "merck.com",
+        ABV: "abbvie.com",
+        LLY: "lilly.com",
+        PFE: "pfizer.com",
+        WDC: "westerndigital.com",
+        PTT: "ptt.co.th",
+        KBANK: "kasikornbank.com",
+        CPALL: "cpall.co.th",
+        AOT: "airportthai.co.th",
+        BDMS: "bdms.co.th",
+        ADVANC: "ais.co.th",
+        SCB: "scb.co.th",
+        BBL: "bangkokbank.com",
+        GULF: "gulf.co.th",
+        CPN: "cpn.co.th",
+        SCC: "scg.com",
+        BANPU: "banpu.com",
+        TRUE: "true.th"
+      };
+      return map[sym] || `${sym.toLowerCase()}.com`;
+    };
+    
+    return `https://logo.clearbit.com/${getStockDomain(cleanSymbol)}`;
   }, [symbol, category, cleanSymbol]);
 
   if (error || !logoUrl) {
@@ -97,8 +154,9 @@ function AssetLogo({ symbol, category, style }) {
         width: 38,
         height: 38,
         borderRadius: 12,
-        objectFit: "cover",
+        objectFit: "contain",
         background: "#FFFFFF",
+        padding: 4,
         border: "1px solid var(--border)",
         boxShadow: "var(--shadow-xs)",
         flexShrink: 0,
@@ -107,6 +165,7 @@ function AssetLogo({ symbol, category, style }) {
     />
   );
 }
+
 
 const getCurrencyTicker = (symbol) => {
   if (symbol === "USD") return "USD";
