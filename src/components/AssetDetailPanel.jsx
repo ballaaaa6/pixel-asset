@@ -138,7 +138,10 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
   const [zoomRange, setZoomRange] = useState(null); // { start, end }
   const [dragStart, setDragStart] = useState(null);
   const [dragEnd, setDragEnd] = useState(null);
-  const touchRef = useRef({ lastX: 0, startDist: 0, startZoom: null, isPinching: false, centerX: 0 });
+  const [diffStartIdx, setDiffStartIdx] = useState(null);
+  const [diffEndIdx, setDiffEndIdx] = useState(null);
+  const [isDiffActive, setIsDiffActive] = useState(false);
+  const touchRef = useRef({ lastX: 0, lastY: 0, type: null, startDist: 0, startZoom: null, isPinching: false, centerX: 0 });
   const lastTouchTime = useRef(0);
 
   useEffect(() => {
@@ -394,22 +397,31 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
       if (e.shiftKey && zoomRange) {
         setDragStart({ x: mouseX, type: "pan", startZoom: { ...zoomRange } });
       } else {
-        setDragStart({ x: mouseX, type: "zoom" });
-        setDragEnd({ x: mouseX });
+        const relX = (mouseX - PAD_L) / iW;
+        const idx = Math.max(0, Math.min(Math.round(relX * (displayedCandles.length - 1)), displayedCandles.length - 1));
+        const originalIdx = (zoomRange ? zoomRange.start : 0) + idx;
+        
+        setIsDiffActive(true);
+        setDiffStartIdx(originalIdx);
+        setDiffEndIdx(originalIdx);
+        setDragStart({ x: mouseX, type: "diff" });
+        setHovered(null);
       }
     }
   };
 
-  /* ── Hover handler (Maps cursor to any candle) ── */
   const handleMouseMove = useCallback((e) => {
     if (!containerRef.current || !pts || pts.length < 2) return;
     const rect = containerRef.current.getBoundingClientRect();
     const mouseXInSvg = ((e.clientX - rect.left) / rect.width) * W;
 
     if (dragStart) {
-      if (dragStart.type === "zoom") {
+      if (dragStart.type === "diff") {
         const boundedX = Math.max(PAD_L, Math.min(W - PAD_R, mouseXInSvg));
-        setDragEnd({ x: boundedX });
+        const relX = (boundedX - PAD_L) / iW;
+        const idx = Math.max(0, Math.min(Math.round(relX * (displayedCandles.length - 1)), displayedCandles.length - 1));
+        const originalIdx = (zoomRange ? zoomRange.start : 0) + idx;
+        setDiffEndIdx(originalIdx);
         setHovered(null);
       } else if (dragStart.type === "pan") {
         const deltaX = mouseXInSvg - dragStart.x;
@@ -438,6 +450,8 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
       return;
     }
 
+    if (isDiffActive) return;
+
     const relX = (mouseXInSvg - PAD_L) / iW;
     const idx = Math.max(0, Math.min(Math.round(relX * (displayedCandles.length - 1)), displayedCandles.length - 1));
     const pt = pts[idx];
@@ -454,20 +468,14 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
         hasPurchased: pt.hasPurchased
       });
     }
-  }, [pts, costPts, displayedCandles, PAD_L, iW, W, dragStart, zoomRange, candles]);
+  }, [pts, costPts, displayedCandles, PAD_L, iW, W, dragStart, zoomRange, candles, isDiffActive]);
 
   const handleMouseUp = () => {
-    if (dragStart && dragStart.type === "zoom" && dragEnd) {
-      const x1 = Math.min(dragStart.x, dragEnd.x);
-      const x2 = Math.max(dragStart.x, dragEnd.x);
-      if (x2 - x1 > 15) {
-        const currentStartIdx = zoomRange ? zoomRange.start : 0;
-        const numPoints = displayedCandles.length;
-        const subStart = Math.max(0, Math.min(Math.round(((x1 - PAD_L) / iW) * (numPoints - 1)), numPoints - 1));
-        const subEnd = Math.max(0, Math.min(Math.round(((x2 - PAD_L) / iW) * (numPoints - 1)), numPoints - 1));
-        if (subEnd - subStart >= 2) {
-          setZoomRange({ start: currentStartIdx + subStart, end: currentStartIdx + subEnd });
-        }
+    if (dragStart && dragStart.type === "diff") {
+      if (diffStartIdx === diffEndIdx) {
+        setIsDiffActive(false);
+        setDiffStartIdx(null);
+        setDiffEndIdx(null);
       }
     }
     setDragStart(null);
@@ -562,12 +570,24 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
   const handleTouchStart = (e) => {
     if (!candles || candles.length < 2) return;
     if (e.touches.length === 1) {
-      if (zoomRange) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const touchX = ((e.touches[0].clientX - rect.left) / rect.width) * W;
+      if (touchX >= PAD_L && touchX <= W - PAD_R) {
+        const relX = (touchX - PAD_L) / iW;
+        const idx = Math.max(0, Math.min(Math.round(relX * (displayedCandles.length - 1)), displayedCandles.length - 1));
+        const originalIdx = (zoomRange ? zoomRange.start : 0) + idx;
+
+        setIsDiffActive(true);
+        setDiffStartIdx(originalIdx);
+        setDiffEndIdx(originalIdx);
+        
         touchRef.current = {
           lastX: e.touches[0].clientX,
-          startZoom: { ...zoomRange },
+          lastY: e.touches[0].clientY,
+          type: "diff",
           isPinching: false
         };
+        setHovered(null);
       }
     } else if (e.touches.length === 2) {
       const t1 = e.touches[0];
@@ -587,34 +607,25 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
     if (!candles || candles.length < 2) return;
     const ref = touchRef.current;
 
-    if (e.touches.length === 1 && ref.startZoom && !ref.isPinching) {
+    if (e.touches.length === 1 && !ref.isPinching) {
       const currentX = e.touches[0].clientX;
-      const deltaX = currentX - ref.lastX;
-      
-      const len = candles.length;
-      const currentStart = ref.startZoom.start;
-      const currentEnd = ref.startZoom.end;
-      const rangeSize = currentEnd - currentStart;
+      const currentY = e.touches[0].clientY;
+      const deltaX = Math.abs(currentX - ref.lastX);
+      const deltaY = Math.abs(currentY - ref.lastY);
 
-      const rect = containerRef.current.getBoundingClientRect();
-      const stepSize = rect.width / rangeSize;
-      const indexShift = Math.round(-deltaX / stepSize);
-
-      if (indexShift !== 0) {
-        let newStart = currentStart + indexShift;
-        let newEnd = currentEnd + indexShift;
-        if (newStart < 0) {
-          newStart = 0;
-          newEnd = newStart + rangeSize;
-        }
-        if (newEnd >= len) {
-          newEnd = len - 1;
-          newStart = Math.max(0, newEnd - rangeSize);
-        }
-        setZoomRange({ start: newStart, end: newEnd });
+      if (deltaX > deltaY || ref.type === "diff") {
+        ref.type = "diff";
+        const rect = containerRef.current.getBoundingClientRect();
+        const touchX = ((currentX - rect.left) / rect.width) * W;
+        const boundedX = Math.max(PAD_L, Math.min(W - PAD_R, touchX));
+        const relX = (boundedX - PAD_L) / iW;
+        const idx = Math.max(0, Math.min(Math.round(relX * (displayedCandles.length - 1)), displayedCandles.length - 1));
+        const originalIdx = (zoomRange ? zoomRange.start : 0) + idx;
+        
+        setDiffEndIdx(originalIdx);
+        setHovered(null);
+        e.preventDefault();
       }
-      e.preventDefault();
-
     } else if (e.touches.length === 2 && ref.isPinching) {
       const t1 = e.touches[0];
       const t2 = e.touches[1];
@@ -652,7 +663,15 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
     }
   };
 
-  const handleTouchEnd = () => {
+  const handleTouchEnd = (e) => {
+    const ref = touchRef.current;
+    if (ref && ref.type === "diff") {
+      if (diffStartIdx === diffEndIdx) {
+        setIsDiffActive(false);
+        setDiffStartIdx(null);
+        setDiffEndIdx(null);
+      }
+    }
     touchRef.current = { lastX: 0, startDist: 0, startZoom: null, isPinching: false, centerX: 0 };
   };
 
@@ -753,19 +772,39 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
             stroke="#F1F5F9" strokeWidth="1" />
         ))}
 
-        {/* Drag selection rectangle overlay */}
-        {dragStart && dragStart.type === "zoom" && dragEnd && (
-          <rect
-            x={Math.min(dragStart.x, dragEnd.x)}
-            y={PAD_T}
-            width={Math.abs(dragStart.x - dragEnd.x)}
-            height={iH}
-            fill="var(--primary)"
-            opacity="0.15"
-            stroke="var(--primary)"
-            strokeWidth="1"
-          />
-        )}
+        {/* Range selection diff highlight */}
+        {isDiffActive && diffStartIdx !== null && diffEndIdx !== null && diffStartIdx !== diffEndIdx && (() => {
+          const currentStart = zoomRange ? zoomRange.start : 0;
+          const dispStartIdx = diffStartIdx - currentStart;
+          const dispEndIdx = diffEndIdx - currentStart;
+          
+          if (dispStartIdx >= 0 && dispStartIdx < displayedCandles.length &&
+              dispEndIdx >= 0 && dispEndIdx < displayedCandles.length && pts[dispStartIdx] && pts[dispEndIdx]) {
+            const xA = pts[dispStartIdx].x;
+            const xB = pts[dispEndIdx].x;
+            const yA = pts[dispStartIdx].y;
+            const yB = pts[dispEndIdx].y;
+            
+            return (
+              <g style={{ pointerEvents: "none" }}>
+                <rect
+                  x={Math.min(xA, xB)}
+                  y={PAD_T}
+                  width={Math.abs(xA - xB)}
+                  height={iH}
+                  fill="var(--primary)"
+                  opacity="0.08"
+                />
+                <line x1={xA} y1={PAD_T} x2={xA} y2={H - PAD_B} stroke="var(--primary)" strokeWidth="1.5" strokeDasharray="3 3" opacity="0.6" />
+                <line x1={xB} y1={PAD_T} x2={xB} y2={H - PAD_B} stroke="var(--primary)" strokeWidth="1.5" strokeDasharray="3 3" opacity="0.6" />
+                <line x1={xA} y1={yA} x2={xB} y2={yB} stroke="var(--primary)" strokeWidth="2" strokeDasharray="4 4" opacity="0.8" />
+                <circle cx={xA} cy={yA} r="6" fill="white" stroke="var(--primary)" strokeWidth="3" />
+                <circle cx={xB} cy={yB} r="6" fill="white" stroke="var(--primary)" strokeWidth="3" />
+              </g>
+            );
+          }
+          return null;
+        })()}
 
         {/* ── Fill areas with Clipping ── */}
         {hasCostLine && costLinePath && fillValueArea && fillCostArea && activeCostPts.length >= 2 ? (
@@ -937,6 +976,117 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
           );
         })()}
       </svg>
+
+      {/* Floating Diff / Comparison Overlay Box */}
+      {isDiffActive && diffStartIdx !== null && diffEndIdx !== null && diffStartIdx !== diffEndIdx && (() => {
+        const currentStart = zoomRange ? zoomRange.start : 0;
+        const dispStartIdx = diffStartIdx - currentStart;
+        const dispEndIdx = diffEndIdx - currentStart;
+        
+        if (dispStartIdx >= 0 && dispStartIdx < displayedCandles.length &&
+            dispEndIdx >= 0 && dispEndIdx < displayedCandles.length && pts[dispStartIdx] && pts[dispEndIdx]) {
+          const pA = candles[diffStartIdx];
+          const pB = candles[diffEndIdx];
+          if (!pA || !pB) return null;
+          
+          const isThai = asset?.symbol?.endsWith(".BK");
+          const valA = isThai ? pA.close / exchangeRate : pA.close;
+          const valB = isThai ? pB.close / exchangeRate : pB.close;
+          const diffVal = valB - valA;
+          const diffPct = valA > 0 ? (diffVal / valA) * 100 : 0;
+          
+          const dateA = new Date(pA.date);
+          const dateB = new Date(pB.date);
+          const diffDays = Math.round(Math.abs(dateB - dateA) / (1000 * 60 * 60 * 24));
+          let timeStr = `${diffDays} วัน`;
+          if (diffDays >= 365) {
+            timeStr = `${(diffDays / 365).toFixed(1)} ปี`;
+          } else if (diffDays >= 30) {
+            timeStr = `${(diffDays / 30.4).toFixed(1)} เดือน`;
+          }
+          
+          const xA = pts[dispStartIdx].x;
+          const xB = pts[dispEndIdx].x;
+          const centerPct = ((xA + xB) / 2 / W) * 100;
+          const yA = pts[dispStartIdx].y;
+          const yB = pts[dispEndIdx].y;
+          const topPos = Math.min(yA, yB) - 50;
+          
+          return (
+            <div 
+              style={{
+                position: "absolute",
+                top: Math.max(10, Math.min(H - 220, topPos)) + "px",
+                left: centerPct + "%",
+                opacity: 1,
+                transform: "translateX(-50%)",
+                zIndex: 101,
+                pointerEvents: "none",
+                width: "220px",
+                padding: "10px 14px",
+                background: "rgba(30, 41, 59, 0.95)",
+                border: "1px solid rgba(255,255,255,0.15)",
+                boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.3)",
+                borderRadius: "12px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "4px",
+                color: "white",
+                fontFamily: "Outfit, sans-serif"
+              }}
+            >
+              <div style={{ fontSize: 11, color: "#94A3B8", fontWeight: 800, borderBottom: "1px solid rgba(255,255,255,0.1)", paddingBottom: 4, marginBottom: 2 }}>
+                📊 เปรียบเทียบราคาหุ้น
+              </div>
+              <div style={{ fontSize: 10, color: "#CBD5E1" }}>
+                {fmtDateShort(pA.date)} ➔ {fmtDateShort(pB.date)} ({timeStr})
+              </div>
+              
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 2 }}>
+                <span style={{ color: "#94A3B8" }}>เริ่ม:</span>
+                <span style={{ color: "white", fontWeight: 700 }}>
+                  {fmtUSD(valA)} {isThai && <span style={{ fontSize: 9, color: "#94A3B8" }}>(฿{(valA * exchangeRate).toFixed(2)})</span>}
+                </span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
+                <span style={{ color: "#94A3B8" }}>สิ้นสุด:</span>
+                <span style={{ color: "white", fontWeight: 700 }}>
+                  {fmtUSD(valB)} {isThai && <span style={{ fontSize: 9, color: "#94A3B8" }}>(฿{(valB * exchangeRate).toFixed(2)})</span>}
+                </span>
+              </div>
+              
+              <div style={{ 
+                display: "flex", 
+                justifyContent: "space-between", 
+                fontSize: 11, 
+                borderTop: "1px dashed rgba(255,255,255,0.15)", 
+                paddingTop: 4, 
+                marginTop: 2 
+              }}>
+                <span style={{ color: "#94A3B8" }}>ส่วนต่าง:</span>
+                <span style={{ 
+                  fontWeight: 900, 
+                  color: diffVal >= 0 ? "#10B981" : "#EF4444" 
+                }}>
+                  {diffVal >= 0 ? "+" : ""}{fmtUSD(diffVal)} ({diffVal >= 0 ? "+" : ""}{diffPct.toFixed(2)}%)
+                </span>
+              </div>
+              {isThai && (
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10 }}>
+                  <span style={{ color: "#94A3B8" }}>ส่วนต่าง (บาท):</span>
+                  <span style={{ fontWeight: 700, color: diffVal >= 0 ? "#10B981" : "#EF4444" }}>
+                    ฿{diffVal * exchangeRate >= 0 ? "+" : ""}{(diffVal * exchangeRate).toFixed(2)}
+                  </span>
+                </div>
+              )}
+              <div style={{ fontSize: 9, color: "#94A3B8", textAlign: "center", marginTop: 4, fontStyle: "italic" }}>
+                คลิก 1 ครั้งบนกราฟเพื่อล้างข้อมูลเปรียบเทียบ
+              </div>
+            </div>
+          );
+        }
+        return null;
+      })()}
     </div>
   );
 }
