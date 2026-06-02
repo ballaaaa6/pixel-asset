@@ -699,20 +699,33 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
 
         {/* ── Price Summary Bar ── */}
         <div className="asset-detail-price-bar">
-          <div>
-            <div style={{ fontSize: 28, fontWeight: 900, color: "var(--text-main)", lineHeight: 1 }}>
-              {fmtUSD(priceUSD)}
+          {isCashAsset ? (
+            <div>
+              <div style={{ fontSize: 28, fontWeight: 900, color: "var(--text-main)", lineHeight: 1 }}>
+                {fmtQty(asset.qty)} {asset.symbol}
+              </div>
+              <div style={{ fontSize: 13, color: "var(--text-faint)", marginTop: 4 }}>
+                ≈ {fmtUSD(valueUSD)}
+              </div>
             </div>
-            <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 2 }}>
-              ฿{Math.round(priceUSD * exchangeRate).toLocaleString("th-TH")}
-            </div>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 18, fontWeight: 800, color: isUp ? "var(--gain)" : "var(--loss)" }}>
-              {isUp ? "▲" : "▼"} {fmtPct(changePct)}
-            </div>
-            <div style={{ fontSize: 12, color: "var(--text-faint)" }}>วันนี้</div>
-          </div>
+          ) : (
+            <>
+              <div>
+                <div style={{ fontSize: 28, fontWeight: 900, color: "var(--text-main)", lineHeight: 1 }}>
+                  {fmtUSD(priceUSD)}
+                </div>
+                <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 2 }}>
+                  ฿{Math.round(priceUSD * exchangeRate).toLocaleString("th-TH")}
+                </div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: isUp ? "var(--gain)" : "var(--loss)" }}>
+                  {isUp ? "▲" : "▼"} {fmtPct(changePct)}
+                </div>
+                <div style={{ fontSize: 12, color: "var(--text-faint)" }}>วันนี้</div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* ── KPI Mini Grid ── */}
@@ -759,7 +772,7 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
         )}
 
         {/* ── Lot legend ── */}
-        {lots.length > 0 && (
+        {!isCashAsset && lots.length > 0 && (
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", padding: "0 4px", marginBottom: 8 }}>
             {lots.map((lot, i) => (
               <div key={lot.id || i} style={{
