@@ -888,14 +888,6 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
               
               return (
                 <g style={{ pointerEvents: "none" }}>
-                  <rect
-                    x={Math.min(xA, xB)}
-                    y={PAD_T}
-                    width={Math.abs(xA - xB)}
-                    height={iH}
-                    fill="var(--primary)"
-                    opacity="0.08"
-                  />
                   <line x1={xA} y1={PAD_T} x2={xA} y2={H - PAD_B} stroke="var(--primary)" strokeWidth="1.5" strokeDasharray="3 3" opacity="0.6" />
                   <line x1={xB} y1={PAD_T} x2={xB} y2={H - PAD_B} stroke="var(--primary)" strokeWidth="1.5" strokeDasharray="3 3" opacity="0.6" />
                   <line x1={xA} y1={yA} x2={xB} y2={yB} stroke="var(--primary)" strokeWidth="2" strokeDasharray="4 4" opacity="0.8" />
@@ -1172,10 +1164,11 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
                 className="chart-tooltip-box" 
                 style={{
                   position: "absolute",
-                  top: Math.max(10, Math.min(H - 220, topPos)) + "px",
-                  left: centerPct + "%",
+                  top: "10px",
+                  left: centerPct >= 50 ? "52px" : "auto",
+                  right: centerPct < 50 ? "12px" : "auto",
                   opacity: 1,
-                  transform: "translateX(-50%)",
+                  transform: "none",
                   zIndex: 101,
                   pointerEvents: "none",
                   width: "220px",
@@ -2797,8 +2790,9 @@ export default function Dashboard({ user, onLogout, showToast }) {
   const hasPrices = Object.keys(prices).length > 0;
 
   return (
-    <div className="fade-in">
-      {/* ── NAVBAR ── */}
+    <>
+      <div className="fade-in">
+        {/* ── NAVBAR ── */}
       <nav className="navbar">
         <div className="navbar-container">
           <div className="navbar-brand">
@@ -3423,6 +3417,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
         </div>
 
       </div>
+      </div>
 
       {/* ── ASSET MODAL ── */}
       {modalOpen && (
@@ -3783,6 +3778,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

@@ -306,7 +306,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
     setScanningStatus({ active: true, total: fileList.length, completed: 0 });
 
     const newScannedItems = [];
-    const errors = [];
+    const fileErrors = {};
 
     // ══════════════════════════════════════════════════════════════════════
     // PRIMARY: Tesseract.js OCR + regex parser (free, offline, no quota)
@@ -336,7 +336,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
         } else {
           // Tesseract succeeded technically but couldn't parse the receipt
           // → try the API fallback for this specific image
-          errors.push(`รูป ${i + 1}: ${result.error || "อ่านไม่ได้"} (ลองใช้ AI fallback)`)
+          fileErrors[i] = `รูป ${i + 1}: ${result.error || "อ่านไม่ได้"} (ลองใช้ AI fallback)`;
           tesseractFailed = true;
         }
         setScanningStatus(prev => ({ ...prev, completed: i + 1 }));
@@ -344,7 +344,11 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
     } catch (tessErr) {
       console.warn("Tesseract failed entirely:", tessErr.message);
       tesseractFailed = true;
-      errors.length = 0; // clear partial errors, try full API fallback
+      for (let i = 0; i < fileList.length; i++) {
+        if (!succeededIndices.has(i)) {
+          fileErrors[i] = `รูป ${i + 1}: Tesseract failed (${tessErr.message})`;
+        }
+      }
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -440,7 +444,7 @@ Return ONLY a valid JSON object matching the schema above.`;
           }
 
           if (parsedData && parsedData.symbol) {
-            let sym = String(parsedData.symbol).toUpperCase().replace(/[^A-Z.]/g, "");
+            let sym = String(parsedData.symbol).toUpperCase().replace(/[^A-Z0-9.-]/g, "");
             if (sym === "เบ" || sym === "เน" || sym === "เม" || sym === "เU") sym = "MU";
             if (sym === "กอ" || sym === "กO") sym = "KO";
 
@@ -464,12 +468,14 @@ Return ONLY a valid JSON object matching the schema above.`;
               transactionType: parsedData.transactionType || "BUY"
             });
             succeededIndices.add(i);
+            // Succeeded using fallback, clear the error!
+            delete fileErrors[i];
           } else {
             throw new Error("ไม่สามารถดึงข้อมูลรายการหุ้นได้สำเร็จ");
           }
         } catch (err) {
           console.error(`AI Fallback failed for image ${i + 1}:`, err.message);
-          errors.push(`รูป ${i + 1} (AI Fallback): ${err.message}`);
+          fileErrors[i] = `รูป ${i + 1} (AI Fallback): ${err.message}`;
         }
       }
     }
@@ -497,6 +503,7 @@ Return ONLY a valid JSON object matching the schema above.`;
       }
     }
 
+    const errors = Object.values(fileErrors);
     if (errors.length > 0) {
       triggerToast(`⚠️ สแกนเสร็จ (พบข้อผิดพลาด ${errors.length} รายการ):\n${errors.slice(0, 3).join("\n")}${errors.length > 3 ? `\n...และอีก ${errors.length - 3} รายการ` : ""}`, "warning");
     }

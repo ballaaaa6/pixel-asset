@@ -848,14 +848,6 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
             
             return (
               <g style={{ pointerEvents: "none" }}>
-                <rect
-                  x={Math.min(xA, xB)}
-                  y={PAD_T}
-                  width={Math.abs(xA - xB)}
-                  height={iH}
-                  fill="var(--primary)"
-                  opacity="0.08"
-                />
                 <line x1={xA} y1={PAD_T} x2={xA} y2={H - PAD_B} stroke="var(--primary)" strokeWidth="1.5" strokeDasharray="3 3" opacity="0.6" />
                 <line x1={xB} y1={PAD_T} x2={xB} y2={H - PAD_B} stroke="var(--primary)" strokeWidth="1.5" strokeDasharray="3 3" opacity="0.6" />
                 <line x1={xA} y1={yA} x2={xB} y2={yB} stroke="var(--primary)" strokeWidth="2" strokeDasharray="4 4" opacity="0.8" />
@@ -1077,10 +1069,11 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
             <div 
               style={{
                 position: "absolute",
-                top: Math.max(10, Math.min(H - 220, topPos)) + "px",
-                left: centerPct + "%",
+                top: "10px",
+                left: centerPct >= 50 ? "52px" : "auto",
+                right: centerPct < 50 ? "12px" : "auto",
                 opacity: 1,
-                transform: "translateX(-50%)",
+                transform: "none",
                 zIndex: 101,
                 pointerEvents: "none",
                 width: "220px",

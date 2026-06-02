@@ -117,12 +117,12 @@ export function parseDimeReceipt(rawText) {
   // Symbol — look for ticker right after Buy/Sell keywords (optional spaces)
   // ──────────────────────────────────────────────────────────────────────────
   let symbol = null;
-  const txMatch = searchLines.match(/(?:ซื้อ|ขาย|do|uo|ชื้อ|ชือ|ซือ|ซื่อ|Buy|Sell)\s*([A-Za-zก-๙0-9]{1,8}(?:\.[A-Z]{1,4})?)/i);
+  const txMatch = searchLines.match(/(?:ซื้อ|ขาย|do|uo|ชื้อ|ชือ|ซือ|ซื่อ|Buy|Sell)\s*(?:สำเร็จ|หุ้น|กองทุน)?\s*([A-Za-z0-9.-]{1,10})/i);
   if (txMatch) symbol = txMatch[1];
 
   if (!symbol) {
     // Fallback: ticker adjacent to exchange name
-    const exMatch = searchLines.match(/\b([A-Za-zก-๙0-9]{2,8})\b\s*(?:NASDAQ|NYSE|BATS|SET|ASX)/i);
+    const exMatch = searchLines.match(/\b([A-Za-z0-9.-]{2,10})\b\s*(?:NASDAQ|NYSE|BATS|SET|ASX)/i);
     if (exMatch) symbol = exMatch[1];
   }
 
@@ -154,8 +154,8 @@ export function parseDimeReceipt(rawText) {
     } else if (symUpper === "กอ" || symUpper === "กO") {
       symbol = "KO";
     } else {
-      // Clean symbol to only allow uppercase English letters and dots
-      symbol = symUpper.replace(/[^A-Z.]/g, "");
+      // Clean symbol to only allow uppercase English letters, numbers, dots, and dashes
+      symbol = symUpper.replace(/[^A-Z0-9.-]/g, "");
     }
   }
 
