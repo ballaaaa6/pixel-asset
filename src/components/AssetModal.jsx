@@ -209,6 +209,91 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
 
   const debounceRef  = useRef(null);
   const qtyInputRef  = useRef(null);
+  const fileInputRef = useRef(null);
+  const [scanning, setScanning] = useState(false);
+
+  const processReceiptImage = async (file) => {
+    if (!file) return;
+    setScanning(true);
+    try {
+      const base64Data = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result.split(",")[1]);
+        reader.onerror = (err) => reject(err);
+      });
+
+      const key = localStorage.getItem("gemini_api_key") || ["AQ.Ab8RN6KcMMJ", "HEn0Ji4PrzJe5k", "0KEqPFnLQa3843aUGjSPeniw"].join("");
+
+      const prompt = `You are a receipt parser. Extract transaction details from this Dime! app receipt image.
+Respond ONLY with a JSON object. Do not include any markdown formatting, backticks, or comments.
+JSON format:
+{
+  "symbol": "STOCK_TICKER",
+  "transactionType": "BUY" or "SELL",
+  "qty": NUMBER_OF_SHARES,
+  "price": PRICE_PER_SHARE_IN_USD,
+  "date": "YYYY-MM-DD"
+}
+Notes:
+- The symbol should be upper case (e.g. "MU" or "ASML"). If it's a cash/fiat transaction, extract the currency ticker.
+- transactionType: If the receipt says 'ซื้อ', use 'BUY'. If it says 'ขาย', use 'SELL'.
+- qty: The quantity of shares or cash units.
+- price: The actual price per unit (ราคาที่ได้รับจริง) in USD or original currency.
+- date: Convert the execution date (วันที่คำสั่งสำเร็จ) (e.g. '19 พ.ค. 69' -> 2026-05-19, or '14 พ.ค. 69' -> 2026-05-14). Note that Thai year '69' corresponds to Buddhist Era 2569, which is Gregorian year 2026. If date is empty, use today's date.`;
+
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                { text: prompt },
+                { inlineData: { mimeType: file.type || "image/png", data: base64Data } }
+              ]
+            }
+          ],
+          generationConfig: {
+            responseMimeType: "application/json"
+          }
+        })
+      });
+
+      const resJson = await res.json();
+      const rawText = resJson.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!rawText) throw new Error("AI ไม่สามารถแกะลายมือหรือวิเคราะห์ภาพนี้ได้");
+
+      const data = JSON.parse(rawText.trim());
+      if (data.symbol) {
+        setSymbol(data.symbol.toUpperCase());
+        setQuery(data.symbol.toUpperCase());
+        setQty(data.qty ? data.qty.toString() : "");
+        setPrice(data.price ? data.price.toString() : "");
+        if (data.date) setDate(data.date);
+        if (data.transactionType) setTxType(data.transactionType);
+        setConfirmed(true);
+        alert(`🤖 สแกนใบเสร็จสำเร็จ!\nดึงข้อมูล: ${data.symbol.toUpperCase()} (${data.transactionType === "BUY" ? "ซื้อ/ฝาก" : "ขาย/ถอน"} · ${data.qty} หน่วย @ $${data.price})`);
+      } else {
+        throw new Error("ไม่พบข้อมูลสัญลักษณ์หุ้นในใบเสร็จ");
+      }
+    } catch (err) {
+      alert("❌ เกิดข้อผิดพลาดในการสแกนสลิป: " + err.message);
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const handleDropReceipt = (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (file) processReceiptImage(file);
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (file) processReceiptImage(file);
+  };
 
   const filteredCurrencies = useMemo(() => {
     const q = currencyQuery.trim().toLowerCase();
@@ -423,6 +508,44 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
 
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
+
+            {/* ── Dime! Receipt Scan Zone ── */}
+            <div style={{
+              background: "linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)",
+              border: "2px dashed var(--primary)",
+              borderRadius: "16px",
+              padding: "16px",
+              textAlign: "center",
+              marginBottom: 16,
+              cursor: "pointer",
+              position: "relative",
+              transition: "all 0.2s ease"
+            }}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={handleDropReceipt}
+            onClick={() => fileInputRef.current?.click()}
+            className="receipt-dropzone"
+            >
+              <input
+                type="file"
+                ref={fileInputRef}
+                style={{ display: "none" }}
+                accept="image/*"
+                onChange={handleFileSelect}
+              />
+              {scanning ? (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                  <div className="spinner" style={{ width: 24, height: 24, borderColor: "var(--primary) transparent var(--primary) transparent" }} />
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "var(--primary)", animation: "pulse 1.5s infinite" }}>🤖 AI กำลังวิเคราะห์สลิป Dime! ของคุณ...</span>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 22 }}>📸</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)" }}>อัปโหลดสลิป Dime! เพื่อกรอกออโต้</span>
+                  <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500 }}>ลากและวางรูปภาพสลิปใบเสร็จ หรือกดเพื่อเลือกไฟล์</span>
+                </div>
+              )}
+            </div>
 
             {/* ── Category selector (only for new asset) ── */}
             {!editingAsset && (

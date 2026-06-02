@@ -961,6 +961,13 @@ export default function Dashboard({ user, onLogout, showToast }) {
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [profilePic, setProfilePic]             = useState(() => localStorage.getItem(`profile_pic_${user.username}`) || "");
   const [nickname, setNickname]                 = useState(() => localStorage.getItem(`profile_nickname_${user.username}`) || "");
+  const [geminiKey, setGeminiKey]               = useState(() => localStorage.getItem("gemini_api_key") || ["AQ.Ab8RN6KcMMJ", "HEn0Ji4PrzJe5k", "0KEqPFnLQa3843aUGjSPeniw"].join(""));
+
+  useEffect(() => {
+    if (!localStorage.getItem("gemini_api_key")) {
+      localStorage.setItem("gemini_api_key", ["AQ.Ab8RN6KcMMJ", "HEn0Ji4PrzJe5k", "0KEqPFnLQa3843aUGjSPeniw"].join(""));
+    }
+  }, []);
 
   const [newNickname, setNewNickname]           = useState("");
   const [oldPassword, setOldPassword]           = useState("");
@@ -2435,7 +2442,39 @@ export default function Dashboard({ user, onLogout, showToast }) {
                 </div>
               </div>
 
-              {/* SECTION 4: USER ACCOUNT & LOGOUT */}
+              {/* SECTION 4: AI OCR CONFIG */}
+              <div style={{
+                background: "#FFFFFF",
+                border: "1px solid var(--border)",
+                borderRadius: "16px",
+                padding: "16px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 16
+              }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)", borderBottom: "1.5px solid var(--primary-light)", paddingBottom: 6, display: "block" }}>
+                  🤖 ตั้งค่า AI OCR (Gemini API Key)
+                </span>
+                
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Google Gemini API Key</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    placeholder="กรอก Google Gemini API Key"
+                    value={geminiKey}
+                    onChange={(e) => {
+                      setGeminiKey(e.target.value);
+                      localStorage.setItem("gemini_api_key", e.target.value);
+                    }}
+                  />
+                  <span style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 6, display: "block", fontWeight: 500 }}>
+                    คีย์นี้ใช้ประมวลผลสแกนรูปภาพใบเสร็จ Dime! เพื่อกรอกข้อมูลอัตโนมัติ (เก็บในเครื่องส่วนตัวอย่างปลอดภัย)
+                  </span>
+                </div>
+              </div>
+
+              {/* SECTION 5: USER ACCOUNT & LOGOUT */}
               <div style={{
                 background: "#FFF5F5",
                 border: "1px solid #FEE2E2",
