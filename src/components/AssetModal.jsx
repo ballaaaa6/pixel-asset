@@ -310,6 +310,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
     // ══════════════════════════════════════════════════════════════════════
     // PRIMARY: Tesseract.js OCR + regex parser (free, offline, no quota)
     // ══════════════════════════════════════════════════════════════════════
+    const succeededIndices = new Set();
     let tesseractFailed = false;
     try {
       for (let i = 0; i < fileList.length; i++) {
@@ -319,6 +320,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
         });
 
         if (result.success) {
+          succeededIndices.add(i);
           newScannedItems.push({
             id: `${Date.now()}-tess-${i}`,
             symbol:          result.symbol,
@@ -347,9 +349,11 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
     // FALLBACK A: Cloudflare Workers AI (/api/ocr)
     // Only if Tesseract couldn't parse some or all images
     // ══════════════════════════════════════════════════════════════════════
-    if (tesseractFailed && newScannedItems.length < fileList.length) {
+    const failedFiles = fileList.filter((_, idx) => !succeededIndices.has(idx));
+
+    if (tesseractFailed && failedFiles.length > 0) {
       try {
-        const compressed = await Promise.all(fileList.map(f => compressImage(f)));
+        const compressed = await Promise.all(failedFiles.map(f => compressImage(f)));
         const token = localStorage.getItem("auth_token") || "";
         const ocrRes = await fetch("/api/ocr", {
           method: "POST",
@@ -361,8 +365,10 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
           if (ocrData.results && !ocrData.error) {
             ocrData.results.forEach(data => {
               if (data.symbol && !/^\d+$/.test(data.symbol)) {
+                const origFile = failedFiles[data.index];
+                const origIdx = fileList.indexOf(origFile);
                 newScannedItems.push({
-                  id: `${Date.now()}-cf-${data.index}`,
+                  id: `${Date.now()}-cf-${origIdx}`,
                   symbol: String(data.symbol).toUpperCase(),
                   name: data.name || String(data.symbol).toUpperCase(),
                   type: data.category || "stock",
@@ -373,7 +379,10 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
                 });
               }
             });
-            (ocrData.errors || []).forEach(e => errors.push(`รูป ${e.index + 1}: ${e.error}`));
+            (ocrData.errors || []).forEach(e => {
+              const origIdx = fileList.indexOf(failedFiles[e.index]);
+              errors.push(`รูป ${origIdx + 1}: ${e.error}`);
+            });
           } else if (ocrData.error === "AI_BINDING_UNAVAILABLE") {
             throw new Error("AI_BINDING_UNAVAILABLE");
           }
@@ -388,11 +397,14 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
           throw new Error("ไม่สามารถใช้งาน OCR ได้\n• Cloudflare AI: ไม่พร้อมใช้งาน\n• Gemini API: ยังไม่ได้ตั้งค่า key\nไปที่ ⚙️ Settings เพื่อตั้งค่า Gemini API Key");
         }
 
+        // Compress failed files if not compressed already
+        const compressed = await Promise.all(failedFiles.map(f => compressImage(f)));
+
         // Process in chunks of 5 via Gemini
         const BATCH_SIZE = 5;
         const chunks = [];
         for (let i = 0; i < compressed.length; i += BATCH_SIZE) {
-          chunks.push({ files: fileList.slice(i, i + BATCH_SIZE), imgs: compressed.slice(i, i + BATCH_SIZE), start: i });
+          chunks.push({ files: failedFiles.slice(i, i + BATCH_SIZE), imgs: compressed.slice(i, i + BATCH_SIZE), start: i });
         }
 
         const PROMPT_BASE = `You are a financial receipt OCR parser. Analyze the receipt image (which is typically from Dime! app, a Thai stock broker) and extract the following fields:
@@ -416,7 +428,9 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
               const clean = rawText.trim().replace(/^```[\w]*\n?/, "").replace(/\n?```$/, "").trim();
               const data = JSON.parse(clean.match(/\{[\s\S]*\}/)?.[0] || clean);
               if (data.symbol) {
-                newScannedItems.push({ id: `${Date.now()}-g0`, symbol: data.symbol.toUpperCase(), name: data.name || data.symbol, type: data.category || "stock", qty: parseFloat(data.qty) || "", avgPrice: parseFloat(data.price) || "", date: data.date || new Date().toISOString().split("T")[0], transactionType: data.transactionType || "BUY" });
+                const origFile = chunk.files[0];
+                const origIdx = fileList.indexOf(origFile);
+                newScannedItems.push({ id: `${Date.now()}-g${origIdx}`, symbol: data.symbol.toUpperCase(), name: data.name || data.symbol, type: data.category || "stock", qty: parseFloat(data.qty) || "", avgPrice: parseFloat(data.price) || "", date: data.date || new Date().toISOString().split("T")[0], transactionType: data.transactionType || "BUY" });
               }
             } else {
               const prompt = PROMPT_BASE + `\n\nYou will see ${chunk.imgs.length} images. Respond ONLY with a JSON array of ${chunk.imgs.length} objects in order. No markdown.`;
@@ -428,14 +442,19 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
               let dataArr = JSON.parse(clean.match(/\[[\s\S]*\]/)?.[0] || clean);
               if (!Array.isArray(dataArr)) dataArr = [dataArr];
               dataArr.forEach((data, i) => {
-                if (data.symbol) newScannedItems.push({ id: `${Date.now()}-g${chunk.start + i}`, symbol: data.symbol.toUpperCase(), name: data.name || data.symbol, type: data.category || "stock", qty: parseFloat(data.qty) || "", avgPrice: parseFloat(data.price) || "", date: data.date || new Date().toISOString().split("T")[0], transactionType: data.transactionType || "BUY" });
-                else errors.push(`รูป ${chunk.start + i + 1}: ไม่พบสัญลักษณ์`);
+                const origFile = chunk.files[i];
+                const origIdx = fileList.indexOf(origFile);
+                if (data.symbol) newScannedItems.push({ id: `${Date.now()}-g${origIdx}`, symbol: data.symbol.toUpperCase(), name: data.name || data.symbol, type: data.category || "stock", qty: parseFloat(data.qty) || "", avgPrice: parseFloat(data.price) || "", date: data.date || new Date().toISOString().split("T")[0], transactionType: data.transactionType || "BUY" });
+                else errors.push(`รูป ${origIdx + 1}: ไม่พบสัญลักษณ์`);
               });
             }
             setScanningStatus(prev => ({ ...prev, completed: Math.min(fileList.length, prev.completed + chunk.imgs.length) }));
             if (chunks.indexOf(chunk) < chunks.length - 1) await new Promise(r => setTimeout(r, 2000));
           } catch (gErr) {
-            chunk.files.forEach((f, i) => errors.push(`${f.name || `รูป ${chunk.start + i + 1}`}: ${gErr.message}`));
+            chunk.files.forEach((f) => {
+              const origIdx = fileList.indexOf(f);
+              errors.push(`${f.name || `รูป ${origIdx + 1}`}: ${gErr.message}`);
+            });
           }
         }
       }
