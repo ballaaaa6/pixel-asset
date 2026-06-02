@@ -256,19 +256,32 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
   const NEW_KEY = ""; // no hardcoded key — user must enter via Settings
   const OLD_KEY = ""; // no old key to migrate
 
-  /* ─── Gemini fetch with 1 retry on 429 ─── */
-  const callGemini = async (key, bodyObj, attempt = 0) => {
-    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent", {
+  /* ─── Gemini fetch — tries models in order until one works ─── */
+  const GEMINI_MODELS = [
+    "gemini-1.5-flash",       // Free: 1,500 req/day — most reliable
+    "gemini-1.5-flash-8b",    // Free: 1,500 req/day — backup
+    "gemini-2.0-flash",       // Free: 1,000 req/day — some projects restricted
+  ];
+
+  const callGemini = async (key, bodyObj, modelIdx = 0, attempt = 0) => {
+    const model = GEMINI_MODELS[modelIdx] || GEMINI_MODELS[0];
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-goog-api-key": key   // header auth — matches Google AI Studio curl format
+        "x-goog-api-key": key
       },
       body: JSON.stringify(bodyObj)
     });
-    if (res.status === 429 && attempt === 0) {
-      await new Promise(r => setTimeout(r, 8000));
-      return callGemini(key, bodyObj, 1);
+    // Quota exceeded → try next model automatically
+    if (res.status === 429 || res.status === 403) {
+      if (modelIdx < GEMINI_MODELS.length - 1) {
+        return callGemini(key, bodyObj, modelIdx + 1, 0);
+      }
+      if (attempt === 0) {
+        await new Promise(r => setTimeout(r, 8000));
+        return callGemini(key, bodyObj, 0, 1); // restart from first model after wait
+      }
     }
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
