@@ -28,49 +28,35 @@ function normalizeOcrText(rawText) {
   return t;
 }
 
-/** Robust Thai date parser supporting abbreviations with optional dots and spaces */
 function parseThaiDate(text) {
   if (!text) return null;
 
   const months = [
-    { num: "01", names: ["ม.ค.", "มกราคม"] },
-    { num: "02", names: ["ก.พ.", "กุมภาพันธ์"] },
-    { num: "03", names: ["มี.ค.", "มีนาคม"] },
-    { num: "04", names: ["เม.ย.", "เมษายน"] },
-    { num: "05", names: ["พ.ค.", "พฤษภาคม", "0.ค.", "o.ค.", "O.ค."] },
-    { num: "06", names: ["มิ.ย.", "มิถุนายน", "0.9.", "o.9.", "O.9."] },
-    { num: "07", names: ["ก.ค.", "กรกฎาคม"] },
-    { num: "08", names: ["ส.ค.", "สิงหาคม"] },
-    { num: "09", names: ["ก.ย.", "กันยายน"] },
-    { num: "10", names: ["ต.ค.", "ตุลาคม"] },
-    { num: "11", names: ["พ.ย.", "พฤศจิกายน"] },
-    { num: "12", names: ["ธ.ค.", "ธันวาคม"] }
+    { num: "01", pattern: "[มuU]\\s*\\.?\\s*[คaA]\\s*\\.?|มกราคม" },
+    { num: "02", pattern: "[กnN]\\s*\\.?\\s*[พwW]\\s*\\.?|กุมภาพันธ์" },
+    { num: "03", pattern: "มี\\s*\\.?\\s*[คaA]\\s*\\.?|มีนาคม" },
+    { num: "04", pattern: "เ\\s*[มm]\\s*\\.?\\s*[ยy]\\s*\\.?|เมษายน" },
+    { num: "05", pattern: "(?:[พwW]|[0oO])\\s*\\.?\\s*[คaA]\\s*\\.?|พฤษภาคม" },
+    { num: "06", pattern: "มิ\\s*\\.?\\s*[ยy]\\s*\\.?|[0oO]\\s*\\.?\\s*[9qQ]\\s*\\.?|มิถุนายน" },
+    { num: "07", pattern: "[กnN]\\s*\\.?\\s*[คaA]\\s*\\.?|กรกฎาคม" },
+    { num: "08", pattern: "[สsS]\\s*\\.?\\s*[คaA]\\s*\\.?|สิงหาคม" },
+    { num: "09", pattern: "[กnN]\\s*\\.?\\s*[ยy]\\s*\\.?|กันยายน" },
+    { num: "10", pattern: "[ตtT]\\s*\\.?\\s*[คaA]\\s*\\.?|ตุลาคม" },
+    { num: "11", pattern: "[พwW]\\s*\\.?\\s*[ยy]\\s*\\.?|พฤศจิกายน" },
+    { num: "12", pattern: "[ธsS]\\s*\\.?\\s*[คaA]\\s*\\.?|ธันวาคม" }
   ];
 
   for (const m of months) {
-    for (const name of m.names) {
-      let pattern = "";
-      if (name.includes(".")) {
-        // e.g. "พ.ค." -> "พ\.?\s*ค\.?" to match "พ.ค.", "พ.ค", "พ ค", "พค"
-        pattern = name.split("").map(c => {
-          if (c === ".") return "\\.?";
-          return c;
-        }).join("\\s*");
-      } else {
-        pattern = name;
-      }
-
-      // Match day (1-2 digits) + spaces + month pattern + spaces + year (2 or 4 digits)
-      const re = new RegExp(`(\\d{1,2})\\s*(${pattern})\\s*(\\d{2,4})`, "i");
-      const match = text.match(re);
-      if (match) {
-        const day = String(parseInt(match[1])).padStart(2, "0");
-        let year = parseInt(match[3]);
-        if (year < 100) year = year + 1957; // "68" -> 2025
-        if (year > 2400) year = year - 543;
-        if (year > 2100) year = year - 543;
-        return `${year}-${m.num}-${day}`;
-      }
+    // Match day (1-2 digits) + spaces + month pattern + spaces + year (2 or 4 digits)
+    const re = new RegExp(`(\\d{1,2})\\s*(?:${m.pattern})\\s*(\\d{2,4})`, "i");
+    const match = text.match(re);
+    if (match) {
+      const day = String(parseInt(match[1])).padStart(2, "0");
+      let year = parseInt(match[2]);
+      if (year < 100) year = year + 1957; // "68" -> 2025
+      if (year > 2400) year = year - 543;
+      if (year > 2100) year = year - 543;
+      return `${year}-${m.num}-${day}`;
     }
   }
   return null;

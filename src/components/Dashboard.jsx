@@ -793,7 +793,7 @@ function DonutChart({ segments, totalAssets, hasAssets }) {
   );
 }
 
-function getRealizedPnL(lots) {
+function getRealizedPnL(lots, isThai, exchangeRate) {
   if (!lots || !lots.length) return 0;
   const sortedLots = [...lots].sort((a, b) => new Date(a.date) - new Date(b.date));
   let realized = 0;
@@ -801,7 +801,10 @@ function getRealizedPnL(lots) {
   let currentAvgCost = 0;
   for (const lot of sortedLots) {
     const lotQty = lot.qty;
-    const lotPrice = lot.price;
+    let lotPrice = lot.price || 0;
+    if (isThai && exchangeRate) {
+      lotPrice = lotPrice / exchangeRate;
+    }
     if (lotQty > 0) {
       const newQty = currentQty + lotQty;
       const newCost = (currentQty * currentAvgCost) + (lotQty * lotPrice);
@@ -815,6 +818,248 @@ function getRealizedPnL(lots) {
     }
   }
   return realized;
+}
+
+function PnLDetailsModal({
+  isOpen,
+  onClose,
+  assets,
+  prices,
+  exchangeRate,
+  totalUSD,
+  totalCostUSD,
+  totalRealizedUSD,
+  totalUnrealizedUSD,
+  totalGainUSD,
+  totalGainPct,
+  initialCapitalUSD
+}) {
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const getCurrencyPriceUSD = (symbol, priceVal, exchangeRate) => {
+    if (symbol === "USD") return 1.0;
+    if (priceVal != null && priceVal > 0) {
+      if (["EUR", "GBP", "AUD", "NZD"].includes(symbol)) {
+        return priceVal;
+      }
+      return 1.0 / priceVal;
+    }
+    if (symbol === "THB") return 1.0 / (exchangeRate || 35.0);
+    return 1.0;
+  };
+
+  const getCurrencyTicker = (symbol) => {
+    if (symbol === "THB") return "USDTHB=X";
+    if (symbol === "USD") return "USD";
+    return `${symbol}USD=X`;
+  };
+
+  const computeAssetMetrics = (asset) => {
+    const isThai = asset.symbol.toUpperCase().endsWith(".BK");
+    const isCashAsset = asset.type === "fiat" || asset.category === "fiat";
+    
+    let priceUSD = 0;
+    if (isCashAsset) {
+      const ticker = getCurrencyTicker(asset.symbol);
+      const p = prices[ticker]?.price;
+      priceUSD = getCurrencyPriceUSD(asset.symbol, p, exchangeRate);
+    } else {
+      const p = prices[asset.symbol]?.price ?? 0;
+      priceUSD = isThai ? p / exchangeRate : p;
+    }
+
+    const valueUSD = priceUSD * asset.qty;
+    const avgCost = asset.avgCost ?? asset.avgPrice ?? 0;
+    const costUSD = isCashAsset ? avgCost * asset.qty : (avgCost * asset.qty / (isThai ? exchangeRate : 1));
+    const unrealized = asset.qty > 0 ? (valueUSD - costUSD) : 0;
+    
+    // Realized
+    const realized = getRealizedPnL(asset.lots || [], isThai, exchangeRate);
+
+    // Initial Capital (cumulative buys)
+    let totalInvested = 0;
+    (asset.lots || []).forEach(l => {
+      if (l.qty > 0) {
+        const pUSD = isThai ? l.price / exchangeRate : l.price;
+        totalInvested += l.qty * pUSD;
+      }
+    });
+    if (totalInvested === 0 && asset.qty > 0) {
+      totalInvested = costUSD;
+    }
+
+    const totalPnL = realized + unrealized;
+    const totalPnLPct = totalInvested > 0 ? (totalPnL / totalInvested) * 100 : 0;
+
+    return {
+      valueUSD,
+      totalInvested,
+      realized,
+      unrealized,
+      totalPnL,
+      totalPnLPct
+    };
+  };
+
+  const breakdown = useMemo(() => {
+    return assets.map(a => {
+      const metrics = computeAssetMetrics(a);
+      return {
+        ...a,
+        ...metrics
+      };
+    });
+  }, [assets, prices, exchangeRate]);
+
+  const filtered = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return breakdown;
+    return breakdown.filter(b => 
+      b.symbol.toLowerCase().includes(q) || 
+      b.name.toLowerCase().includes(q)
+    );
+  }, [breakdown, searchTerm]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="modal-content" style={{ maxWidth: 840, width: "95%" }}>
+        <div className="modal-header" style={{ borderBottom: "1px solid var(--border)", paddingBottom: 14 }}>
+          <span className="modal-title" style={{ fontSize: 16, fontWeight: 800 }}>📊 รายละเอียดกำไร/ขาดทุนรายสินทรัพย์ (P&L Breakdown)</span>
+          <button className="btn-close" onClick={onClose} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Overview Row */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+          gap: 12,
+          marginTop: 14,
+          marginBottom: 16,
+          background: "#F8FAFC",
+          padding: 16,
+          borderRadius: 14,
+          border: "1px solid var(--border)"
+        }}>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", marginBottom: 4 }}>ทุนสะสมสะสมทั้งหมด</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: "var(--text-main)" }}>{fmt.usd(initialCapitalUSD)}</div>
+            <div style={{ fontSize: 11, color: "var(--text-faint)" }}>{fmt.thb(initialCapitalUSD * exchangeRate)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", marginBottom: 4 }}>มูลค่าสินทรัพย์ปัจจุบัน</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: "var(--text-main)" }}>{fmt.usd(totalUSD)}</div>
+            <div style={{ fontSize: 11, color: "var(--text-faint)" }}>{fmt.thb(totalUSD * exchangeRate)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", marginBottom: 4 }}>รับรู้แล้ว (Realized)</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: totalRealizedUSD >= 0 ? "var(--gain)" : "var(--loss)" }}>
+              {totalRealizedUSD >= 0 ? "+" : ""}{fmt.usd(totalRealizedUSD)}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--text-faint)" }}>{totalRealizedUSD >= 0 ? "+" : ""}{fmt.thb(totalRealizedUSD * exchangeRate)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", marginBottom: 4 }}>ยังไม่รับรู้ (Unrealized)</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: totalUnrealizedUSD >= 0 ? "var(--gain)" : "var(--loss)" }}>
+              {totalUnrealizedUSD >= 0 ? "+" : ""}{fmt.usd(totalUnrealizedUSD)}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--text-faint)" }}>{totalUnrealizedUSD >= 0 ? "+" : ""}{fmt.thb(totalUnrealizedUSD * exchangeRate)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", marginBottom: 4 }}>ผลตอบแทนสะสมสุทธิ</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: totalGainUSD >= 0 ? "var(--gain)" : "var(--loss)" }}>
+              {totalGainUSD >= 0 ? "+" : ""}{fmt.usd(totalGainUSD)}
+            </div>
+            <div style={{ fontSize: 11, color: totalGainUSD >= 0 ? "var(--gain)" : "var(--loss)", fontWeight: 700 }}>
+              ({totalGainUSD >= 0 ? "▲" : "▼"} {fmt.pct(totalGainPct)})
+            </div>
+          </div>
+        </div>
+
+        {/* Search Bar */}
+        <div style={{ marginBottom: 14 }}>
+          <input
+            type="text"
+            className="form-input"
+            placeholder="🔍 ค้นหาตามสัญลักษณ์หรือชื่อ..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{ height: 38, borderRadius: 10, width: "100%", padding: "0 12px", border: "1px solid var(--border)", fontSize: 13 }}
+          />
+        </div>
+
+        {/* Breakdown Table */}
+        <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: 12, maxHeight: 320, overflowY: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, textAlign: "left" }}>
+            <thead>
+              <tr style={{ background: "#F1F5F9", position: "sticky", top: 0, zIndex: 1 }}>
+                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)" }}>สินทรัพย์</th>
+                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)" }}>สถานะ</th>
+                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)", textAlign: "right" }}>จำนวนถือ</th>
+                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)", textAlign: "right" }}>ทุนสะสมสะสม (USD)</th>
+                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)", textAlign: "right" }}>รับรู้แล้ว (Realized)</th>
+                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)", textAlign: "right" }}>ยังไม่รับรู้ (Unrealized)</th>
+                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)", textAlign: "right" }}>ผลตอบแทนรวม (USD)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={7} style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>
+                    ไม่พบรายการสินทรัพย์
+                  </td>
+                </tr>
+              ) : (
+                filtered.map((item, idx) => {
+                  const isSoldOut = item.qty <= 0.00001;
+                  const isCash = item.type === "fiat" || item.category === "fiat";
+                  return (
+                    <tr key={item.id || item.symbol} style={{ borderTop: "1px solid var(--border)", background: idx % 2 === 0 ? "#FFFFFF" : "#F8FAFC" }}>
+                      <td style={{ padding: "10px 12px", fontWeight: 700 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ fontSize: 13 }}>{item.symbol}</span>
+                          <span className={`badge-type ${item.category || "stock"}`} style={{ fontSize: 9, padding: "1px 4px", borderRadius: 4 }}>
+                            {item.category || "stock"}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 11, fontWeight: 500, color: "var(--text-muted)", marginTop: 2 }}>{item.name}</div>
+                      </td>
+                      <td style={{ padding: "10px 12px" }}>
+                        {isSoldOut ? (
+                          <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", background: "#E2E8F0", padding: "2px 8px", borderRadius: 6 }}>ขายหมดแล้ว</span>
+                        ) : (
+                          <span style={{ fontSize: 10, fontWeight: 700, color: "#16A34A", background: "#DCFCE7", padding: "2px 8px", borderRadius: 6 }}>กำลังถือ</span>
+                        )}
+                      </td>
+                      <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 600 }}>
+                        {isCash ? "—" : fmt.qty(item.qty)}
+                      </td>
+                      <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 600 }}>
+                        {fmt.usd(item.totalInvested)}
+                      </td>
+                      <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700, color: item.realized >= 0 ? "var(--gain)" : "var(--loss)" }}>
+                        {item.realized !== 0 ? (item.realized >= 0 ? "+" : "") + fmt.usd(item.realized) : "—"}
+                      </td>
+                      <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700, color: item.unrealized >= 0 ? "var(--gain)" : "var(--loss)" }}>
+                        {item.unrealized !== 0 && !isSoldOut ? (item.unrealized >= 0 ? "+" : "") + fmt.usd(item.unrealized) : "—"}
+                      </td>
+                      <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 800, color: item.totalPnL >= 0 ? "var(--gain)" : "var(--loss)" }}>
+                        <div>{item.totalPnL >= 0 ? "+" : ""}{fmt.usd(item.totalPnL)}</div>
+                        <div style={{ fontSize: 10, fontWeight: 700 }}>({item.totalPnL >= 0 ? "▲" : "▼"}{fmt.pct(item.totalPnLPct)})</div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 
@@ -920,6 +1165,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
   const [portfolioName, setPortfolioName] = useState(() => localStorage.getItem(`portfolio_name_${user.username}`) || "StockVault");
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName]           = useState("");
+  const [showPnLDetailsModal, setShowPnLDetailsModal] = useState(false);
 
   const syncProfileToServer = async (name, pic, nick) => {
     try {
@@ -1470,7 +1716,8 @@ export default function Dashboard({ user, onLogout, showToast }) {
       totCost  += c.costUSD;
       totToday += c.todayChg;
       
-      const realized = getRealizedPnL(a.lots || []);
+      const isThai = a.symbol.toUpperCase().endsWith(".BK");
+      const realized = getRealizedPnL(a.lots || [], isThai, exchangeRate);
       totRealized += realized;
 
       const assetWithPnL = {
@@ -1527,9 +1774,29 @@ export default function Dashboard({ user, onLogout, showToast }) {
     };
   }, [assets, prices, exchangeRate, sortConfig, computeAsset]);
 
+  const initialCapitalUSD = useMemo(() => {
+    let sumBuys = 0;
+    let hasBuys = false;
+    assets.forEach(a => {
+      const isCashAsset = a.type === "fiat" || a.category === "fiat";
+      if (!isCashAsset) {
+        const isThai = a.symbol.toUpperCase().endsWith(".BK");
+        (a.lots || []).forEach(l => {
+          if (l.qty > 0) {
+            const priceUSD = isThai ? l.price / exchangeRate : l.price;
+            sumBuys += l.qty * priceUSD;
+            hasBuys = true;
+          }
+        });
+      }
+    });
+    if (hasBuys && sumBuys > 0) return sumBuys;
+    return totalCostUSD;
+  }, [assets, exchangeRate, totalCostUSD]);
+
   const totalUnrealizedUSD = totalUSD - totalCostUSD;
   const totalGainUSD = totalUnrealizedUSD + totalRealizedUSD;
-  const totalGainPct = totalCostUSD > 0 ? (totalGainUSD / totalCostUSD) * 100 : 0;
+  const totalGainPct = initialCapitalUSD > 0 ? (totalGainUSD / initialCapitalUSD) * 100 : 0;
   const todayChangePct = totalCostUSD > 0 ? (todayChangeUSD / (totalUSD - todayChangeUSD)) * 100 : 0;
 
   /* ── SAVE ASSET (Purchase Lots System) ── */
@@ -1918,8 +2185,30 @@ export default function Dashboard({ user, onLogout, showToast }) {
                   <div className="hero-thb" style={{ fontSize: "25px", color: "#FFFFFF", opacity: 0.95, fontWeight: "800", marginTop: 4, marginBottom: 16 }}>
                     {fmt.thb(totalUSD * exchangeRate)}
                   </div>
-                  {totalCostUSD > 0 && (
-                    <div className={`hero-pnl ${totalGainUSD >= 0 ? "up" : "down"}`} style={{ display: "inline-flex", flexWrap: "wrap", gap: "4px 8px", alignItems: "center" }}>
+                  {(totalCostUSD > 0 || initialCapitalUSD > 0 || totalRealizedUSD !== 0) && (
+                    <div className={`hero-pnl ${totalGainUSD >= 0 ? "up" : "down"}`}
+                      onClick={() => setShowPnLDetailsModal(true)}
+                      style={{
+                        display: "inline-flex",
+                        flexWrap: "wrap",
+                        gap: "4px 8px",
+                        alignItems: "center",
+                        cursor: "pointer",
+                        background: "rgba(255, 255, 255, 0.12)",
+                        padding: "6px 12px",
+                        borderRadius: "10px",
+                        transition: "background 0.2s, transform 0.2s",
+                        border: "1px solid rgba(255, 255, 255, 0.15)"
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = "rgba(255, 255, 255, 0.22)";
+                        e.currentTarget.style.transform = "translateY(-1px)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = "rgba(255, 255, 255, 0.12)";
+                        e.currentTarget.style.transform = "translateY(0)";
+                      }}
+                      title="คลิกเพื่อดูรายละเอียดกำไร/ขาดทุนรายสินทรัพย์">
                       <span>
                         {totalGainUSD >= 0 ? "▲" : "▼"} {fmt.usd(Math.abs(totalGainUSD))}
                       </span>
@@ -1927,6 +2216,9 @@ export default function Dashboard({ user, onLogout, showToast }) {
                       <span style={{ opacity: 0.5 }}>|</span>
                       <span>
                         {totalGainUSD >= 0 ? "▲" : "▼"} {"฿" + new Intl.NumberFormat("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.abs(totalGainUSD * exchangeRate))}
+                      </span>
+                      <span style={{ fontSize: 10, background: "rgba(255,255,255,0.25)", padding: "2px 6px", borderRadius: 6, marginLeft: 4, fontWeight: "bold" }}>
+                        🔍 รายละเอียดรายตัว
                       </span>
                     </div>
                   )}
@@ -1963,6 +2255,20 @@ export default function Dashboard({ user, onLogout, showToast }) {
                   <span className="hero-meta-label">ยังไม่รับรู้ (Unrealized)</span>
                   <span className="hero-meta-value" style={{ color: totalUnrealizedUSD >= 0 ? "#6EE7B7" : "#FCA5A5", fontWeight: 700 }}>
                     {totalUnrealizedUSD >= 0 ? "+" : ""}{fmt.usd(totalUnrealizedUSD)}
+                  </span>
+                </div>
+              </div>
+              <div className="hero-meta" style={{ marginTop: 10, borderTop: "1px dashed rgba(255,255,255,0.2)", paddingTop: 10 }}>
+                <div className="hero-meta-item">
+                  <span className="hero-meta-label">ทุนสะสมทั้งหมด</span>
+                  <span className="hero-meta-value" style={{ fontWeight: 700 }}>
+                    {fmt.usd(initialCapitalUSD)}
+                  </span>
+                </div>
+                <div className="hero-meta-item" style={{ textAlign: "right" }}>
+                  <span className="hero-meta-label">มูลค่าทุนสะสม (THB)</span>
+                  <span className="hero-meta-value" style={{ fontSize: 11, color: "rgba(255, 255, 255, 0.9)", fontWeight: 600 }}>
+                    ({fmt.thb(initialCapitalUSD * exchangeRate)})
                   </span>
                 </div>
               </div>
@@ -2352,6 +2658,24 @@ export default function Dashboard({ user, onLogout, showToast }) {
           onSave={handleSaveAsset}
           exchangeRate={exchangeRate}
           showToast={showToast}
+        />
+      )}
+
+      {/* ── P&L DETAILS MODAL ── */}
+      {showPnLDetailsModal && (
+        <PnLDetailsModal
+          isOpen={showPnLDetailsModal}
+          onClose={() => setShowPnLDetailsModal(false)}
+          assets={assets}
+          prices={prices}
+          exchangeRate={exchangeRate}
+          totalUSD={totalUSD}
+          totalCostUSD={totalCostUSD}
+          totalRealizedUSD={totalRealizedUSD}
+          totalUnrealizedUSD={totalUnrealizedUSD}
+          totalGainUSD={totalGainUSD}
+          totalGainPct={totalGainPct}
+          initialCapitalUSD={initialCapitalUSD}
         />
       )}
 

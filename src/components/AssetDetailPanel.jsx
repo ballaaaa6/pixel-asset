@@ -828,6 +828,53 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
   const gainPct     = costUSD > 0 ? ((valueUSD - costUSD) / costUSD) * 100 : 0;
   const lots        = asset.lots || [];
 
+  // Running average cost & P&L calculation chronologically
+  const processedLots = useMemo(() => {
+    if (!lots || !lots.length) return [];
+    const sorted = [...lots].sort((a, b) => new Date(a.date) - new Date(b.date));
+    let runningQty = 0;
+    let runningAvgCost = 0;
+    
+    return sorted.map((lot, idx) => {
+      const lotQty = lot.qty;
+      const isThai = asset?.symbol?.toUpperCase().endsWith(".BK");
+      const lotPriceUSD = isThai ? (lot.price || 0) / exchangeRate : (lot.price || 0);
+      
+      let type = "BUY";
+      let transactionValueUSD = lotQty * lotPriceUSD;
+      let pnl = 0;
+      let pnlPct = 0;
+      
+      if (lotQty > 0) {
+        type = "BUY";
+        const oldCost = runningQty * runningAvgCost;
+        const newCost = oldCost + (lotQty * lotPriceUSD);
+        runningQty += lotQty;
+        runningAvgCost = runningQty > 0 ? newCost / runningQty : 0;
+        pnl = (priceUSD - lotPriceUSD) * lotQty;
+        pnlPct = lotPriceUSD > 0 ? (pnl / (lotQty * lotPriceUSD)) * 100 : 0;
+      } else if (lotQty < 0) {
+        type = "SELL";
+        const sellQty = Math.abs(lotQty);
+        pnl = (lotPriceUSD - runningAvgCost) * sellQty;
+        pnlPct = runningAvgCost > 0 ? (pnl / (sellQty * runningAvgCost)) * 100 : 0;
+        runningQty = Math.max(0, runningQty - sellQty);
+      }
+      
+      return {
+        ...lot,
+        type,
+        lotQty,
+        lotPriceUSD,
+        transactionValueUSD,
+        pnl,
+        pnlPct,
+        runningQty,
+        runningAvgCost
+      };
+    });
+  }, [lots, priceUSD, exchangeRate, asset?.symbol]);
+
   // Recompute properly
   const avgCostUSD = isCashAsset ? avgCost : (isThai ? avgCost / exchangeRate : avgCost);
   const totalCostUSD = avgCostUSD * asset.qty;
@@ -1015,26 +1062,24 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
         {lots.length > 0 && (
           <div className="asset-detail-lots">
             <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
-              {isCashAsset ? <History size={14} /> : <ShoppingCart size={14} />} {isCashAsset ? "ประวัติการฝาก/ถอนเงินสด" : "ประวัติการซื้อ"} ({lots.length} รายการ)
+              {isCashAsset ? <History size={14} /> : <ShoppingCart size={14} />} {isCashAsset ? "ประวัติการฝาก/ถอนเงินสด" : "ประวัติธุรกรรมซื้อ/ขาย"} ({lots.length} รายการ)
             </div>
             <div style={{ border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: "#F8FAFC" }}>
                     <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 700, color: "var(--text-muted)" }}>ครั้ง</th>
-                    <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 700, color: "var(--text-muted)" }}>{isCashAsset ? "วันที่ทำรายการ" : "วันที่ซื้อ"}</th>
+                    {!isCashAsset && <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 700, color: "var(--text-muted)" }}>ประเภท</th>}
+                    <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 700, color: "var(--text-muted)" }}>วันที่ทำรายการ</th>
                     <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: "var(--text-muted)" }}>{isCashAsset ? "จำนวนเงิน" : "จำนวน"}</th>
-                    <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: "var(--text-muted)" }}>{isCashAsset ? "อัตราแลกเปลี่ยน" : "ราคาทุน"}</th>
-                    <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: "var(--text-muted)" }}>{isCashAsset ? "มูลค่ารวม (USD)" : "ต้นทุน"}</th>
-                    {!isCashAsset && <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: "var(--text-muted)" }}>P&L</th>}
+                    <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: "var(--text-muted)" }}>{isCashAsset ? "อัตราแลกเปลี่ยน" : "ราคาทำรายการ"}</th>
+                    <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: "var(--text-muted)" }}>{isCashAsset ? "มูลค่ารวม (USD)" : "มูลค่าธุรกรรม (USD)"}</th>
+                    {!isCashAsset && <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: "var(--text-muted)" }}>P&L (USD)</th>}
                   </tr>
                 </thead>
                 <tbody>
-                  {[...lots].reverse().map((lot, i) => {
-                    const lotCostUSD = (isThai ? lot.price / exchangeRate : lot.price) * lot.qty;
-                    const lotValUSD  = priceUSD * lot.qty;
-                    const lotGain    = lotValUSD - lotCostUSD;
-                    const lotGainPct = lotCostUSD > 0 ? (lotGain / lotCostUSD) * 100 : 0;
+                  {[...processedLots].reverse().map((lot, i) => {
+                    const isBuy = lot.type === "BUY";
                     return (
                       <tr key={lot.id || i} style={{ borderTop: "1px solid var(--border)" }}>
                         <td style={{ padding: "9px 12px" }}>
@@ -1042,26 +1087,40 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
                             width: 20, height: 20, borderRadius: "50%", background: "#F59E0B",
                             display: "inline-flex", alignItems: "center", justifyContent: "center",
                             color: "white", fontWeight: 900, fontSize: 10
-                          }}>{lots.length - i}</div>
+                          }}>{processedLots.length - i}</div>
                         </td>
+                        {!isCashAsset && (
+                          <td style={{ padding: "9px 12px" }}>
+                            {isBuy ? (
+                              <span style={{ fontSize: 10, fontWeight: 700, color: "#16A34A", background: "#DCFCE7", padding: "2px 6px", borderRadius: 4 }}>ซื้อ (BUY)</span>
+                            ) : (
+                              <span style={{ fontSize: 10, fontWeight: 700, color: "#DC2626", background: "#FEE2E2", padding: "2px 6px", borderRadius: 4 }}>ขาย (SELL)</span>
+                            )}
+                          </td>
+                        )}
                         <td style={{ padding: "9px 12px", color: "var(--text-muted)" }}>
                           {fmtDateShort(lot.date)}
                         </td>
                         <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 600 }}>
-                          {fmtQty(lot.qty)} {isCashAsset ? asset.symbol : ""}
+                          {isBuy ? "+" : "-"}{fmtQty(Math.abs(lot.lotQty))} {isCashAsset ? asset.symbol : ""}
                         </td>
                         <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 600 }}>
-                          {fmtUSD(isThai ? lot.price / exchangeRate : lot.price)}
+                          {fmtUSD(lot.lotPriceUSD)}
                         </td>
                         <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 700 }}>
-                          {fmtUSD(lotCostUSD)}
+                          {fmtUSD(Math.abs(lot.transactionValueUSD))}
                         </td>
                         {!isCashAsset && (
-                          <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 800, color: lotGain >= 0 ? "var(--gain)" : "var(--loss)" }}>
-                            <>
-                              {lotGain >= 0 ? "+" : ""}{fmtUSD(lotGain)}
-                              <div style={{ fontSize: 10, opacity: 0.8 }}>{fmtPct(lotGainPct)}</div>
-                            </>
+                          <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 800, color: lot.pnl >= 0 ? "var(--gain)" : "var(--loss)" }}>
+                            <div>
+                              {lot.pnl >= 0 ? "+" : ""}{fmtUSD(lot.pnl)}
+                            </div>
+                            <div style={{ fontSize: 10, opacity: 0.85 }}>
+                              ({lot.pnl >= 0 ? "▲" : "▼"}{fmtPct(lot.pnlPct)})
+                              <span style={{ fontSize: 9, opacity: 0.7, marginLeft: 4, fontWeight: "normal" }}>
+                                {isBuy ? "ยังไม่รับรู้" : "รับรู้แล้ว"}
+                              </span>
+                            </div>
                           </td>
                         )}
                       </tr>
@@ -1070,7 +1129,7 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
                 </tbody>
                 <tfoot>
                   <tr style={{ borderTop: "2px solid var(--border)", background: "var(--primary-light)" }}>
-                    <td colSpan={2} style={{ padding: "9px 12px", fontWeight: 800, color: "var(--primary)" }}>รวม</td>
+                    <td colSpan={isCashAsset ? 2 : 3} style={{ padding: "9px 12px", fontWeight: 800, color: "var(--primary)" }}>ถือครองปัจจุบัน</td>
                     <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 800, color: "var(--primary)" }}>{fmtQty(asset.qty)} {isCashAsset ? asset.symbol : ""}</td>
                     <td style={{ padding: "9px 12px", textAlign: "right", fontSize: 11, color: "var(--text-muted)" }}>
                       {isCashAsset ? "—" : `avg ${fmtUSD(avgCostUSD)}`}
