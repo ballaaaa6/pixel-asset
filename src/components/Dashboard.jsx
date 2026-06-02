@@ -50,11 +50,12 @@ function stepPath(pts) {
 
 function AssetLogo({ symbol, category, style }) {
   const [error, setError] = useState(false);
+  const [logoSrc, setLogoSrc] = useState(null);
 
   const cleanSymbol = symbol ? symbol.split(".")[0].toUpperCase() : "";
 
-  const logoUrl = useMemo(() => {
-    if (!symbol) return null;
+  const { clearbitUrl, googleUrl } = useMemo(() => {
+    if (!symbol) return { clearbitUrl: null, googleUrl: null };
     const cat = category || "stock";
     if (cat === "fiat") {
       const getCurrencyCountryCode = (sym) => {
@@ -69,16 +70,19 @@ function AssetLogo({ symbol, category, style }) {
         };
         return map[sym] || sym.slice(0, 2).toLowerCase();
       };
-      return `https://flagcdn.com/w80/${getCurrencyCountryCode(symbol)}.png`;
+      const code = getCurrencyCountryCode(symbol);
+      return { clearbitUrl: `https://flagcdn.com/w80/${code}.png`, googleUrl: `https://flagcdn.com/w80/${code}.png` };
     }
     if (cat === "crypto") {
-      return `https://assets.coincap.io/assets/icons/${cleanSymbol.toLowerCase()}@2x.png`;
+      const url = `https://assets.coincap.io/assets/icons/${cleanSymbol.toLowerCase()}@2x.png`;
+      return { clearbitUrl: url, googleUrl: url };
     }
     if (cat === "gold" || symbol === "XAU") {
-      return `https://images.financialmodelingprep.com/symbol/GLD.png`;
+      const url = `https://images.financialmodelingprep.com/symbol/GLD.png`;
+      return { clearbitUrl: url, googleUrl: url };
     }
     
-    // Stock (Clearbit Logo API with Domain Mapping)
+    // Stock domain mapping
     const getStockDomain = (sym) => {
       const map = {
         AAPL: "apple.com",
@@ -134,10 +138,30 @@ function AssetLogo({ symbol, category, style }) {
       return map[sym] || `${sym.toLowerCase()}.com`;
     };
     
-    return `https://logo.clearbit.com/${getStockDomain(cleanSymbol)}`;
+    const domain = getStockDomain(cleanSymbol);
+    return {
+      clearbitUrl: `https://logo.clearbit.com/${domain}`,
+      googleUrl: `https://www.google.com/s2/favicons?sz=128&domain=${domain}`
+    };
   }, [symbol, category, cleanSymbol]);
 
-  if (error || !logoUrl) {
+  // Set initial source
+  useEffect(() => {
+    setLogoSrc(clearbitUrl);
+    setError(false);
+  }, [clearbitUrl]);
+
+  const handleError = () => {
+    // If Clearbit fails, fall back to Google Favicon!
+    if (logoSrc === clearbitUrl && googleUrl && googleUrl !== clearbitUrl) {
+      setLogoSrc(googleUrl);
+    } else {
+      // If Google Favicon also fails, show text circle
+      setError(true);
+    }
+  };
+
+  if (error || !logoSrc) {
     return (
       <div className={`asset-icon-wrapper ${category || "stock"}`} style={style}>
         {symbol.slice(0, 2).toUpperCase()}
@@ -147,9 +171,9 @@ function AssetLogo({ symbol, category, style }) {
 
   return (
     <img
-      src={logoUrl}
+      src={logoSrc}
       alt={symbol}
-      onError={() => setError(true)}
+      onError={handleError}
       style={{
         width: 38,
         height: 38,
@@ -1930,10 +1954,11 @@ export default function Dashboard({ user, onLogout, showToast }) {
                                       )}
                                     </div>
                                     <div className="asset-fullname">{asset.name}</div>
-                                    <MarketBadge state={pData?.marketState} />
-                                    {/* Weight bar */}
-                                    <div className="weight-bar-track" title={`${weightPct.toFixed(1)}% ของพอร์ต`}>
-                                      <div className="weight-bar-fill" style={{ width: `${Math.min(100, weightPct)}%` }} />
+                                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
+                                      <MarketBadge state={pData?.marketState} />
+                                      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", background: "#F1F5F9", padding: "1px 6px", borderRadius: 4 }}>
+                                        สัดส่วน: {weightPct.toFixed(1)}%
+                                      </span>
                                     </div>
                                   </div>
                                 </div>
