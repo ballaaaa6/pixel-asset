@@ -187,6 +187,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
   const [qty,         setQty]         = useState("");
   const [price,       setPrice]       = useState("");
   const [date,        setDate]        = useState(() => new Date().toISOString().split("T")[0]);
+  const [txType,      setTxType]      = useState("BUY"); // BUY or SELL
 
   /* Search state */
   const [query,       setQuery]       = useState("");
@@ -398,6 +399,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
       qty:      pQty,
       avgPrice: pPrice,
       date,
+      transactionType: txType,
     });
   };
 
@@ -635,6 +637,56 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
                     )}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* ── Transaction Type Selector (Buy/Sell or Deposit/Withdraw) ── */}
+            {confirmed && (
+              <div className="form-group" style={{ marginBottom: 16 }}>
+                <label className="form-label">ประเภทรายการ</label>
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  background: "#F1F5F9",
+                  padding: 4,
+                  borderRadius: 12,
+                  gap: 4
+                }}>
+                  <button
+                    type="button"
+                    onClick={() => setTxType("BUY")}
+                    style={{
+                      height: 38,
+                      borderRadius: 10,
+                      border: "none",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      background: txType === "BUY" ? (type === "fiat" ? "var(--primary)" : "var(--gain)") : "transparent",
+                      color: txType === "BUY" ? "white" : "var(--text-muted)",
+                      transition: "var(--transition)"
+                    }}
+                  >
+                    {type === "fiat" ? "📥 ฝากเงินสด" : "🟢 ซื้อ (Buy)"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTxType("SELL")}
+                    style={{
+                      height: 38,
+                      borderRadius: 10,
+                      border: "none",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      background: txType === "SELL" ? "var(--loss)" : "transparent",
+                      color: txType === "SELL" ? "white" : "var(--text-muted)",
+                      transition: "var(--transition)"
+                    }}
+                  >
+                    {type === "fiat" ? "📤 ถอนเงินสด" : "🔴 ขาย (Sell)"}
+                  </button>
+                </div>
               </div>
             )}
 

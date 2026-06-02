@@ -259,15 +259,6 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
     const rawData = candles.map((c) => {
       const targetDateOnly = c.date.split("T")[0];
       
-      // Check if this candle is on or after the first purchase date
-      const hasPurchased = targetDateOnly >= firstPurchaseDate;
-      
-      if (!hasPurchased) {
-        return { date: c.date, valueUSD: null, costUSD: null, hasPurchased: false };
-      }
-
-      const stats = getStatsOnDate(c.date);
-      
       let priceUSD = 0;
       if (isCashAsset) {
         if (asset.symbol === "USD") {
@@ -283,8 +274,15 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
         priceUSD = isThai ? c.close / exchangeRate : c.close;
       }
 
-      // Use asset unit price USD instead of holding value USD
-      const valueUSD = priceUSD;
+      // Check if this candle is on or after the first purchase date
+      const hasPurchased = targetDateOnly >= firstPurchaseDate;
+      
+      if (!hasPurchased) {
+        // Return unit price as valueUSD, but null/0 costUSD for days before purchase
+        return { date: c.date, valueUSD: priceUSD, costUSD: null, hasPurchased: false };
+      }
+
+      const stats = getStatsOnDate(c.date);
       
       // Use unit average cost basis instead of cumulative total cost
       let costUSD = 0;
@@ -298,18 +296,15 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
         costUSD = isThai ? avgCost / exchangeRate : avgCost;
       }
 
-      return { date: c.date, valueUSD, costUSD, hasPurchased: true };
+      return { date: c.date, valueUSD: priceUSD, costUSD, hasPurchased: true };
     });
 
-    // We only zoom and scale on active purchased points
-    const activePoints = rawData.filter(d => d.hasPurchased);
+    const valuesUSD = rawData.map(d => d.valueUSD).filter(v => v != null);
+    const costsUSD = rawData.filter(d => d.hasPurchased).map(d => d.costUSD).filter(c => c != null);
 
-    if (activePoints.length === 0) {
+    if (valuesUSD.length === 0) {
       return { pts: [], costPts: [], yMin: 0, yMax: 1, isUp: true };
     }
-
-    const valuesUSD = activePoints.map(d => d.valueUSD).filter(v => v != null);
-    const costsUSD = activePoints.map(d => d.costUSD).filter(c => c != null);
 
     const isShortTF = tf === "1D" || tf === "5D" || tf === "1W";
     const dataMin = isShortTF ? Math.min(...valuesUSD) : Math.min(...valuesUSD, ...costsUSD);
@@ -325,25 +320,24 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
     const toY = (v) => PAD_T + ((yMax - v) / yRange) * iH;
     const toX = (i) => PAD_L + (i / (candles.length - 1)) * iW;
 
-    // Map all candles: return null for non-purchased days to omit them from lines
+    // Map all candles: return price movement for all days, but with costUSD only after purchase
     const pts = candles.map((c, i) => {
       const d = rawData[i];
-      if (!d.hasPurchased) return null;
-      return { x: toX(i), y: toY(d.valueUSD), value: d.valueUSD, date: c.date };
+      if (d.valueUSD == null) return null;
+      return { x: toX(i), y: toY(d.valueUSD), value: d.valueUSD, date: c.date, hasPurchased: d.hasPurchased };
     });
 
     const costPts = candles.map((c, i) => {
       const d = rawData[i];
-      if (!d.hasPurchased) return null;
+      if (!d.hasPurchased || d.costUSD == null) return null;
       return { x: toX(i), y: toY(d.costUSD), cost: d.costUSD, date: c.date };
     });
 
-    // Determine isUp based on active portion
-    const activeVal = activePoints.map(d => d.valueUSD).filter(v => v != null);
-    const isUp = activeVal.length >= 2 ? activeVal[activeVal.length - 1] >= activeVal[0] : true;
+    // Determine isUp based on the entire displayed portion
+    const isUp = valuesUSD.length >= 2 ? valuesUSD[valuesUSD.length - 1] >= valuesUSD[0] : true;
 
     return { pts, costPts, yMin, yMax, isUp, toY, toX };
-  }, [candles, avgCost, lots, isThai, exchangeRate, PAD_T, iH, PAD_L, iW]);
+  }, [candles, avgCost, lots, isThai, exchangeRate, PAD_T, iH, PAD_L, iW, tf]);
 
   /* ── Y-axis tick labels ── */
   const yTicks = useMemo(() => {
@@ -441,7 +435,8 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
   const handleMouseMove = useCallback((e) => {
     if (!containerRef.current || !pts || pts.length < 2) return;
     const rect = containerRef.current.getBoundingClientRect();
-    const relX = (e.clientX - rect.left - PAD_L) / iW;
+    const mouseXInSvg = ((e.clientX - rect.left) / rect.width) * W;
+    const relX = (mouseXInSvg - PAD_L) / iW;
     const idx = Math.max(0, Math.min(Math.round(relX * (candles.length - 1)), candles.length - 1));
     const pt = pts[idx];
     const costPt = costPts[idx];
@@ -456,7 +451,7 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
         date: pt.date
       });
     }
-  }, [pts, costPts, candles, PAD_L, iW]);
+  }, [pts, costPts, candles, PAD_L, iW, W]);
 
   const hasCostLine = activeCostPts.length > 0 && (avgCost > 0 || (lots && lots.length > 0));
   const color = isUp ? "#00B98A" : "#FF4B55";
@@ -648,8 +643,10 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
         {/* ── Hover tooltip ── */}
         {hovered && (() => {
           const tipW = 140, tipH = 58;
-          const tipX = Math.min(hovered.x - tipW / 2, W - PAD_R - tipW);
-          const tipY = hovered.y < PAD_T + tipH + 20 ? hovered.y + 14 : hovered.y - tipH - 14;
+          const tipX = hovered.x < W / 2
+            ? Math.min(hovered.x + 15, W - PAD_R - tipW)
+            : Math.max(PAD_L + 15, hovered.x - tipW - 15);
+          const tipY = Math.max(PAD_T + 10, Math.min(H - PAD_B - tipH - 10, hovered.y - tipH / 2));
           
           const diff = hovered.cost > 0 ? hovered.value - hovered.cost : 0;
           const diffPct = hovered.cost > 0 ? (diff / hovered.cost) * 100 : 0;
@@ -682,7 +679,7 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
 /* ══════════════════════════════════════════════════════
    ASSET DETAIL PANEL
 ══════════════════════════════════════════════════════ */
-const TF_OPTIONS = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "5Y"];
+const TF_OPTIONS = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "5Y", "ตั้งแต่ซื้อ"];
 
 export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }) {
   const [tf, setTf]         = useState("1M");
@@ -754,7 +751,8 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
     }
 
     const targetSymbol = isCashAsset ? getCurrencyTicker(asset.symbol) : asset.symbol;
-    fetch(`/api/prices?history=${encodeURIComponent(targetSymbol)}&tf=${tf}`)
+    const fetchTf = tf === "ตั้งแต่ซื้อ" ? "5Y" : tf;
+    fetch(`/api/prices?history=${encodeURIComponent(targetSymbol)}&tf=${fetchTf}`)
       .then(r => r.json())
       .then(data => {
         if (cancelled) return;
@@ -915,7 +913,7 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
               ))}
             </div>
             <div style={{ fontSize: 11, color: "var(--text-faint)", fontWeight: 600 }}>
-              {tf === "1D" ? "รายนาที (5m)" : tf === "5D" ? "รายชั่วโมง" : tf === "1W" ? "ราย 30 นาที" : tf === "5Y" ? "รายสัปดาห์" : "รายวัน"}
+              {tf === "1D" ? "รายนาที (5m)" : tf === "5D" ? "รายชั่วโมง" : tf === "1W" ? "ราย 30 นาที" : tf === "5Y" ? "รายสัปดาห์" : tf === "ตั้งแต่ซื้อ" ? "ตั้งแต่เริ่มลงทุน" : "รายวัน"}
             </div>
           </div>
         )}
@@ -965,7 +963,19 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
               </div>
             ) : chartData?.candles ? (
               <AssetChart
-                candles={chartData.candles}
+                candles={(() => {
+                  if (tf === "ตั้งแต่ซื้อ") {
+                    const sortedLots = lots && lots.length > 0
+                      ? [...lots].sort((a,b) => new Date(a.date) - new Date(b.date))
+                      : [];
+                    if (sortedLots.length > 0) {
+                      const firstDate = sortedLots[0].date;
+                      const filtered = chartData.candles.filter(c => c.date.split("T")[0] >= firstDate);
+                      if (filtered.length >= 2) return filtered;
+                    }
+                  }
+                  return chartData.candles;
+                })()}
                 avgCost={avgCost}
                 lots={lots}
                 tf={tf}

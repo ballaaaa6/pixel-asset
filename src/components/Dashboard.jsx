@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   Plus, RefreshCw, LogOut, TrendingUp, TrendingDown,
-  Trash2, Download, Upload, PieChart, Star, BarChart2, Pencil, X
+  Trash2, Download, Upload, PieChart, Star, BarChart2, Pencil, X, Settings
 } from "lucide-react";
 import AssetModal from "./AssetModal";
 import AssetDetailPanel from "./AssetDetailPanel";
@@ -386,7 +386,8 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
   const handleMouseMove = useCallback((e) => {
     if (!svgRef.current || pts.length < 2) return;
     const rect = svgRef.current.getBoundingClientRect();
-    const relX = (e.clientX - rect.left - PAD_L) / iW;
+    const mouseXInSvg = ((e.clientX - rect.left) / rect.width) * W;
+    const relX = (mouseXInSvg - PAD_L) / iW;
     const idx = Math.max(0, Math.min(Math.round(relX * (pts.length - 1)), pts.length - 1));
     if (history[idx]) {
       setHovered({
@@ -399,7 +400,7 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
         date: history[idx].date
       });
     }
-  }, [pts, costPts, history, iW]);
+  }, [pts, costPts, history, iW, W]);
 
   const handleMouseLeave = () => setHovered(null);
 
@@ -703,10 +704,10 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
           const diffPct = hovered.cost > 0 ? (diff / hovered.cost) * 100 : 0;
           return (
             <div className="chart-tooltip-box" style={{
-              top: Math.max(0, (hovered.y / H) * H - 76) + "px",
+              top: Math.max(10, Math.min(H - 90 - 45, hovered.y - 45)) + "px",
               left: (hovered.x / W) * 100 + "%",
               opacity: 1,
-              transform: "translateX(-50%)",
+              transform: hovered.x < W / 2 ? "translateX(15px)" : "translateX(calc(-100% - 15px))",
               zIndex: 100
             }}>
               <div style={{ fontSize: 10, opacity: 0.75, marginBottom: 2 }}>
@@ -1496,26 +1497,44 @@ export default function Dashboard({ user, onLogout, showToast }) {
     if (isNaN(newQty) || newQty <= 0)     { showToast("ใส่จำนวนให้ถูกต้อง", "error"); return; }
     if (isNaN(newPrice) || newPrice < 0)  { showToast("ใส่ราคาทุนให้ถูกต้อง", "error"); return; }
 
+    const isSell = formData.transactionType === "SELL";
+
     try {
       let updatedAssets = [...assets];
       const existingIdx = updatedAssets.findIndex(a => a.symbol === sym);
+
+      if (isSell) {
+        if (existingIdx < 0) {
+          showToast(`คุณไม่มี ${sym} ในพอร์ตเพื่อทำรายการขาย/ถอน`, "error");
+          return;
+        }
+        const existing = updatedAssets[existingIdx];
+        if (newQty > existing.qty) {
+          showToast(`จำนวนที่ระบุมากกว่าจำนวนที่ถืออยู่ (ปัจจุบันมี ${fmt.qty(existing.qty)} ${sym})`, "error");
+          return;
+        }
+      }
 
       /* ── New lot to add ── */
       const newLot = {
         id:    `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         date:  buyDate,
-        qty:   newQty,
+        qty:   isSell ? -newQty : newQty,
         price: newPrice,
       };
 
       if (existingIdx >= 0) {
-        /* ── Buy more: append lot and recompute totals ── */
+        /* ── Append transaction lot and update totals ── */
         const existing  = updatedAssets[existingIdx];
         const oldLots   = existing.lots || [];
         const allLots   = [...oldLots, newLot];
         const totalQty  = allLots.reduce((s, l) => s + l.qty, 0);
-        const totalCost = allLots.reduce((s, l) => s + l.qty * l.price, 0);
-        const avgCost   = totalQty > 0 ? totalCost / totalQty : 0;
+        
+        // Recompute average cost solely from positive (buy) lots
+        const buyLots = allLots.filter(l => l.qty > 0);
+        const buyQty  = buyLots.reduce((s, l) => s + l.qty, 0);
+        const buyCost = buyLots.reduce((s, l) => s + l.qty * l.price, 0);
+        const avgCost = buyQty > 0 ? buyCost / buyQty : 0;
 
         updatedAssets[existingIdx] = {
           ...existing,
@@ -1523,8 +1542,12 @@ export default function Dashboard({ user, onLogout, showToast }) {
           qty:     totalQty,
           avgCost: avgCost,
         };
+        
+        const isCash = category === "fiat";
         showToast(
-          `✅ ซื้อเพิ่ม ${sym} ${fmt.qty(newQty)} หน่วย — ราคาเฉลี่ยใหม่: ${fmt.usd(avgCost)}`,
+          isSell
+            ? `✅ ${isCash ? "ถอนเงินสด" : "ขายออก"} ${sym} ${fmt.qty(newQty)} หน่วยสำเร็จ`
+            : `✅ ${isCash ? "ฝากเพิ่ม" : "ซื้อเพิ่ม"} ${sym} ${fmt.qty(newQty)} หน่วยสำเร็จ`,
           "success"
         );
       } else {
@@ -1538,7 +1561,8 @@ export default function Dashboard({ user, onLogout, showToast }) {
           qty:      newQty,
           avgCost:  newPrice,
         });
-        showToast(`✅ เพิ่ม ${sym} เข้าพอร์ตแล้ว`, "success");
+        const isCash = category === "fiat";
+        showToast(`✅ เพิ่ม ${isCash ? "เงินสด" : "สินทรัพย์"} ${sym} เข้าพอร์ตแล้ว`, "success");
       }
 
       setAssets(updatedAssets);
@@ -1721,47 +1745,66 @@ export default function Dashboard({ user, onLogout, showToast }) {
             )}
             <span className="live-dot" title="Live" />
           </div>
-          <div className="navbar-actions">
-            <div className="exchange-badge">
-              💱 1 USD = <strong>{exchangeRate.toFixed(2)}</strong> THB
+            <div className="navbar-actions">
+              <div className="exchange-badge">
+                💱 1 USD = <strong>{exchangeRate.toFixed(2)}</strong> THB
+              </div>
+              <div
+                className="user-profile-btn"
+                onClick={() => setProfileModalOpen(true)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  cursor: "pointer",
+                  padding: "4px 10px",
+                  borderRadius: 10,
+                  background: "var(--primary-light)",
+                  transition: "var(--transition)",
+                  userSelect: "none"
+                }}
+                title="โปรไฟล์ของฉัน"
+              >
+                {profilePic ? (
+                  <img
+                    src={profilePic}
+                    alt="avatar"
+                    style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: "50%",
+                      objectFit: "cover",
+                      border: "1.5px solid var(--primary)"
+                    }}
+                  />
+                ) : (
+                  <span style={{ fontSize: 13 }}>👤</span>
+                )}
+                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--primary)" }}>
+                  {nickname || user?.username}
+                </span>
+              </div>
+              <button
+                onClick={() => setProfileModalOpen(true)}
+                style={{
+                  background: "#F1F5F9",
+                  border: "none",
+                  color: "var(--text-main)",
+                  cursor: "pointer",
+                  width: 32,
+                  height: 32,
+                  borderRadius: "50%",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "var(--transition)"
+                }}
+                title="ตั้งค่า"
+                className="ripple-btn"
+              >
+                <Settings size={16} />
+              </button>
             </div>
-            <div
-              className="user-profile-btn"
-              onClick={() => setProfileModalOpen(true)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                cursor: "pointer",
-                padding: "4px 10px",
-                borderRadius: 10,
-                background: "var(--primary-light)",
-                transition: "var(--transition)",
-                userSelect: "none"
-              }}
-              title="โปรไฟล์ของฉัน"
-            >
-              {profilePic ? (
-                <img
-                  src={profilePic}
-                  alt="avatar"
-                  style={{
-                    width: 20,
-                    height: 20,
-                    borderRadius: "50%",
-                    objectFit: "cover",
-                    border: "1.5px solid var(--primary)"
-                  }}
-                />
-              ) : (
-                <span style={{ fontSize: 13 }}>👤</span>
-              )}
-              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--primary)" }}>
-                {nickname || user?.username}
-              </span>
-            </div>
-            <button className="btn-logout ripple-btn" onClick={onLogout}>ออกจากระบบ</button>
-          </div>
         </div>
       </nav>
 
@@ -1797,10 +1840,15 @@ export default function Dashboard({ user, onLogout, showToast }) {
                     {fmt.thb(totalUSD * exchangeRate)}
                   </div>
                   {totalCostUSD > 0 && (
-                    <div className={`hero-pnl ${totalGainUSD >= 0 ? "up" : "down"}`}>
-                      {totalGainUSD >= 0 ? "▲" : "▼"}
-                      {fmt.usd(Math.abs(totalGainUSD))}
+                    <div className={`hero-pnl ${totalGainUSD >= 0 ? "up" : "down"}`} style={{ display: "inline-flex", flexWrap: "wrap", gap: "4px 8px", alignItems: "center" }}>
+                      <span>
+                        {totalGainUSD >= 0 ? "▲" : "▼"} {fmt.usd(Math.abs(totalGainUSD))}
+                      </span>
                       <span style={{ opacity: 0.8, fontSize: 12 }}>({fmt.pct(totalGainPct)})</span>
+                      <span style={{ opacity: 0.5 }}>|</span>
+                      <span>
+                        {totalGainUSD >= 0 ? "▲" : "▼"} {"฿" + new Intl.NumberFormat("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.abs(totalGainUSD * exchangeRate))}
+                      </span>
                     </div>
                   )}
                 </>
@@ -1819,7 +1867,10 @@ export default function Dashboard({ user, onLogout, showToast }) {
                 </div>
                 <div className="hero-meta-item" style={{ textAlign: "right" }}>
                   <span className="hero-meta-label">ต้นทุนรวม</span>
-                  <span className="hero-meta-value">{fmt.usd(totalCostUSD)}</span>
+                  <span className="hero-meta-value" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+                    <span>{fmt.usd(totalCostUSD)}</span>
+                    <span style={{ fontSize: 11, opacity: 0.7, fontWeight: 500 }}>({ "฿" + new Intl.NumberFormat("th-TH", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(totalCostUSD * exchangeRate) })</span>
+                  </span>
                 </div>
               </div>
               {hasPrices && todayChangeUSD !== 0 && (
@@ -2069,7 +2120,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                               {/* Actions */}
                               <td>
                                 <div style={{ display: "flex", gap: 4 }}>
-                                  <button className="btn-delete" title="ซื้อเพิ่ม" style={{ color: "var(--primary)" }}
+                                  <button className="btn-delete" title={asset.category === "fiat" || asset.type === "fiat" ? "ฝากเงินสด / ถอนเงินสด" : "ซื้อ / ขายสินทรัพย์"} style={{ color: "var(--primary)" }}
                                     onClick={() => { setEditingAsset(asset); setModalOpen(true); }}>
                                     <Plus size={14} />
                                   </button>
@@ -2177,7 +2228,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                             <button className="btn btn-secondary ripple-btn"
                               style={{ height: 38, fontSize: 12, flex: 1 }}
                               onClick={() => { setEditingAsset(asset); setModalOpen(true); }}>
-                              <Plus size={13} /> ซื้อเพิ่ม
+                              {isCashAsset ? "📥 ฝาก / 📤 ถอน" : "🟢 ซื้อ / 🔴 ขาย"}
                             </button>
                             <button className="btn-icon ripple-btn" style={{ flex: "0 0 38px" }}
                               onClick={() => handleDeleteAsset(asset)} title="ลบ">
@@ -2194,29 +2245,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
           </div>
         </div>
 
-        {/* Backup & Restore Card (Very Bottom) */}
-        <div className="card stagger-4" style={{ marginTop: 16 }}>
-          <div className="card-section-title">💾 สำรองข้อมูล</div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button className="btn btn-secondary ripple-btn" style={{ height: 44, fontSize: 13, flex: 1 }} onClick={handleExport}>
-              <Download size={15} /> ส่งออก JSON
-            </button>
-            <label className="btn btn-secondary ripple-btn" style={{ height: 44, fontSize: 13, flex: 1, cursor: "pointer" }}>
-              <Upload size={15} /> นำเข้า JSON
-              <input type="file" accept=".json" style={{ display: "none" }} onChange={handleImport} />
-            </label>
-          </div>
-
-          {/* Auto-refresh toggle */}
-          <div style={{ marginTop: 14 }}>
-            <label className="auto-refresh-toggle" onClick={() => setAutoRefresh(p => !p)}>
-              <div className={`toggle-track${autoRefresh ? " on" : ""}`}>
-                <div className="toggle-thumb" />
-              </div>
-              <span>{autoRefresh ? "🔄 รีเฟรชอัตโนมัติ (30 วิ)" : "⏸ หยุดรีเฟรช"}</span>
-            </label>
-          </div>
-        </div>
       </div>
 
       {/* ── ASSET MODAL ── */}
@@ -2244,12 +2272,12 @@ export default function Dashboard({ user, onLogout, showToast }) {
         />
       )}
 
-      {/* ── PROFILE MODAL ── */}
+      {/* ── SETTINGS MODAL ── */}
       {profileModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: 420 }}>
+        <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setProfileModalOpen(false); }}>
+          <div className="modal-content" style={{ maxWidth: 440 }}>
             <div className="modal-header">
-              <span className="modal-title">👤 โปรไฟล์ของฉัน</span>
+              <span className="modal-title">⚙️ ตั้งค่าระบบ (Settings)</span>
               <button className="btn-close" onClick={() => setProfileModalOpen(false)}>
                 <X size={16} />
               </button>
@@ -2267,7 +2295,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                 gap: 16
               }}>
                 <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)", borderBottom: "1.5px solid var(--primary-light)", paddingBottom: 6, display: "block" }}>
-                  📝 ข้อมูลส่วนตัว
+                  👤 ข้อมูลส่วนตัว (Profile Info)
                 </span>
                 
                 {/* Avatar Upload */}
@@ -2348,7 +2376,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                 gap: 16
               }}>
                 <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)", borderBottom: "1.5px solid var(--loss-light)", paddingBottom: 6, display: "block" }}>
-                  🔑 เปลี่ยนรหัสผ่านใหม่
+                  🔑 เปลี่ยนรหัสผ่านใหม่ (Change Password)
                 </span>
 
                 {/* Password Inputs */}
@@ -2377,11 +2405,72 @@ export default function Dashboard({ user, onLogout, showToast }) {
                 <button
                   className="btn ripple-btn"
                   onClick={handleChangePassword}
-                  style={{ height: 44, fontSize: 13, background: "var(--loss)", color: "white", boxShadow: "0 4px 12px var(--loss-glow)" }}
+                  style={{ height: 44, fontSize: 13, background: "var(--loss)", color: "white", boxShadow: "0 4px 12px var(--loss-glow)", border: "none" }}
                 >
                   ยืนยันเปลี่ยนรหัสผ่าน
                 </button>
               </div>
+
+              {/* SECTION 3: BACKUP & RESTORE */}
+              <div style={{
+                background: "#FFFFFF",
+                border: "1px solid var(--border)",
+                borderRadius: "16px",
+                padding: "16px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 16
+              }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)", borderBottom: "1.5px solid var(--primary-light)", paddingBottom: 6, display: "block" }}>
+                  💾 สำรองข้อมูล (Backup & Restore)
+                </span>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="btn btn-secondary ripple-btn" style={{ height: 44, fontSize: 13, flex: 1 }} onClick={handleExport}>
+                    <Download size={15} /> ส่งออก JSON
+                  </button>
+                  <label className="btn btn-secondary ripple-btn" style={{ height: 44, fontSize: 13, flex: 1, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+                    <Upload size={15} /> นำเข้า JSON
+                    <input type="file" accept=".json" style={{ display: "none" }} onChange={handleImport} />
+                  </label>
+                </div>
+              </div>
+
+              {/* SECTION 4: USER ACCOUNT & LOGOUT */}
+              <div style={{
+                background: "#FFF5F5",
+                border: "1px solid #FEE2E2",
+                borderRadius: "16px",
+                padding: "16px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 12
+              }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "#EF4444", borderBottom: "1.5px solid #FCA5A5", paddingBottom: 6, display: "block" }}>
+                  🚪 บัญชีผู้ใช้งาน (User Account)
+                </span>
+                <button
+                  className="btn ripple-btn"
+                  onClick={onLogout}
+                  style={{
+                    height: 44,
+                    fontSize: 13,
+                    background: "#EF4444",
+                    color: "white",
+                    boxShadow: "0 4px 12px rgba(239, 68, 68, 0.2)",
+                    border: "none",
+                    fontWeight: 700,
+                    borderRadius: "12px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8
+                  }}
+                >
+                  <LogOut size={16} /> ออกจากระบบ (Logout)
+                </button>
+              </div>
+
             </div>
 
             {/* Close modal */}
