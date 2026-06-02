@@ -102,30 +102,50 @@ export function parseDimeReceipt(rawText) {
   // Normalize character variants and spacing issues first
   const text = normalizeOcrText(rawText);
 
-  // Extract the first few lines to find transaction type & ticker
-  const firstLines = text.split(/[\r\n]+/).slice(0, 4).join("\n");
+  // Extract the first 15 lines to find transaction type & ticker (wider window handles top empty/garbage lines)
+  const searchLines = text.split(/[\r\n]+/).slice(0, 15).join("\n");
 
   // ──────────────────────────────────────────────────────────────────────────
   // Transaction type — support standard terms and common OCR typos
   // ──────────────────────────────────────────────────────────────────────────
   let transactionType = "BUY";
-  if (/ขาย|ทาย|นาบ|นาก|uo|Sell|SELL/i.test(firstLines)) {
+  if (/ขาย|ทาย|นาบ|นาก|uo|Sell|SELL/i.test(searchLines)) {
     transactionType = "SELL";
-  } else if (/ซื้อ|ชื้อ|ชือ|ซือ|ซื่อ|do|bo|Buy|BUY/i.test(firstLines)) {
+  } else if (/ซื้อ|ชื้อ|ชือ|ซือ|ซื่อ|do|bo|Buy|BUY/i.test(searchLines)) {
     transactionType = "BUY";
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // Symbol — look for ticker right after Buy/Sell keywords
+  // Symbol — look for ticker right after Buy/Sell keywords (optional spaces)
   // ──────────────────────────────────────────────────────────────────────────
   let symbol = null;
-  const txMatch = firstLines.match(/(?:ซื้อ|ขาย|do|uo|ชื้อ|ชือ|ซือ|ซื่อ|Buy|Sell)\s+([A-Za-zก-๙0-9]{1,8}(?:\.[A-Z]{1,4})?)/i);
+  const txMatch = searchLines.match(/(?:ซื้อ|ขาย|do|uo|ชื้อ|ชือ|ซือ|ซื่อ|Buy|Sell)\s*([A-Za-zก-๙0-9]{1,8}(?:\.[A-Z]{1,4})?)/i);
   if (txMatch) symbol = txMatch[1];
 
   if (!symbol) {
     // Fallback: ticker adjacent to exchange name
-    const exMatch = firstLines.match(/\b([A-Za-zก-๙0-9]{2,8})\b\s*(?:NASDAQ|NYSE|BATS|SET|ASX)/i);
+    const exMatch = searchLines.match(/\b([A-Za-zก-๙0-9]{2,8})\b\s*(?:NASDAQ|NYSE|BATS|SET|ASX)/i);
     if (exMatch) symbol = exMatch[1];
+  }
+
+  if (!symbol) {
+    // Fallback 2: Look at the first 10 lines for any word that is 2-6 uppercase English letters,
+    // excluding known common keywords.
+    const blacklist = new Set(["BUY", "SELL", "USD", "THB", "DIME", "FAST", "MARKET", "LIMIT", "BATS", "NASDAQ", "NYSE", "SET", "ASX"]);
+    const lines = text.split(/[\r\n]+/);
+    for (let i = 0; i < Math.min(lines.length, 10); i++) {
+      const words = lines[i].match(/\b[A-Za-z]{2,6}\b/g);
+      if (words) {
+        for (const w of words) {
+          const wUpper = w.toUpperCase();
+          if (!blacklist.has(wUpper)) {
+            symbol = wUpper;
+            break;
+          }
+        }
+      }
+      if (symbol) break;
+    }
   }
 
   // Map common garbled Thai characters back to English symbols
@@ -235,6 +255,22 @@ export function parseDimeReceipt(rawText) {
       const nonUsdNums = allNums.filter(n => !usdValues.includes(n) && n !== price);
       if (nonUsdNums.length > 0) {
         qtyFromTable = nonUsdNums[0];
+      }
+    }
+  }
+
+  // GLOBAL FALLBACK: If block matching failed, scan the entire text line-by-line
+  if (!price || (!qty && !qtyFromTable)) {
+    const lines = text.split(/[\r\n]+/);
+    for (const line of lines) {
+      const lineNums = extractCleanNumbers(line);
+      if (lineNums.length === 2 && /USD|บรอ|บรั|บรต|บธ|บธิ|บธุ|บธ|บร/i.test(line)) {
+        if (transactionType === "BUY" && !qty) {
+          if (!price) price = lineNums[0];
+          if (!qtyFromTable) qtyFromTable = lineNums[1];
+        } else {
+          if (!price) price = lineNums[1];
+        }
       }
     }
   }
