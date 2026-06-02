@@ -233,11 +233,22 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
       (asset.lots || []).forEach(lot => {
         // Find closest date in history
         let bestIdx = -1, bestDiff = Infinity;
-        history.forEach((h, i) => {
-          const diff = Math.abs(new Date(h.date) - new Date(lot.date + "T00:00:00"));
-          if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
-        });
-        if (bestIdx >= 0 && bestDiff < 7 * 86400000) {
+        
+        // Exact string match on date first
+        bestIdx = history.findIndex(h => h.date.split("T")[0] === lot.date);
+        
+        if (bestIdx === -1) {
+          const targetTime = new Date(lot.date + "T00:00:00.000Z").getTime();
+          history.forEach((h, i) => {
+            const hTime = new Date(h.date).getTime();
+            const diff = Math.abs(hTime - targetTime);
+            if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
+          });
+        } else {
+          bestDiff = 0;
+        }
+
+        if (bestIdx >= 0 && (bestDiff < 7 * 86400000 || bestDiff === 0)) {
           if (!map[bestIdx]) map[bestIdx] = [];
           map[bestIdx].push({
             symbol: asset.symbol,

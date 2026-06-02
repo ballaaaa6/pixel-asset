@@ -344,11 +344,23 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
     lots.forEach((lot, i) => {
       const lotDateStr = lot.date;
       let bestIdx = -1, bestDiff = Infinity;
-      candles.forEach((c, idx) => {
-        const diff = Math.abs(new Date(c.date) - new Date(lotDateStr + "T00:00:00"));
-        if (diff < bestDiff) { bestDiff = diff; bestIdx = idx; }
-      });
-      if (bestIdx >= 0 && bestDiff < 7 * 86400000) {
+      
+      // Try to find exact string match first
+      bestIdx = candles.findIndex(c => c.date.split("T")[0] === lotDateStr);
+      
+      if (bestIdx === -1) {
+        // Fallback: parse both as UTC to avoid timezone shift
+        const targetTime = new Date(lotDateStr + "T00:00:00.000Z").getTime();
+        candles.forEach((c, idx) => {
+          const cTime = new Date(c.date).getTime();
+          const diff = Math.abs(cTime - targetTime);
+          if (diff < bestDiff) { bestDiff = diff; bestIdx = idx; }
+        });
+      } else {
+        bestDiff = 0;
+      }
+      
+      if (bestIdx >= 0 && (bestDiff < 7 * 86400000 || bestDiff === 0)) {
         const x = PAD_L + (bestIdx / (candles.length - 1)) * iW;
         const priceUSD = lot.price && isThai ? lot.price / exchangeRate : lot.price;
         markers.push({ x, lot, priceUSD, idx: bestIdx, num: i + 1 });
