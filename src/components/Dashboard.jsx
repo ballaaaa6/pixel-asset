@@ -416,9 +416,9 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
               d={costLinePath}
               fill="none"
               stroke="#5236FF"
-              strokeWidth="2"
+              strokeWidth="2.5"
               strokeDasharray="6 4"
-              opacity="0.8"
+              opacity="0.9"
               clipPath="url(#portClipFull)"
             />
           )}
@@ -431,7 +431,7 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
                 d={linePath}
                 fill="none"
                 stroke="#00B98A"
-                strokeWidth="2.5"
+                strokeWidth="3.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 clipPath="url(#portClipAboveCost)"
@@ -441,7 +441,7 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
                 d={linePath}
                 fill="none"
                 stroke="#FF4B55"
-                strokeWidth="2.5"
+                strokeWidth="3.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 clipPath="url(#portClipBelowCost)"
@@ -453,7 +453,7 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
                 d={linePath}
                 fill="none"
                 stroke={color}
-                strokeWidth="2.5"
+                strokeWidth="3.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 clipPath="url(#portClipFull)"
@@ -508,16 +508,16 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
 
           {/* Y-axis Labels */}
           {yTicks.map(({ v, y }, i) => (
-            <text key={i} x={PAD_L - 6} y={y + 4} textAnchor="end" fontSize="10"
-              fill="#94A3B8" fontFamily="Outfit,sans-serif" fontWeight="600">
+            <text key={i} x={PAD_L - 8} y={y + 4} textAnchor="end" fontSize="12"
+              fill="var(--text-muted)" fontFamily="var(--font-family)" fontWeight="700">
               {v >= 1000 ? (v / 1000).toFixed(1) + "k" : v.toFixed(v >= 100 ? 0 : 2)}
             </text>
           ))}
 
           {/* X-axis Labels */}
           {dateLabels.map(({ x, date }, i) => (
-            <text key={i} x={x} y={H - PAD_B + 16} textAnchor="middle" fontSize="10"
-              fill="#94A3B8" fontFamily="Outfit,sans-serif" fontWeight="600">
+            <text key={i} x={x} y={H - PAD_B + 18} textAnchor="middle" fontSize="11"
+              fill="var(--text-muted)" fontFamily="var(--font-family)" fontWeight="700">
               {(() => {
                 const d = new Date(date);
                 if (range === "1D") return d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
@@ -531,22 +531,22 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
           {costPts && costPts.length > 0 && (
             <>
               <rect
-                x={W - PAD_R - 74}
-                y={costPts[costPts.length - 1].y - 11}
-                width={74}
-                height={20}
-                rx="5"
+                x={W - PAD_R - 80}
+                y={costPts[costPts.length - 1].y - 12}
+                width={80}
+                height={22}
+                rx="6"
                 fill="#5236FF"
-                opacity="0.9"
+                opacity="0.95"
               />
               <text
-                x={W - PAD_R - 37}
+                x={W - PAD_R - 40}
                 y={costPts[costPts.length - 1].y + 4}
                 textAnchor="middle"
-                fontSize="10"
+                fontSize="11"
                 fill="white"
-                fontWeight="800"
-                fontFamily="Outfit,sans-serif"
+                fontWeight="900"
+                fontFamily="var(--font-family)"
               >
                 {fmt.usd(costPts[costPts.length - 1].cost)}
               </text>
@@ -1074,6 +1074,27 @@ export default function Dashboard({ user, onLogout, showToast }) {
 
       return { date, value: totalUSD, cost: totalCostUSD };
     }).filter(d => d.value > 0);
+
+    // Filter out leading flatlines before the first major purchase
+    let earliestDate = null;
+    const hasNonCash = assets.some(a => a.type !== "fiat" && a.category !== "fiat");
+    assets.forEach(asset => {
+      const isCash = asset.type === "fiat" || asset.category === "fiat";
+      if (hasNonCash && isCash) return;
+      const assetLots = asset.lots && asset.lots.length > 0 ? asset.lots : [];
+      assetLots.forEach(lot => {
+        if (lot && lot.date && lot.date !== "1970-01-01") {
+          if (!earliestDate || lot.date < earliestDate) {
+            earliestDate = lot.date;
+          }
+        }
+      });
+    });
+
+    if (earliestDate) {
+      const earliestStr = earliestDate.split("T")[0];
+      history = history.filter(d => d.date.split("T")[0] >= earliestStr);
+    }
 
     // If there is only 1 historical point (e.g. bought asset today), pad it to the day before
     // to prevent the chart from disappearing due to length < 2 guard!

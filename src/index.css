@@ -994,12 +994,12 @@ html, body {
 
 .asset-table th {
   padding: 10px 14px;
-  font-size: 11px;
+  font-size: 12.5px;
   font-weight: 700;
   color: var(--text-muted);
   border-bottom: 1px solid var(--border);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.8px;
   white-space: nowrap;
   user-select: none;
 }
@@ -1026,7 +1026,7 @@ html, body {
 .asset-table td {
   padding: 14px;
   border-bottom: 1px solid var(--border);
-  font-size: 14px;
+  font-size: 15px;
   vertical-align: middle;
 }
 
@@ -1055,8 +1055,8 @@ html, body {
 
 .asset-name-col { display: flex; align-items: center; gap: 10px; }
 
-.asset-symbol   { font-weight: 800; font-size: 14px; color: var(--text-main); }
-.asset-fullname { font-size: 11px; color: var(--text-muted); margin-top: 2px; max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.asset-symbol   { font-weight: 800; font-size: 15.5px; color: var(--text-main); }
+.asset-fullname { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .badge-type {
   display: inline-block;
@@ -1091,7 +1091,7 @@ html, body {
 .pnl-cell.positive { color: var(--gain); }
 .pnl-cell.negative { color: var(--loss); }
 
-.price-thb { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.price-thb { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; }
 
 .btn-delete {
   background: none;
