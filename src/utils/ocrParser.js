@@ -32,18 +32,18 @@ function parseThaiDate(text) {
   if (!text) return null;
 
   const months = [
-    { num: "01", pattern: "[มuUmM]\\s*\\.?\\s*[คaAดศลoO0cCdD]\\s*\\.?|มกราคม" },
+    { num: "01", pattern: "[มuUmM]\\s*\\.?\\s*[คaAดศลoO0cCdDnNuUvV]\\s*\\.?|มกราคม" },
     { num: "02", pattern: "[กnNkKgG]\\s*\\.?\\s*[พwWvV]\\s*\\.?|กุมภาพันธ์" },
-    { num: "03", pattern: "(?:มี|[มmM][ีeEiI])\\s*\\.?\\s*[คaAดศลoO0cCdD]\\s*\\.?|มีนาคม" },
+    { num: "03", pattern: "(?:มี|[มmM][ีeEiI])\\s*\\.?\\s*[คaAดศลoO0cCdDnNuUvV]\\s*\\.?|มีนาคม" },
     { num: "04", pattern: "เ\\s*[มm]\\s*\\.?\\s*[ยyY9qQvVuUnN]\\s*\\.?|เมษายน" },
-    { num: "05", pattern: "(?:[พwWvVhHnN]|[0oO])\\s*\\.?\\s*[คaAดศลoO0cCdD]\\s*\\.?|พฤษภาคม" },
+    { num: "05", pattern: "(?:[พwWvVhHnN]|[0oO])\\s*\\.?\\s*[คaAดศลoO0cCdDnNuUvV]\\s*\\.?|พฤษภาคม" },
     { num: "06", pattern: "(?:มิ|[มmM][ิiI])\\s*\\.?\\s*[ยyY9qQvVuUnN]\\s*\\.?|[0oO]\\s*\\.?\\s*[9qQ]\\s*\\.?|มิถุนายน" },
-    { num: "07", pattern: "[กnNkKgG]\\s*\\.?\\s*[คaAดศลoO0cCdD]\\s*\\.?|กรกฎาคม" },
-    { num: "08", pattern: "[สsS]\\s*\\.?\\s*[คaAดศลoO0cCdD]\\s*\\.?|สิงหาคม" },
+    { num: "07", pattern: "[กnNkKgG]\\s*\\.?\\s*[คaAดศลoO0cCdDnNuUvV]\\s*\\.?|กรกฎาคม" },
+    { num: "08", pattern: "[สsS]\\s*\\.?\\s*[คaAดศลoO0cCdDnNuUvV]\\s*\\.?|สิงหาคม" },
     { num: "09", pattern: "[กnNkKgG]\\s*\\.?\\s*[ยyY9qQvVuUnN]\\s*\\.?|กันยายน" },
-    { num: "10", pattern: "[ตtT]\\s*\\.?\\s*[คaAดศลoO0cCdD]\\s*\\.?|ตุลาคม" },
+    { num: "10", pattern: "[ตtT]\\s*\\.?\\s*[คaAดศลoO0cCdDnNuUvV]\\s*\\.?|ตุลาคม" },
     { num: "11", pattern: "(?:[พwWvVhHnN]|[0oO])\\s*\\.?\\s*[ยyY9qQvVuUnN]\\s*\\.?|พฤศจิกายน" },
-    { num: "12", pattern: "[ธsStTdD]\\s*\\.?\\s*[คaAดศลoO0cCdD]\\s*\\.?|ธันวาคม" }
+    { num: "12", pattern: "[ธsStTdD]\\s*\\.?\\s*[คaAดศลoO0cCdDnNuUvV]\\s*\\.?|ธันวาคม" }
   ];
 
   for (const m of months) {
