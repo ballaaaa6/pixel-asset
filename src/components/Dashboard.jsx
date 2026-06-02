@@ -1588,21 +1588,22 @@ export default function Dashboard({ user, onLogout, showToast }) {
 
         if (isSell) {
           if (existingIdx < 0) {
-            if (!isBatch) {
-              showToast(`คุณไม่มี ${sym} ในพอร์ตเพื่อทำรายการขาย/ถอน`, "error");
-              return;
-            } else {
-              showToast(`⚠️ คำเตือน: ตรวจพบการขาย ${sym} โดยไม่มีรายการซื้อ ยอดคงเหลือจะติดลบ`, "warning");
-            }
+            // Block in ALL cases — cannot sell what you don't own
+            showToast(
+              `❌ ไม่สามารถขาย ${sym} ได้ เพราะไม่มี ${sym} ในพอร์ตโฟลิโอ\nกรุณาเพิ่มรายการซื้อก่อน`,
+              "error"
+            );
+            if (!isBatch) return;
+            continue; // skip this tx in batch mode
           } else {
             const existing = updatedAssets[existingIdx];
             if (newQty > existing.qty) {
-              if (!isBatch) {
-                showToast(`จำนวนที่ระบุมากกว่าจำนวนที่ถืออยู่ (ปัจจุบันมี ${fmt.qty(existing.qty)} ${sym})`, "error");
-                return;
-              } else {
-                showToast(`⚠️ คำเตือน: ยอดขาย ${sym} (${fmt.qty(newQty)}) มากกว่ายอดคงเหลือ (${fmt.qty(existing.qty)}) ยอดจะติดลบ`, "warning");
-              }
+              showToast(
+                `❌ ขาย ${sym} ไม่ได้ — จำนวนที่ขาย (${fmt.qty(newQty)}) มากกว่าที่ถืออยู่ (${fmt.qty(existing.qty)} หน่วย)`,
+                "error"
+              );
+              if (!isBatch) return;
+              continue; // skip this tx in batch mode
             }
           }
         }
