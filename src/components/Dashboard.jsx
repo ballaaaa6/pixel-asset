@@ -939,7 +939,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
   const [sparklineLoading, setSparklineLoading] = useState(false);
   const [autoRefresh, setAutoRefresh]     = useState(true);
   const [chartRange, setChartRange]       = useState("1M");
-  const [sortConfig, setSortConfig]       = useState({ key: null, dir: "asc" });
+  const [sortConfig, setSortConfig]       = useState({ key: "value", dir: "desc" });
   const [priceFlash, setPriceFlash]       = useState({});   // { SYM: "up"|"down" }
   const [modalOpen, setModalOpen]         = useState(false);
   const [editingAsset, setEditingAsset]   = useState(null);
@@ -1790,10 +1790,12 @@ export default function Dashboard({ user, onLogout, showToast }) {
               <div className="hero-label">🏦 มูลค่าพอร์ตโฟลิโอรวม</div>
               {hasPrices ? (
                 <>
-                  <div className={`hero-usd${priceFlash["PORTFOLIO"] ? " num-tick" : ""}`}>
+                  <div className={`hero-usd${priceFlash["PORTFOLIO"] ? " num-tick" : ""}`} style={{ marginBottom: 4 }}>
                     {fmt.usd(totalUSD)}
                   </div>
-                  <div className="hero-thb">{fmt.thb(totalUSD * exchangeRate)}</div>
+                  <div className="hero-thb" style={{ fontSize: "25px", color: "#FFFFFF", opacity: 0.95, fontWeight: "800", marginTop: 4, marginBottom: 16 }}>
+                    {fmt.thb(totalUSD * exchangeRate)}
+                  </div>
                   {totalCostUSD > 0 && (
                     <div className={`hero-pnl ${totalGainUSD >= 0 ? "up" : "down"}`}>
                       {totalGainUSD >= 0 ? "▲" : "▼"}

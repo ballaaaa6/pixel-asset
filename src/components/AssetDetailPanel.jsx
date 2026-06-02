@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { X, TrendingUp, TrendingDown, RefreshCw, ShoppingCart, Calendar } from "lucide-react";
+import { X, TrendingUp, TrendingDown, RefreshCw, ShoppingCart, Calendar, History } from "lucide-react";
 
 /* ══════════════════════════════════════════════════════
    FORMATTERS
@@ -255,7 +255,7 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
 
     const isCashAsset = asset?.type === "fiat" || asset?.category === "fiat";
 
-    // Calculate value and cost for each candle
+    // Calculate unit price and unit average cost for each candle
     const rawData = candles.map((c) => {
       const targetDateOnly = c.date.split("T")[0];
       
@@ -283,13 +283,19 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
         priceUSD = isThai ? c.close / exchangeRate : c.close;
       }
 
-      const valueUSD = stats.qty * priceUSD;
+      // Use asset unit price USD instead of holding value USD
+      const valueUSD = priceUSD;
       
+      // Use unit average cost basis instead of cumulative total cost
       let costUSD = 0;
-      if (isCashAsset) {
-        costUSD = stats.cost; // stats.cost is already in USD terms
+      if (stats.qty > 0) {
+        if (isCashAsset) {
+          costUSD = stats.cost / stats.qty;
+        } else {
+          costUSD = isThai ? (stats.cost / stats.qty) / exchangeRate : (stats.cost / stats.qty);
+        }
       } else {
-        costUSD = isThai ? stats.cost / exchangeRate : stats.cost;
+        costUSD = isThai ? avgCost / exchangeRate : avgCost;
       }
 
       return { date: c.date, valueUSD, costUSD, hasPurchased: true };
@@ -648,7 +654,7 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
           const diff = hovered.cost > 0 ? hovered.value - hovered.cost : 0;
           const diffPct = hovered.cost > 0 ? (diff / hovered.cost) * 100 : 0;
           return (
-            <g>
+            <g style={{ pointerEvents: "none" }}>
               <rect x={tipX} y={tipY} width={tipW} height={tipH} rx="10"
                 fill="#1E293B" opacity="0.95" />
               <text x={tipX + tipW / 2} y={tipY + 15} textAnchor="middle"
@@ -657,12 +663,12 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
               </text>
               <text x={tipX + tipW / 2} y={tipY + 30} textAnchor="middle"
                 fontSize="12" fill="white" fontWeight="800" fontFamily="Outfit,sans-serif">
-                มูลค่า: {fmtUSD(hovered.value)}
+                ราคา: {fmtUSD(hovered.value)}
               </text>
               {hovered.cost > 0 && (
                 <text x={tipX + tipW / 2} y={tipY + 45} textAnchor="middle"
                   fontSize="11" fill={diff >= 0 ? "#00B98A" : "#FF4B55"} fontWeight="800" fontFamily="Outfit,sans-serif">
-                  ต้นทุน: {fmtUSD(hovered.cost)} ({fmtPct(diffPct)})
+                  ทุนเฉลี่ย: {fmtUSD(hovered.cost)} ({fmtPct(diffPct)})
                 </text>
               )}
             </g>
@@ -870,15 +876,17 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
         </div>
 
         {/* ── KPI Mini Grid ── */}
-        <div className="asset-detail-kpi-grid" style={{ gridTemplateColumns: isCashAsset ? "repeat(3, 1fr)" : "repeat(4, 1fr)" }}>
+        <div className="asset-detail-kpi-grid" style={{ gridTemplateColumns: isCashAsset ? "repeat(2, 1fr)" : "repeat(4, 1fr)" }}>
           <div className="asset-detail-kpi">
             <div className="asset-detail-kpi-label">จำนวนถือ</div>
             <div className="asset-detail-kpi-val">{fmtQty(asset.qty)} {asset.symbol}</div>
           </div>
-          <div className="asset-detail-kpi">
-            <div className="asset-detail-kpi-label">ราคาทุนเฉลี่ย</div>
-            <div className="asset-detail-kpi-val">{fmtUSD(avgCostUSD)}</div>
-          </div>
+          {!isCashAsset && (
+            <div className="asset-detail-kpi">
+              <div className="asset-detail-kpi-label">ราคาทุนเฉลี่ย</div>
+              <div className="asset-detail-kpi-val">{fmtUSD(avgCostUSD)}</div>
+            </div>
+          )}
           <div className="asset-detail-kpi">
             <div className="asset-detail-kpi-label">มูลค่าปัจจุบัน</div>
             <div className="asset-detail-kpi-val">{fmtUSD(valueUSD)}</div>
@@ -973,18 +981,18 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
         {lots.length > 0 && (
           <div className="asset-detail-lots">
             <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
-              <ShoppingCart size={14} /> ประวัติการซื้อ ({lots.length} รายการ)
+              {isCashAsset ? <History size={14} /> : <ShoppingCart size={14} />} {isCashAsset ? "ประวัติการฝาก/ถอนเงินสด" : "ประวัติการซื้อ"} ({lots.length} รายการ)
             </div>
             <div style={{ border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: "#F8FAFC" }}>
                     <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 700, color: "var(--text-muted)" }}>ครั้ง</th>
-                    <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 700, color: "var(--text-muted)" }}>วันที่ซื้อ</th>
-                    <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: "var(--text-muted)" }}>จำนวน</th>
-                    <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: "var(--text-muted)" }}>ราคาทุน</th>
-                    <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: "var(--text-muted)" }}>ต้นทุน</th>
-                    <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: "var(--text-muted)" }}>P&L</th>
+                    <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 700, color: "var(--text-muted)" }}>{isCashAsset ? "วันที่ทำรายการ" : "วันที่ซื้อ"}</th>
+                    <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: "var(--text-muted)" }}>{isCashAsset ? "จำนวนเงิน" : "จำนวน"}</th>
+                    <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: "var(--text-muted)" }}>{isCashAsset ? "อัตราแลกเปลี่ยน" : "ราคาทุน"}</th>
+                    <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: "var(--text-muted)" }}>{isCashAsset ? "มูลค่ารวม (USD)" : "ต้นทุน"}</th>
+                    {!isCashAsset && <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: "var(--text-muted)" }}>P&L</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -1006,7 +1014,7 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
                           {fmtDateShort(lot.date)}
                         </td>
                         <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 600 }}>
-                          {fmtQty(lot.qty)}
+                          {fmtQty(lot.qty)} {isCashAsset ? asset.symbol : ""}
                         </td>
                         <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 600 }}>
                           {fmtUSD(isThai ? lot.price / exchangeRate : lot.price)}
@@ -1014,14 +1022,14 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
                         <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 700 }}>
                           {fmtUSD(lotCostUSD)}
                         </td>
-                        <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 800, color: isCashAsset ? "var(--text-faint)" : (lotGain >= 0 ? "var(--gain)" : "var(--loss)") }}>
-                          {isCashAsset ? "—" : (
+                        {!isCashAsset && (
+                          <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 800, color: lotGain >= 0 ? "var(--gain)" : "var(--loss)" }}>
                             <>
                               {lotGain >= 0 ? "+" : ""}{fmtUSD(lotGain)}
                               <div style={{ fontSize: 10, opacity: 0.8 }}>{fmtPct(lotGainPct)}</div>
                             </>
-                          )}
-                        </td>
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
@@ -1029,13 +1037,17 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
                 <tfoot>
                   <tr style={{ borderTop: "2px solid var(--border)", background: "var(--primary-light)" }}>
                     <td colSpan={2} style={{ padding: "9px 12px", fontWeight: 800, color: "var(--primary)" }}>รวม</td>
-                    <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 800, color: "var(--primary)" }}>{fmtQty(asset.qty)}</td>
-                    <td style={{ padding: "9px 12px", textAlign: "right", fontSize: 11, color: "var(--text-muted)" }}>avg {fmtUSD(avgCostUSD)}</td>
-                    <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 800, color: "var(--primary)" }}>{fmtUSD(totalCostUSD)}</td>
-                    <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 900, color: gainUp ? "var(--gain)" : "var(--loss)" }}>
-                      {gainUp ? "+" : ""}{fmtUSD(totalGainUSD)}
-                      <div style={{ fontSize: 10 }}>{fmtPct(totalGainPct)}</div>
+                    <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 800, color: "var(--primary)" }}>{fmtQty(asset.qty)} {isCashAsset ? asset.symbol : ""}</td>
+                    <td style={{ padding: "9px 12px", textAlign: "right", fontSize: 11, color: "var(--text-muted)" }}>
+                      {isCashAsset ? "—" : `avg ${fmtUSD(avgCostUSD)}`}
                     </td>
+                    <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 800, color: "var(--primary)" }}>{fmtUSD(totalCostUSD)}</td>
+                    {!isCashAsset && (
+                      <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 900, color: gainUp ? "var(--gain)" : "var(--loss)" }}>
+                        {gainUp ? "+" : ""}{fmtUSD(totalGainUSD)}
+                        <div style={{ fontSize: 10 }}>{fmtPct(totalGainPct)}</div>
+                      </td>
+                    )}
                   </tr>
                 </tfoot>
               </table>
