@@ -825,31 +825,35 @@ function KPIRow({ totalUSD, totalTHB, todayChange, todayChangeTHB, todayChangePc
 
       <div className={`kpi-card ${todayUp ? "gain-card" : "loss-card"}`}>
         <div className="kpi-label">📅 วันนี้</div>
-        <div className="kpi-value" style={{ color: todayUp ? "var(--gain)" : "var(--loss)" }}>
-          {todayChange !== 0 ? (todayUp ? "+" : "-") + fmt.usd(Math.abs(todayChange)) : "—"}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+          <div className="kpi-value" style={{ color: todayUp ? "var(--gain)" : "var(--loss)", margin: 0, whiteSpace: "nowrap" }}>
+            {todayChange !== 0 ? (todayUp ? "+" : "-") + fmt.usd(Math.abs(todayChange)) : "—"}
+          </div>
+          {todayChange !== 0 && (
+            <span className={`kpi-badge ${todayUp ? "up" : "down"}`} style={{ margin: 0, whiteSpace: "nowrap" }}>
+              {todayUp ? "▲" : "▼"} {fmt.pct(todayChangePct)}
+            </span>
+          )}
         </div>
         {todayChange !== 0 && (
-          <div className="kpi-sub">{todayUp ? "+" : "-"}{fmt.thb(Math.abs(todayChangeTHB))}</div>
-        )}
-        {todayChange !== 0 && (
-          <div className={`kpi-badge ${todayUp ? "up" : "down"}`}>
-            {todayUp ? "▲" : "▼"} {fmt.pct(todayChangePct)}
-          </div>
+          <div className="kpi-sub" style={{ marginTop: 2 }}>{todayUp ? "+" : "-"}{fmt.thb(Math.abs(todayChangeTHB))}</div>
         )}
       </div>
 
       <div className={`kpi-card ${totalUp ? "gain-card" : "loss-card"}`}>
         <div className="kpi-label">📊 กำไร/ขาดทุนรวม</div>
-        <div className="kpi-value" style={{ color: totalUp ? "var(--gain)" : "var(--loss)" }}>
-          {totalGain !== 0 ? (totalUp ? "+" : "-") + fmt.usd(Math.abs(totalGain)) : "—"}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+          <div className="kpi-value" style={{ color: totalUp ? "var(--gain)" : "var(--loss)", margin: 0, whiteSpace: "nowrap" }}>
+            {totalGain !== 0 ? (totalUp ? "+" : "-") + fmt.usd(Math.abs(totalGain)) : "—"}
+          </div>
+          {totalGain !== 0 && (
+            <span className={`kpi-badge ${totalUp ? "up" : "down"}`} style={{ margin: 0, whiteSpace: "nowrap" }}>
+              {totalUp ? "▲" : "▼"} {fmt.pct(totalGainPct)}
+            </span>
+          )}
         </div>
         {totalGain !== 0 && (
-          <div className="kpi-sub">{totalUp ? "+" : "-"}{fmt.thb(Math.abs(totalGainTHB))}</div>
-        )}
-        {totalGain !== 0 && (
-          <div className={`kpi-badge ${totalUp ? "up" : "down"}`}>
-            {totalUp ? "▲" : "▼"} {fmt.pct(totalGainPct)}
-          </div>
+          <div className="kpi-sub" style={{ marginTop: 2 }}>{totalUp ? "+" : "-"}{fmt.thb(Math.abs(totalGainTHB))}</div>
         )}
       </div>
 

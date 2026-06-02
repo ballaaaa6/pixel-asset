@@ -156,28 +156,43 @@ export function parseDimeReceipt(rawText) {
   if (priceBlockMatch) {
     const blockText = priceBlockMatch[0];
     
-    // Find all USD amounts
-    const usdRe = /(?:^|[\s,()\-+*/])(\d+(?:,\d{3})*(?:\.\d+)?)\s*(?:USD|บรอ|บรอ|บรอ|บรอ|บรอ)(?=$|[\s,()\-+*/])/gi;
+    // Find all USD amounts by matching numbers followed by common currency word garbles
+    const usdRe = /(?:^|[\s,()\-+*/])(\d+(?:,\d{3})*(?:\.\d+)?)\s*(?:USD|บรอ|บรอ|บรอ|บรอ|บรอ|บรั|บรต|บธ|บธิ|บธุ|บธ|บร)(?=$|[\s,()\-+*/])/gi;
     const usdValues = [];
     let m;
     while ((m = usdRe.exec(blockText)) !== null) {
       usdValues.push(parseAmt(m[1]));
     }
     
-    // Find all clean numbers in the block
     const allNums = extractCleanNumbers(blockText);
     
-    // Determine price (usually executed price is the rightmost/last USD value)
-    if (usdValues.length >= 2) {
-      price = usdValues[usdValues.length - 1]; // rightmost = executed price
-    } else if (usdValues.length === 1) {
-      price = usdValues[0];
+    // Line-by-line layout analysis (price and qty side-by-side)
+    const lines = blockText.split(/[\r\n]+/);
+    for (const line of lines) {
+      const lineNums = extractCleanNumbers(line);
+      if (lineNums.length === 2) {
+        if (transactionType === "BUY" && !qty) {
+          // Buy market order: Price is first, Qty is second
+          price = lineNums[0];
+          qtyFromTable = lineNums[1];
+        } else {
+          // Limit order: Limit Price is first, Executed Price is second
+          price = lineNums[1];
+        }
+      }
     }
     
-    // Find any number in the block that is NOT one of the USD values (the quantity column, e.g. for BUY market orders)
-    const nonUsdNums = allNums.filter(n => !usdValues.includes(n));
-    if (nonUsdNums.length > 0) {
-      qtyFromTable = nonUsdNums[0];
+    // If layout analysis didn't find price, fall back to currency-labeled values
+    if (!price && usdValues.length > 0) {
+      price = usdValues[usdValues.length - 1]; // rightmost = executed price
+    }
+    
+    // If layout analysis didn't find qty, filter allNums
+    if (!qty && !qtyFromTable) {
+      const nonUsdNums = allNums.filter(n => !usdValues.includes(n) && n !== price);
+      if (nonUsdNums.length > 0) {
+        qtyFromTable = nonUsdNums[0];
+      }
     }
   }
 

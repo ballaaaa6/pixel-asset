@@ -346,116 +346,126 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
     }
 
     // ══════════════════════════════════════════════════════════════════════
-    // FALLBACK A: Cloudflare Workers AI (/api/ocr)
-    // Only if Tesseract couldn't parse some or all images
+    // API FALLBACK (Gemini API key or Workers AI /api/ocr)
     // ══════════════════════════════════════════════════════════════════════
-    const failedFiles = fileList.filter((_, idx) => !succeededIndices.has(idx));
+    const failedIndices = [];
+    for (let i = 0; i < fileList.length; i++) {
+      if (!succeededIndices.has(i)) {
+        failedIndices.push(i);
+      }
+    }
 
-    if (tesseractFailed && failedFiles.length > 0) {
+    if (failedIndices.length > 0) {
+      const geminiKey = localStorage.getItem("gemini_api_key");
+      let userToken = "";
       try {
-        const compressed = await Promise.all(failedFiles.map(f => compressImage(f)));
-        const token = localStorage.getItem("auth_token") || "";
-        const ocrRes = await fetch("/api/ocr", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-          body: JSON.stringify({ images: compressed.map(c => ({ base64: c.base64, mime: c.mime })) })
-        });
-        if (ocrRes.ok) {
-          const ocrData = await ocrRes.json();
-          if (ocrData.results && !ocrData.error) {
-            ocrData.results.forEach(data => {
-              if (data.symbol && !/^\d+$/.test(data.symbol)) {
-                const origFile = failedFiles[data.index];
-                const origIdx = fileList.indexOf(origFile);
-                newScannedItems.push({
-                  id: `${Date.now()}-cf-${origIdx}`,
-                  symbol: String(data.symbol).toUpperCase(),
-                  name: data.name || String(data.symbol).toUpperCase(),
-                  type: data.category || "stock",
-                  qty: parseFloat(data.qty) || "",
-                  avgPrice: parseFloat(data.price) || "",
-                  date: data.date || new Date().toISOString().split("T")[0],
-                  transactionType: data.transactionType || "BUY"
-                });
+        const savedUser = localStorage.getItem("portfolio_user");
+        if (savedUser) {
+          userToken = JSON.parse(savedUser)?.token || "";
+        }
+      } catch (e) {}
+
+      for (const i of failedIndices) {
+        setScanningStatus(prev => ({ ...prev, completed: i, stage: "AI Fallback..." }));
+        const file = fileList[i];
+        try {
+          const { base64, mime } = await compressImage(file);
+          let parsedData = null;
+
+          if (geminiKey) {
+            // Call client-side Gemini Vision
+            const prompt = `This is a stock trading receipt from Dime! app (Thai broker).
+Analyze the receipt image and extract the following fields in JSON format:
+{
+  "transactionType": "BUY" or "SELL" (look at top keyword: "ซื้อ" is BUY, "ขาย" is SELL),
+  "symbol": "1-6 letter stock ticker in uppercase (e.g. MAGS, MU, AAPL, ASML, NVDA)",
+  "name": "Stock ticker or full company name (e.g. MAGS, MU, AAPL)",
+  "qty": number of shares/units (look for quantity like "188.8256489 หุ้น" or under the table "จำนวนหุ้น"),
+  "price": executed price per share (look for "ราคาที่ได้จริง" in USD or the price per share, NOT the total),
+  "date": transaction date in YYYY-MM-DD format (look for "วันที่ส่งคำสั่ง". Note: the year in the slip is in Buddhist Era, e.g. "68" is 2568 BE -> 2025 CE, "69" is 2569 BE -> 2026 CE. Months are Thai abbreviations: ม.ค.=01, ก.พ.=02, มี.ค.=03, เม.ย.=04, พ.ค.=05, มิ.ย.=06, ก.ค.=07, ส.ค.=08, ก.ย.=09, ต.ค.=10, พ.ย.=11, ธ.ค.=12)
+}
+Return ONLY a valid JSON object matching the schema above.`;
+
+            const bodyObj = {
+              contents: [
+                {
+                  parts: [
+                    { text: prompt },
+                    {
+                      inlineData: {
+                        mimeType: mime,
+                        data: base64
+                      }
+                    }
+                  ]
+                }
+              ],
+              generationConfig: {
+                responseMimeType: "application/json"
               }
+            };
+
+            const response = await callGemini(geminiKey, bodyObj);
+            const candidateText = response?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+            const jsonMatch = candidateText.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              parsedData = JSON.parse(jsonMatch[0]);
+            }
+          } else {
+            // Call Cloudflare Workers AI /api/ocr via the proxy / local api
+            const res = await fetch("/api/ocr", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${userToken}`
+              },
+              body: JSON.stringify({
+                images: [{ base64, mime }]
+              })
             });
-            (ocrData.errors || []).forEach(e => {
-              const origIdx = fileList.indexOf(failedFiles[e.index]);
-              errors.push(`รูป ${origIdx + 1}: ${e.error}`);
-            });
-          } else if (ocrData.error === "AI_BINDING_UNAVAILABLE") {
-            throw new Error("AI_BINDING_UNAVAILABLE");
-          }
-        } else {
-          throw new Error(`/api/ocr HTTP ${ocrRes.status}`);
-        }
-      } catch (cfErr) {
-        // ── Step 3: Fallback to Gemini API if Cloudflare AI not available ──
-        console.warn("Cloudflare OCR failed, falling back to Gemini:", cfErr.message);
-        const geminiKey = localStorage.getItem("gemini_api_key") || "";
-        if (!geminiKey) {
-          throw new Error("ไม่สามารถใช้งาน OCR ได้\n• Cloudflare AI: ไม่พร้อมใช้งาน\n• Gemini API: ยังไม่ได้ตั้งค่า key\nไปที่ ⚙️ Settings เพื่อตั้งค่า Gemini API Key");
-        }
-
-        // Compress failed files if not compressed already
-        const compressed = await Promise.all(failedFiles.map(f => compressImage(f)));
-
-        // Process in chunks of 5 via Gemini
-        const BATCH_SIZE = 5;
-        const chunks = [];
-        for (let i = 0; i < compressed.length; i += BATCH_SIZE) {
-          chunks.push({ files: failedFiles.slice(i, i + BATCH_SIZE), imgs: compressed.slice(i, i + BATCH_SIZE), start: i });
-        }
-
-        const PROMPT_BASE = `You are a financial receipt OCR parser. Analyze the receipt image (which is typically from Dime! app, a Thai stock broker) and extract the following fields:
-1. "symbol": The stock ticker symbol in uppercase (e.g. MU, AAPL, ASML, NVDA). For US stocks on Dime!, look at the top line right after "ซื้อ" or "ขาย". If it says "ซื้อ MU", the symbol is "MU". (Map common OCR issues like "เบ" or "เน" to "MU").
-2. "name": Full name of the company or asset (e.g. "Micron Technology" for MU).
-3. "category": "stock", "crypto", "gold", or "fiat".
-4. "transactionType": "BUY" or "SELL".
-5. "qty": The number of shares/units purchased or sold. On Dime!, look for the number followed by "หุ้น" or "shares" or similar, like "3 หุ้น" -> qty is 3. Do NOT default to 1 if you can find the actual quantity.
-6. "price": The purchase or sale price per unit. Crucially, on Dime! receipts there are two columns: "ราคาที่คุณตั้ง" (limit price) and "ราคาที่ได้จริง" (executed price). You MUST extract the executed price ("ราคาที่ได้จริง") as the price per unit, NOT the limit price or the total cost.
-7. "date": Transaction date in YYYY-MM-DD format. On Dime!, convert the Buddhist Era year to CE (subtract 543 or add 1957, e.g., 69 -> 2026). Example: "19 พ.ค. 69" -> "2026-05-19".`;
-
-        for (const chunk of chunks) {
-          try {
-            let resJson;
-            if (chunk.imgs.length === 1) {
-              const prompt = PROMPT_BASE + "\n\nRespond ONLY with a single JSON object. No markdown.";
-              resJson = await callGemini(geminiKey, {
-                contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: chunk.imgs[0].mime, data: chunk.imgs[0].base64 } }] }]
-              });
-              const rawText = resJson.candidates?.[0]?.content?.parts?.[0]?.text || "";
-              const clean = rawText.trim().replace(/^```[\w]*\n?/, "").replace(/\n?```$/, "").trim();
-              const data = JSON.parse(clean.match(/\{[\s\S]*\}/)?.[0] || clean);
-              if (data.symbol) {
-                const origFile = chunk.files[0];
-                const origIdx = fileList.indexOf(origFile);
-                newScannedItems.push({ id: `${Date.now()}-g${origIdx}`, symbol: data.symbol.toUpperCase(), name: data.name || data.symbol, type: data.category || "stock", qty: parseFloat(data.qty) || "", avgPrice: parseFloat(data.price) || "", date: data.date || new Date().toISOString().split("T")[0], transactionType: data.transactionType || "BUY" });
+            if (res.ok) {
+              const resData = await res.json();
+              if (resData.results && resData.results.length > 0) {
+                parsedData = resData.results[0];
+              } else if (resData.errors && resData.errors.length > 0) {
+                throw new Error(resData.errors[0].error);
               }
             } else {
-              const prompt = PROMPT_BASE + `\n\nYou will see ${chunk.imgs.length} images. Respond ONLY with a JSON array of ${chunk.imgs.length} objects in order. No markdown.`;
-              const parts = [{ text: prompt }];
-              chunk.imgs.forEach(c => parts.push({ inlineData: { mimeType: c.mime, data: c.base64 } }));
-              resJson = await callGemini(geminiKey, { contents: [{ parts }] });
-              const rawText = resJson.candidates?.[0]?.content?.parts?.[0]?.text || "";
-              const clean = rawText.trim().replace(/^```[\w]*\n?/, "").replace(/\n?```$/, "").trim();
-              let dataArr = JSON.parse(clean.match(/\[[\s\S]*\]/)?.[0] || clean);
-              if (!Array.isArray(dataArr)) dataArr = [dataArr];
-              dataArr.forEach((data, i) => {
-                const origFile = chunk.files[i];
-                const origIdx = fileList.indexOf(origFile);
-                if (data.symbol) newScannedItems.push({ id: `${Date.now()}-g${origIdx}`, symbol: data.symbol.toUpperCase(), name: data.name || data.symbol, type: data.category || "stock", qty: parseFloat(data.qty) || "", avgPrice: parseFloat(data.price) || "", date: data.date || new Date().toISOString().split("T")[0], transactionType: data.transactionType || "BUY" });
-                else errors.push(`รูป ${origIdx + 1}: ไม่พบสัญลักษณ์`);
-              });
+              const errBody = await res.json().catch(() => ({}));
+              throw new Error(errBody?.error || `HTTP ${res.status}`);
             }
-            setScanningStatus(prev => ({ ...prev, completed: Math.min(fileList.length, prev.completed + chunk.imgs.length) }));
-            if (chunks.indexOf(chunk) < chunks.length - 1) await new Promise(r => setTimeout(r, 2000));
-          } catch (gErr) {
-            chunk.files.forEach((f) => {
-              const origIdx = fileList.indexOf(f);
-              errors.push(`${f.name || `รูป ${origIdx + 1}`}: ${gErr.message}`);
-            });
           }
+
+          if (parsedData && parsedData.symbol) {
+            let sym = String(parsedData.symbol).toUpperCase().replace(/[^A-Z.]/g, "");
+            if (sym === "เบ" || sym === "เน" || sym === "เม" || sym === "เU") sym = "MU";
+            if (sym === "กอ" || sym === "กO") sym = "KO";
+
+            let qtyVal = parseFloat(parsedData.qty) || 1;
+            let priceVal = parseFloat(parsedData.price) || 0;
+
+            let parsedDate = parsedData.date;
+            if (!parsedDate || !parsedDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+              parsedDate = new Date().toISOString().split("T")[0];
+            }
+
+            newScannedItems.push({
+              id: `${Date.now()}-ai-${i}`,
+              symbol:          sym,
+              name:            parsedData.name || sym,
+              type:            parsedData.category || "stock",
+              qty:             String(qtyVal),
+              avgPrice:        String(priceVal),
+              date:            parsedDate,
+              transactionType: parsedData.transactionType || "BUY"
+            });
+            succeededIndices.add(i);
+          } else {
+            throw new Error("ไม่สามารถดึงข้อมูลรายการหุ้นได้สำเร็จ");
+          }
+        } catch (err) {
+          console.error(`AI Fallback failed for image ${i + 1}:`, err.message);
+          errors.push(`รูป ${i + 1} (AI Fallback): ${err.message}`);
         }
       }
     }
