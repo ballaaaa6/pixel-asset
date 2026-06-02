@@ -188,6 +188,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
   const [qty,         setQty]         = useState("");
   const [price,       setPrice]       = useState("");
   const [date,        setDate]        = useState(() => new Date().toISOString().split("T")[0]);
+  const [time,        setTime]        = useState("");
   const [txType,      setTxType]      = useState("BUY"); // BUY or SELL
 
   /* Search state */
@@ -329,6 +330,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
             qty:             result.qty ? String(result.qty) : "",
             avgPrice:        result.price ? String(result.price) : "",
             date:            result.date || new Date().toISOString().split("T")[0],
+            time:            result.time || "",
             transactionType: result.transactionType || "BUY",
           });
         } else {
@@ -382,7 +384,8 @@ Analyze the receipt image and extract the following fields in JSON format:
   "name": "Stock ticker or full company name (e.g. MAGS, MU, AAPL)",
   "qty": number of shares/units (look for quantity like "188.8256489 หุ้น" or under the table "จำนวนหุ้น"),
   "price": executed price per share (look for "ราคาที่ได้จริง" in USD or the price per share, NOT the total),
-  "date": transaction date in YYYY-MM-DD format (look for "วันที่ส่งคำสั่ง". Note: the year in the slip is in Buddhist Era, e.g. "68" is 2568 BE -> 2025 CE, "69" is 2569 BE -> 2026 CE. Months are Thai abbreviations: ม.ค.=01, ก.พ.=02, มี.ค.=03, เม.ย.=04, พ.ค.=05, มิ.ย.=06, ก.ค.=07, ส.ค.=08, ก.ย.=09, ต.ค.=10, พ.ย.=11, ธ.ค.=12)
+  "date": transaction date in YYYY-MM-DD format (look for "วันที่ส่งคำสั่ง". Note: the year in the slip is in Buddhist Era, e.g. "68" is 2568 BE -> 2025 CE, "69" is 2569 BE -> 2026 CE. Months are Thai abbreviations: ม.ค.=01, ก.พ.=02, มี.ค.=03, เม.ย.=04, พ.ค.=05, มิ.ย.=06, ก.ค.=07, ส.ค.=08, ก.ย.=09, ต.ค.=10, พ.ย.=11, ธ.ค.=12),
+  "time": transaction execution time in HH:MM format (look at the end of the "วันที่ส่งคำสั่ง" or "วันที่สำเร็จ" line, e.g., "15:40 น." -> "15:40", "02:22 น." -> "02:22". Output empty string if not found)
 }
 Return ONLY a valid JSON object matching the schema above.`;
 
@@ -457,6 +460,7 @@ Return ONLY a valid JSON object matching the schema above.`;
               qty:             String(qtyVal),
               avgPrice:        String(priceVal),
               date:            parsedDate,
+              time:            parsedData.time || "",
               transactionType: parsedData.transactionType || "BUY"
             });
             succeededIndices.add(i);
@@ -483,6 +487,7 @@ Return ONLY a valid JSON object matching the schema above.`;
         setQty(item.qty ? item.qty.toString() : "");
         setPrice(item.avgPrice ? item.avgPrice.toString() : "");
         setDate(item.date);
+        setTime(item.time || "");
         setTxType(item.transactionType);
         setConfirmed(true);
         triggerToast(`🤖 สแกนใบเสร็จสำเร็จ!\nดึงข้อมูล: ${item.symbol} (${item.transactionType === "BUY" ? "ซื้อ/ฝาก" : "ขาย/ถอน"} · ${item.qty} หน่วย @ $${item.avgPrice})`, "success");
@@ -547,6 +552,7 @@ Return ONLY a valid JSON object matching the schema above.`;
       setQty("");
       setPrice("");
       setDate(new Date().toISOString().split("T")[0]);
+      setTime("");
       setConfirmed(true);
       setShowDrop(false);
       setShowCurrencyDrop(false);
@@ -560,6 +566,7 @@ Return ONLY a valid JSON object matching the schema above.`;
       setQty("");
       setPrice("");
       setDate(new Date().toISOString().split("T")[0]);
+      setTime("");
       setConfirmed(false);
       setShowDrop(false);
       setShowCurrencyDrop(false);
@@ -702,6 +709,7 @@ Return ONLY a valid JSON object matching the schema above.`;
       qty:      pQty,
       avgPrice: pPrice,
       date,
+      time,
       transactionType: txType,
     });
   };
@@ -878,8 +886,8 @@ Return ONLY a valid JSON object matching the schema above.`;
                         </div>
                       </div>
 
-                      {/* Body Row: Qty & Price & Date */}
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                      {/* Body Row: Qty & Price & Date & Time */}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.2fr 0.8fr", gap: 8 }}>
                         <div className="form-group" style={{ marginBottom: 0 }}>
                           <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: 3 }}>จำนวน</label>
                           <input type="number" step="any" className="form-input" style={{ height: 32, padding: "0 8px", fontSize: 12 }}
@@ -907,6 +915,16 @@ Return ONLY a valid JSON object matching the schema above.`;
                             value={item.date} onChange={e => {
                               const updated = [...scannedQueue];
                               updated[idx].date = e.target.value;
+                              setScannedQueue(updated);
+                            }}
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: 3 }}>เวลา</label>
+                          <input type="time" className="form-input" style={{ height: 32, padding: "0 4px", fontSize: 12 }}
+                            value={item.time || ""} onChange={e => {
+                              const updated = [...scannedQueue];
+                              updated[idx].time = e.target.value;
                               setScannedQueue(updated);
                             }}
                           />
@@ -1248,11 +1266,18 @@ Return ONLY a valid JSON object matching the schema above.`;
               </div>
             )}
 
-            {/* ── Purchase Date ── */}
-            <div className="form-group" style={{ marginTop: 14 }}>
-              <label className="form-label">วันที่ซื้อ <span style={{ fontSize: 10, color: "var(--text-faint)" }}>(เก็บเป็น Log ประวัติ)</span></label>
-              <input type="date" className="form-input"
-                value={date} onChange={e => setDate(e.target.value)} />
+            {/* ── Purchase Date & Time ── */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 14 }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">วันที่ทำรายการ <span style={{ fontSize: 10, color: "var(--text-faint)" }}>(Log ประวัติ)</span></label>
+                <input type="date" className="form-input"
+                  value={date} onChange={e => setDate(e.target.value)} />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">เวลาที่ทำรายการ <span style={{ fontSize: 10, color: "var(--text-faint)" }}>(ระบุเวลา น.)</span></label>
+                <input type="time" className="form-input"
+                  value={time} onChange={e => setTime(e.target.value)} />
+              </div>
             </div>
 
             {/* ── Purchase History (ถ้ามี lots แล้ว) ── */}

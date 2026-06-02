@@ -1025,7 +1025,7 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
                           </td>
                         )}
                         <td style={{ padding: "9px 12px", color: "var(--text-muted)" }}>
-                          {fmtDateShort(lot.date)}
+                          {fmtDateShort(lot.date)} {lot.time ? `· ${lot.time} น.` : ""}
                         </td>
                         <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 600 }}>
                           {isBuy ? "+" : "-"}{fmtQty(Math.abs(lot.lotQty))} {isCashAsset ? asset.symbol : ""}

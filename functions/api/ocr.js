@@ -67,9 +67,12 @@ FIELD 5 — date:
 
 FIELD 6 — name: Full company name for the symbol (e.g. "Micron Technology" for MU)
 FIELD 7 — category: "stock" for US/Thai equities, "crypto" for BTC/ETH etc, "gold" for gold ETFs
+FIELD 8 — time:
+  Find "วันที่ส่งคำสั่ง" or "วันที่สำเร็จ" (order date/success date). The time of order execution is at the end of that line (e.g., "15:40 น." or "02:22 น.").
+  Convert to "HH:MM" format (e.g. "15:40" or "02:22"). If not found, output empty string.
 
 Output ONLY valid JSON, nothing else:
-{"symbol":"MU","name":"Micron Technology","category":"stock","transactionType":"BUY","qty":3,"price":665.00,"date":"2026-05-19"}`;
+{"symbol":"MU","name":"Micron Technology","category":"stock","transactionType":"BUY","qty":3,"price":665.00,"date":"2026-05-19","time":"02:22"}`;
 
     const results = [];
     const errors = [];
@@ -141,6 +144,7 @@ Output ONLY valid JSON, nothing else:
           qty,
           price,
           date,
+          time: data.time || "",
         });
 
       } catch (err) {

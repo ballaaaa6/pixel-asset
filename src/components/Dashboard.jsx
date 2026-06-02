@@ -2057,9 +2057,28 @@ export default function Dashboard({ user, onLogout, showToast }) {
           }
         }
 
+        // Check for duplicates
+        if (existingIdx >= 0) {
+          const existingAsset = updatedAssets[existingIdx];
+          const duplicateLot = (existingAsset.lots || []).find(l => {
+            const sameDate = l.date === buyDate;
+            const sameTime = (l.time || "") === (tx.time || "");
+            const sameQty = Math.abs(l.qty - (isSell ? -newQty : newQty)) < 0.00001;
+            const samePrice = Math.abs(l.price - newPrice) < 0.00001;
+            return sameDate && sameTime && sameQty && samePrice;
+          });
+          if (duplicateLot) {
+            const confirmMsg = `⚠️ ตรวจพบธุรกรรมที่อาจซ้ำซ้อน:\nมีรายการ ${isSell ? "ขาย" : "ซื้อ"} ${sym} จำนวน ${newQty} หุ้น @ $${newPrice} วันที่ ${buyDate} ${tx.time ? "เวลา " + tx.time + " น." : ""} อยู่ในระบบแล้ว\n\nคุณต้องการบันทึกธุรกรรมนี้เพิ่มอีกรายการใช่หรือไม่?`;
+            if (!confirm(confirmMsg)) {
+              continue; // Skip this transaction
+            }
+          }
+        }
+
         const newLot = {
           id:    `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
           date:  buyDate,
+          time:  tx.time || "",
           qty:   isSell ? -newQty : newQty,
           price: newPrice,
         };

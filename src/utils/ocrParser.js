@@ -28,6 +28,18 @@ function normalizeOcrText(rawText) {
   return t;
 }
 
+function parseThaiTime(text) {
+  if (!text) return null;
+  // Match HH:MM format, possibly followed by " น." or " น" or "น"
+  const match = text.match(/(\d{1,2})\s*:\s*(\d{2})/);
+  if (match) {
+    const hour = match[1].padStart(2, "0");
+    const minute = match[2];
+    return `${hour}:${minute}`;
+  }
+  return null;
+}
+
 function parseThaiDate(text) {
   if (!text) return null;
 
@@ -300,13 +312,18 @@ export function parseDimeReceipt(rawText) {
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // Date — from "วันที่ส่งคำสั่ง  19 พ.ค. 69 - 02:22 น."
+  // Date & Time — from "วันที่ส่งคำสั่ง  19 พ.ค. 69 - 02:22 น."
   // ──────────────────────────────────────────────────────────────────────────
   let date = null;
-  const dateLine = text.match(/วันที่ส่งคำสั่ง[\s\S]{0,100}/);
-  if (dateLine) date = parseThaiDate(dateLine[0]);
+  let time = "";
+  const dateLine = text.match(/วันที่ส่งคำสั่ง[\s\S]{0,120}/) || text.match(/วันที่สำเร็จ[\s\S]{0,120}/);
+  if (dateLine) {
+    date = parseThaiDate(dateLine[0]);
+    time = parseThaiTime(dateLine[0]) || "";
+  }
   if (!date) date = parseThaiDate(text);
   if (!date) date = new Date().toISOString().split("T")[0];
+  if (!time) time = parseThaiTime(text) || "";
 
   return {
     symbol:          symbol.toUpperCase(),
@@ -316,6 +333,7 @@ export function parseDimeReceipt(rawText) {
     qty,
     price,
     date,
+    time,
   };
 }
 
