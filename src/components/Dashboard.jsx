@@ -1751,19 +1751,16 @@ export default function Dashboard({ user, onLogout, showToast }) {
               </div>
               <div
                 className="user-profile-btn"
-                onClick={() => setProfileModalOpen(true)}
                 style={{
                   display: "flex",
                   alignItems: "center",
                   gap: 8,
-                  cursor: "pointer",
+                  cursor: "default",
                   padding: "4px 10px",
                   borderRadius: 10,
                   background: "var(--primary-light)",
-                  transition: "var(--transition)",
                   userSelect: "none"
                 }}
-                title="โปรไฟล์ของฉัน"
               >
                 {profilePic ? (
                   <img
@@ -1869,7 +1866,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                   <span className="hero-meta-label">ต้นทุนรวม</span>
                   <span className="hero-meta-value" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
                     <span>{fmt.usd(totalCostUSD)}</span>
-                    <span style={{ fontSize: 11, opacity: 0.7, fontWeight: 500 }}>({ "฿" + new Intl.NumberFormat("th-TH", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(totalCostUSD * exchangeRate) })</span>
+                    <span style={{ fontSize: 11, color: "rgba(255, 255, 255, 0.9)", fontWeight: 600 }}>({ "฿" + new Intl.NumberFormat("th-TH", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(totalCostUSD * exchangeRate) })</span>
                   </span>
                 </div>
               </div>
@@ -1883,9 +1880,12 @@ export default function Dashboard({ user, onLogout, showToast }) {
                   justifyContent: "space-between",
                   alignItems: "center"
                 }}>
-                  <span style={{ fontSize: 11, opacity: 0.75, fontWeight: 600 }}>กำไร/ขาดทุนวันนี้</span>
+                  <span style={{ fontSize: 11, opacity: 0.9, fontWeight: 600 }}>กำไร/ขาดทุนวันนี้</span>
                   <span style={{ fontSize: 14, fontWeight: 800, color: todayChangeUSD >= 0 ? "#6EE7B7" : "#FCA5A5" }}>
-                    {todayChangeUSD >= 0 ? "+" : ""}{fmt.usd(todayChangeUSD)}
+                    {todayChangeUSD >= 0 ? "+" : ""}{fmt.usd(todayChangeUSD)}{" "}
+                    <span style={{ fontSize: 11, opacity: 0.85, fontWeight: 700 }}>
+                      ({todayChangeUSD >= 0 ? "+" : ""}{"฿" + new Intl.NumberFormat("th-TH", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(todayChangeUSD * exchangeRate)})
+                    </span>
                   </span>
                 </div>
               )}

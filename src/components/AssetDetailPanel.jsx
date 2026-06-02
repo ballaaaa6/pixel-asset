@@ -504,6 +504,16 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
           <clipPath id="assetClipFull">
             <rect x={PAD_L} y={PAD_T} width={iW} height={iH} />
           </clipPath>
+          {hasCostLine && activeCostPts.length >= 2 && (
+            <>
+              <clipPath id="prePurchasedClip">
+                <rect x={PAD_L} y={0} width={Math.max(0, activeCostPts[0].x - PAD_L)} height={H} />
+              </clipPath>
+              <clipPath id="purchasedClip">
+                <rect x={activeCostPts[0].x} y={0} width={Math.max(0, W - PAD_R - activeCostPts[0].x)} height={H} />
+              </clipPath>
+            </>
+          )}
         </defs>
 
         {/* ── Grid lines ── */}
@@ -517,13 +527,13 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
         ))}
 
         {/* ── Fill areas with Clipping ── */}
-        {hasCostLine && costLinePath && fillValueArea && fillCostArea ? (
-          <>
+        {hasCostLine && costLinePath && fillValueArea && fillCostArea && activeCostPts.length >= 2 ? (
+          <g clipPath="url(#purchasedClip)">
             {/* Gain Zone (Value > Cost): Green Fill */}
             <path d={fillValueArea} fill="url(#gainGrad)" clipPath="url(#assetClipAboveCost)" />
             {/* Loss Zone (Value < Cost): Red Fill */}
             <path d={fillCostArea} fill="url(#lossGrad)" clipPath="url(#assetClipAboveValue)" />
-          </>
+          </g>
         ) : (
           fillValueArea && <path d={fillValueArea} fill={isUp ? "url(#gainGrad)" : "url(#lossGrad)"} clipPath="url(#assetClipFull)" />
         )}
@@ -541,29 +551,43 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
           />
         )}
 
-        {/* ── Dual-color Price Value Line ── */}
-        {linePath && costLinePath ? (
+        {/* ── Price Value Line ── */}
+        {linePath && costLinePath && activeCostPts.length >= 2 ? (
           <>
-            {/* Green Price Line when above Cost */}
+            {/* Pre-purchased neutral price line */}
             <path
               d={linePath}
               fill="none"
-              stroke="#00B98A"
-              strokeWidth="2.5"
+              stroke="#94A3B8"
+              strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
-              clipPath="url(#assetClipAboveCost)"
+              opacity="0.85"
+              clipPath="url(#prePurchasedClip)"
             />
-            {/* Red Price Line when below Cost */}
-            <path
-              d={linePath}
-              fill="none"
-              stroke="#FF4B55"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              clipPath="url(#assetClipBelowCost)"
-            />
+            {/* Purchased price line wrapped with purchasedClip */}
+            <g clipPath="url(#purchasedClip)">
+              {/* Green Price Line when above Cost */}
+              <path
+                d={linePath}
+                fill="none"
+                stroke="#00B98A"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                clipPath="url(#assetClipAboveCost)"
+              />
+              {/* Red Price Line when below Cost */}
+              <path
+                d={linePath}
+                fill="none"
+                stroke="#FF4B55"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                clipPath="url(#assetClipBelowCost)"
+              />
+            </g>
           </>
         ) : (
           linePath && (

@@ -607,8 +607,8 @@ html, body {
 
 .hero-label {
   font-size: 12px;
-  font-weight: 600;
-  opacity: 0.75;
+  font-weight: 700;
+  opacity: 0.95;
   text-transform: uppercase;
   letter-spacing: 0.8px;
   margin-bottom: 6px;
@@ -658,7 +658,7 @@ html, body {
 }
 
 .hero-meta-item { display: flex; flex-direction: column; gap: 3px; }
-.hero-meta-label { font-size: 11px; opacity: 0.6; font-weight: 500; }
+.hero-meta-label { font-size: 11px; opacity: 0.9; font-weight: 600; }
 .hero-meta-value { font-size: 15px; font-weight: 700; }
 
 /* ═══════════════════════════════════════════════════════════════
