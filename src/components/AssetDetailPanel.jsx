@@ -51,141 +51,67 @@ function stepPath(pts) {
 }
 
 function AssetLogo({ symbol, category, style }) {
-  const [error, setError] = useState(false);
-  const [logoSrc, setLogoSrc] = useState(null);
+  const [srcIndex, setSrcIndex] = useState(0);
+  const sym = symbol ? symbol.split(".")[0].toUpperCase() : "";
 
-  const cleanSymbol = symbol ? symbol.split(".")[0].toUpperCase() : "";
-
-  const { clearbitUrl, googleUrl } = useMemo(() => {
-    if (!symbol) return { clearbitUrl: null, googleUrl: null };
+  // Build ordered list of logo sources to try
+  const sources = useMemo(() => {
+    if (!sym) return [];
     const cat = category || "stock";
+
     if (cat === "fiat") {
-      const getCurrencyCountryCode = (sym) => {
-        const map = {
-          THB: "th", USD: "us", EUR: "eu", JPY: "jp", GBP: "gb",
-          AUD: "au", CAD: "ca", SGD: "sg", CHF: "ch", CNY: "cn",
-          HKD: "hk", KRW: "kr", INR: "in", NZD: "nz", SEK: "se",
-          NOK: "no", DKK: "dk", MYR: "my", IDR: "id", PHP: "ph",
-          VND: "vn", TWD: "tw", BRL: "br", RUB: "ru", ZAR: "za",
-          TRY: "tr", MXN: "mx", PLN: "pl", SAR: "sa", AED: "ae",
-          KWD: "kw", QAR: "qa", OMR: "om", BHD: "bh", ILS: "il"
-        };
-        return map[sym] || sym.slice(0, 2).toLowerCase();
-      };
-      const code = getCurrencyCountryCode(symbol);
-      return { clearbitUrl: `https://flagcdn.com/w80/${code}.png`, googleUrl: `https://flagcdn.com/w80/${code}.png` };
+      const code = ({
+        THB:"th",USD:"us",EUR:"eu",JPY:"jp",GBP:"gb",AUD:"au",CAD:"ca",
+        SGD:"sg",CHF:"ch",CNY:"cn",HKD:"hk",KRW:"kr",INR:"in",NZD:"nz",
+        SEK:"se",NOK:"no",DKK:"dk",MYR:"my",IDR:"id",PHP:"ph",VND:"vn",
+        TWD:"tw",BRL:"br",RUB:"ru",ZAR:"za",TRY:"tr",MXN:"mx"
+      })[sym] || sym.slice(0,2).toLowerCase();
+      return [`https://flagcdn.com/w80/${code}.png`];
     }
+
     if (cat === "crypto") {
-      const url = `https://assets.coincap.io/assets/icons/${cleanSymbol.toLowerCase()}@2x.png`;
-      return { clearbitUrl: url, googleUrl: url };
+      return [
+        `https://assets.coincap.io/assets/icons/${sym.toLowerCase()}@2x.png`,
+        `https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons/128/color/${sym.toLowerCase()}.png`,
+        `https://www.google.com/s2/favicons?sz=128&domain=${sym.toLowerCase()}.org`
+      ];
     }
-    if (cat === "gold" || symbol === "XAU") {
-      const url = `https://images.financialmodelingprep.com/symbol/GLD.png`;
-      return { clearbitUrl: url, googleUrl: url };
+
+    if (cat === "gold" || sym === "XAU" || sym === "GLD" || sym === "IAU") {
+      return [`https://images.financialmodelingprep.com/symbol/GLD.png`];
     }
-    
-    // Stock domain mapping
-    const getStockDomain = (sym) => {
-      const map = {
-        AAPL: "apple.com",
-        MSFT: "microsoft.com",
-        GOOG: "google.com",
-        GOOGL: "google.com",
-        AMZN: "amazon.com",
-        META: "meta.com",
-        TSLA: "tesla.com",
-        NVDA: "nvidia.com",
-        NFLX: "netflix.com",
-        SNDK: "sandisk.com",
-        AMD: "amd.com",
-        INTC: "intel.com",
-        QCOM: "qualcomm.com",
-        BABA: "alibaba.com",
-        COIN: "coinbase.com",
-        PYPL: "paypal.com",
-        SQ: "block.xyz",
-        DIS: "disney.com",
-        V: "visa.com",
-        MA: "mastercard.com",
-        NKE: "nike.com",
-        SBUX: "starbucks.com",
-        KO: "cocacola.com",
-        PEP: "pepsico.com",
-        WMT: "walmart.com",
-        JPM: "jpmorganchase.com",
-        BAC: "bankofamerica.com",
-        XOM: "exxonmobil.com",
-        CVX: "chevron.com",
-        JNJ: "jnj.com",
-        PG: "pg.com",
-        MRK: "merck.com",
-        ABV: "abbvie.com",
-        LLY: "lilly.com",
-        PFE: "pfizer.com",
-        WDC: "westerndigital.com",
-        PTT: "ptt.co.th",
-        KBANK: "kasikornbank.com",
-        CPALL: "cpall.co.th",
-        AOT: "airportthai.co.th",
-        BDMS: "bdms.co.th",
-        ADVANC: "ais.co.th",
-        SCB: "scb.co.th",
-        BBL: "bangkokbank.com",
-        GULF: "gulf.co.th",
-        CPN: "cpn.co.th",
-        SCC: "scg.com",
-        BANPU: "banpu.com",
-        TRUE: "true.th"
-      };
-      return map[sym] || `${sym.toLowerCase()}.com`;
-    };
-    
-    const domain = getStockDomain(cleanSymbol);
-    return {
-      clearbitUrl: `https://logo.clearbit.com/${domain}`,
-      googleUrl: `https://www.google.com/s2/favicons?sz=128&domain=${domain}`
-    };
-  }, [symbol, category, cleanSymbol]);
 
-  // Set initial source
-  useEffect(() => {
-    setLogoSrc(clearbitUrl);
-    setError(false);
-  }, [clearbitUrl]);
+    // Stock: try Financial Modeling Prep (free, no token needed), then logo.dev, then TradingView, then Google favicon
+    return [
+      `https://images.financialmodelingprep.com/symbol/${sym}.png`,
+      `https://img.logo.dev/ticker/${sym}?token=pk_R4dEIaKTRG-i8tSiILBNZA&size=128&format=png`,
+      `https://s3-symbol-logo.tradingview.com/stock/${sym.toLowerCase()}.svg`,
+      `https://www.google.com/s2/favicons?sz=128&domain=${sym.toLowerCase()}.com`
+    ];
+  }, [sym, category]);
 
-  const handleError = () => {
-    // If Clearbit fails, fall back to Google Favicon!
-    if (logoSrc === clearbitUrl && googleUrl && googleUrl !== clearbitUrl) {
-      setLogoSrc(googleUrl);
-    } else {
-      // If Google Favicon also fails, show text circle
-      setError(true);
-    }
-  };
+  // Reset when symbol changes
+  useEffect(() => { setSrcIndex(0); }, [sym, category]);
 
-  if (error || !logoSrc) {
+  if (!sources.length || srcIndex >= sources.length) {
+    // Final fallback: colourful text initials
     return (
       <div className={`asset-icon-wrapper ${category || "stock"}`} style={style}>
-        {symbol.slice(0, 2).toUpperCase()}
+        {sym.slice(0, 2)}
       </div>
     );
   }
 
   return (
     <img
-      src={logoSrc}
-      alt={symbol}
-      onError={handleError}
+      src={sources[srcIndex]}
+      alt={sym}
+      onError={() => setSrcIndex(i => i + 1)}
       style={{
-        width: 38,
-        height: 38,
-        borderRadius: 12,
-        objectFit: "contain",
-        background: "#FFFFFF",
-        padding: 4,
-        border: "1px solid var(--border)",
-        boxShadow: "var(--shadow-xs)",
-        flexShrink: 0,
+        width: 38, height: 38, borderRadius: 12,
+        objectFit: "contain", background: "#FFFFFF",
+        padding: 4, border: "1px solid var(--border)",
+        boxShadow: "var(--shadow-xs)", flexShrink: 0,
         ...style
       }}
     />

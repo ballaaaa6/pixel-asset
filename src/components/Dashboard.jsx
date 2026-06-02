@@ -82,8 +82,9 @@ function AssetLogo({ symbol, category, style }) {
       return [`https://images.financialmodelingprep.com/symbol/GLD.png`];
     }
 
-    // Stock: try logo.dev (by ticker), then TradingView, then Google favicon
+    // Stock: try Financial Modeling Prep (free, no token needed), then logo.dev, then TradingView, then Google favicon
     return [
+      `https://images.financialmodelingprep.com/symbol/${sym}.png`,
       `https://img.logo.dev/ticker/${sym}?token=pk_R4dEIaKTRG-i8tSiILBNZA&size=128&format=png`,
       `https://s3-symbol-logo.tradingview.com/stock/${sym.toLowerCase()}.svg`,
       `https://www.google.com/s2/favicons?sz=128&domain=${sym.toLowerCase()}.com`
@@ -2093,9 +2094,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
             <span className="live-dot" title="Live" />
           </div>
             <div className="navbar-actions">
-              <div className="exchange-badge">
-                💱 1 USD = <strong>{exchangeRate.toFixed(2)}</strong> THB
-              </div>
               <div
                 className="user-profile-btn"
                 style={{
@@ -2325,13 +2323,16 @@ export default function Dashboard({ user, onLogout, showToast }) {
             {/* Assets Table Card */}
             <div className="card stagger-3">
               <div className="control-bar">
-                <div className="section-title">
+                <div className="section-title" style={{ flexWrap: "wrap", gap: 10 }}>
                   📋 สินทรัพย์ของฉัน
                   {sortedAssets.length > 0 && (
                     <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-muted)", background: "#F1F5F9", padding: "2px 10px", borderRadius: 8 }}>
                       {sortedAssets.length} รายการ
                     </span>
                   )}
+                  <div className="exchange-badge" style={{ fontSize: 12, height: "fit-content", padding: "4px 10px", margin: 0 }}>
+                    💱 1 USD = <strong>{exchangeRate.toFixed(2)}</strong> THB
+                  </div>
                 </div>
                 <div className="action-buttons">
                   <button
