@@ -201,6 +201,20 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
   const touchRef = useRef({ lastX: 0, lastY: 0, type: null, startDist: 0, startZoom: null, isPinching: false, centerX: 0 });
   const lastTouchTime = useRef(0);
 
+  const diffStartIdxRef = useRef(null);
+  const diffEndIdxRef = useRef(null);
+
+  const updateDiffStartIdx = (val) => {
+    setDiffStartIdx(val);
+    diffStartIdxRef.current = val;
+  };
+
+  const updateDiffEndIdx = (val) => {
+    setDiffEndIdx(val);
+    diffEndIdxRef.current = val;
+  };
+
+
   useEffect(() => {
     setZoomRange(null);
   }, [history, range]);
@@ -368,6 +382,26 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
     return linePath + ` L ${last.x},0 L ${first.x},0 Z`;
   }, [linePath, pts]);
 
+  const stateRef = useRef();
+  stateRef.current = {
+    history,
+    zoomRange,
+    displayedData,
+    W,
+    H,
+    iW,
+    iH,
+    PAD_L,
+    PAD_R,
+    PAD_T,
+    PAD_B,
+    diffStartIdx,
+    diffEndIdx,
+    pts,
+    costPts,
+    isDiffActive
+  };
+
   const handleMouseDown = (e) => {
     if (e.button !== 0) return;
     const rect = svgRef.current.getBoundingClientRect();
@@ -381,8 +415,8 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
         const originalIdx = (zoomRange ? zoomRange.start : 0) + idx;
         
         setIsDiffActive(true);
-        setDiffStartIdx(originalIdx);
-        setDiffEndIdx(originalIdx);
+        updateDiffStartIdx(originalIdx);
+        updateDiffEndIdx(originalIdx);
         setDragStart({ x: mouseX, type: "diff" });
         setHovered(null);
       }
@@ -400,7 +434,7 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
         const relX = (boundedX - PAD_L) / iW;
         const idx = Math.max(0, Math.min(Math.round(relX * (displayedData.length - 1)), displayedData.length - 1));
         const originalIdx = (zoomRange ? zoomRange.start : 0) + idx;
-        setDiffEndIdx(originalIdx);
+        updateDiffEndIdx(originalIdx);
         setHovered(null);
       } else if (dragStart.type === "pan") {
         const deltaX = mouseXInSvg - dragStart.x;
@@ -449,10 +483,10 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
 
   const handleMouseUp = () => {
     if (dragStart && dragStart.type === "diff") {
-      if (diffStartIdx === diffEndIdx) {
+      if (diffStartIdxRef.current === diffEndIdxRef.current) {
         setIsDiffActive(false);
-        setDiffStartIdx(null);
-        setDiffEndIdx(null);
+        updateDiffStartIdx(null);
+        updateDiffEndIdx(null);
       }
     }
     setDragStart(null);
@@ -465,12 +499,15 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
     setDragEnd(null);
   };
 
-  // Wheel zooming
+  // Combined programmatic event listeners to control passive behavior and enable vertical scrolling
   useEffect(() => {
     const el = svgRef.current;
     if (!el) return;
 
+    const getLatest = () => stateRef.current;
+
     const handleWheel = (e) => {
+      const { history, zoomRange, displayedData, W, iW, PAD_L } = getLatest();
       if (!history || history.length < 2) return;
       e.preventDefault();
 
@@ -534,134 +571,161 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
       setZoomRange(null);
     };
 
+    const handleTouchStart = (e) => {
+      const { history, zoomRange, displayedData, W, iW, PAD_L, PAD_R } = getLatest();
+      if (!history || history.length < 2) return;
+
+      if (e.touches.length === 1) {
+        const rect = el.getBoundingClientRect();
+        const touchX = ((e.touches[0].clientX - rect.left) / rect.width) * W;
+        if (touchX >= PAD_L && touchX <= W - PAD_R) {
+          const relX = (touchX - PAD_L) / iW;
+          const idx = Math.max(0, Math.min(Math.round(relX * (displayedData.length - 1)), displayedData.length - 1));
+          const originalIdx = (zoomRange ? zoomRange.start : 0) + idx;
+
+          touchRef.current = {
+            startX: e.touches[0].clientX,
+            startY: e.touches[0].clientY,
+            lastX: e.touches[0].clientX,
+            lastY: e.touches[0].clientY,
+            type: null,
+            startIdx: originalIdx,
+            isPinching: false
+          };
+          setHovered(null);
+        }
+      } else if (e.touches.length === 2) {
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+        const initialZoom = zoomRange || { start: 0, end: history.length - 1 };
+        touchRef.current = {
+          startDist: dist,
+          startZoom: { ...initialZoom },
+          isPinching: true,
+          centerX: (t1.clientX + t2.clientX) / 2
+        };
+      }
+    };
+
+    const handleTouchMove = (e) => {
+      const { history, zoomRange, displayedData, W, iW, PAD_L, PAD_R } = getLatest();
+      if (!history || history.length < 2) return;
+      const ref = touchRef.current;
+      if (!ref) return;
+
+      if (e.touches.length === 1 && !ref.isPinching) {
+        const currentX = e.touches[0].clientX;
+        const currentY = e.touches[0].clientY;
+
+        if (ref.type === null) {
+          const dx = Math.abs(currentX - ref.startX);
+          const dy = Math.abs(currentY - ref.startY);
+          if (dx > 5 || dy > 5) {
+            if (dx > dy) {
+              ref.type = "diff";
+              setIsDiffActive(true);
+              updateDiffStartIdx(ref.startIdx);
+              updateDiffEndIdx(ref.startIdx);
+            } else {
+              ref.type = "scroll";
+            }
+          }
+        }
+
+        if (ref.type === "diff") {
+          const rect = el.getBoundingClientRect();
+          const touchX = ((currentX - rect.left) / rect.width) * W;
+          const boundedX = Math.max(PAD_L, Math.min(W - PAD_R, touchX));
+          const relX = (boundedX - PAD_L) / iW;
+          const idx = Math.max(0, Math.min(Math.round(relX * (displayedData.length - 1)), displayedData.length - 1));
+          const originalIdx = (zoomRange ? zoomRange.start : 0) + idx;
+
+          updateDiffEndIdx(originalIdx);
+          setHovered(null);
+          e.preventDefault();
+        }
+      } else if (e.touches.length === 2 && ref.isPinching) {
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+        
+        const ratio = ref.startDist / dist;
+        const len = history.length;
+        const startZoom = ref.startZoom;
+        const initialRangeSize = startZoom.end - startZoom.start;
+        
+        let newRangeSize = Math.round(initialRangeSize * ratio);
+        newRangeSize = Math.max(2, Math.min(len - 1, newRangeSize));
+
+        const rect = el.getBoundingClientRect();
+        const relativeX = ((ref.centerX - rect.left) / rect.width);
+        
+        let newStart = Math.round((startZoom.start + initialRangeSize * relativeX) - relativeX * newRangeSize);
+        let newEnd = newStart + newRangeSize;
+
+        if (newStart < 0) {
+          newStart = 0;
+          newEnd = newRangeSize;
+        }
+        if (newEnd >= len) {
+          newEnd = len - 1;
+          newStart = Math.max(0, newEnd - newRangeSize);
+        }
+
+        if (newStart === 0 && newEnd === len - 1) {
+          setZoomRange(null);
+        } else {
+          setZoomRange({ start: newStart, end: newEnd });
+        }
+        e.preventDefault();
+      }
+    };
+
+    const handleTouchEnd = (e) => {
+      const ref = touchRef.current;
+      if (ref) {
+        if (ref.type === "diff") {
+          if (diffStartIdxRef.current === diffEndIdxRef.current) {
+            setIsDiffActive(false);
+            updateDiffStartIdx(null);
+            updateDiffEndIdx(null);
+          }
+        } else if (ref.type === null) {
+          setIsDiffActive(false);
+          updateDiffStartIdx(null);
+          updateDiffEndIdx(null);
+        }
+      }
+      touchRef.current = { lastX: 0, startDist: 0, startZoom: null, isPinching: false, centerX: 0 };
+    };
+
+    const handleTouchStartWithDoubleTap = (e) => {
+      const now = Date.now();
+      if (now - lastTouchTime.current < 300) {
+        e.preventDefault();
+        setZoomRange(null);
+        return;
+      }
+      lastTouchTime.current = now;
+      handleTouchStart(e);
+    };
+
     el.addEventListener("wheel", handleWheel, { passive: false });
     el.addEventListener("dblclick", handleDblClick);
+    el.addEventListener("touchstart", handleTouchStartWithDoubleTap, { passive: false });
+    el.addEventListener("touchmove", handleTouchMove, { passive: false });
+    el.addEventListener("touchend", handleTouchEnd, { passive: false });
 
     return () => {
       el.removeEventListener("wheel", handleWheel);
       el.removeEventListener("dblclick", handleDblClick);
+      el.removeEventListener("touchstart", handleTouchStartWithDoubleTap);
+      el.removeEventListener("touchmove", handleTouchMove);
+      el.removeEventListener("touchend", handleTouchEnd);
     };
-  }, [zoomRange, displayedData, history, W, iW, PAD_L]);
+  }, []);
 
-  // Touch handlers
-  const handleTouchStart = (e) => {
-    if (!history || history.length < 2) return;
-    if (e.touches.length === 1) {
-      const rect = svgRef.current.getBoundingClientRect();
-      const touchX = ((e.touches[0].clientX - rect.left) / rect.width) * W;
-      if (touchX >= PAD_L && touchX <= W - PAD_R) {
-        const relX = (touchX - PAD_L) / iW;
-        const idx = Math.max(0, Math.min(Math.round(relX * (displayedData.length - 1)), displayedData.length - 1));
-        const originalIdx = (zoomRange ? zoomRange.start : 0) + idx;
-
-        setIsDiffActive(true);
-        setDiffStartIdx(originalIdx);
-        setDiffEndIdx(originalIdx);
-        
-        touchRef.current = {
-          lastX: e.touches[0].clientX,
-          lastY: e.touches[0].clientY,
-          type: "diff",
-          isPinching: false
-        };
-        setHovered(null);
-      }
-    } else if (e.touches.length === 2) {
-      const t1 = e.touches[0];
-      const t2 = e.touches[1];
-      const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
-      const initialZoom = zoomRange || { start: 0, end: history.length - 1 };
-      touchRef.current = {
-        startDist: dist,
-        startZoom: { ...initialZoom },
-        isPinching: true,
-        centerX: (t1.clientX + t2.clientX) / 2
-      };
-    }
-  };
-
-  const handleTouchMove = (e) => {
-    if (!history || history.length < 2) return;
-    const ref = touchRef.current;
-
-    if (e.touches.length === 1 && !ref.isPinching) {
-      const currentX = e.touches[0].clientX;
-      const currentY = e.touches[0].clientY;
-      const deltaX = Math.abs(currentX - ref.lastX);
-      const deltaY = Math.abs(currentY - ref.lastY);
-
-      if (deltaX > deltaY || ref.type === "diff") {
-        ref.type = "diff";
-        const rect = svgRef.current.getBoundingClientRect();
-        const touchX = ((currentX - rect.left) / rect.width) * W;
-        const boundedX = Math.max(PAD_L, Math.min(W - PAD_R, touchX));
-        const relX = (boundedX - PAD_L) / iW;
-        const idx = Math.max(0, Math.min(Math.round(relX * (displayedData.length - 1)), displayedData.length - 1));
-        const originalIdx = (zoomRange ? zoomRange.start : 0) + idx;
-        
-        setDiffEndIdx(originalIdx);
-        setHovered(null);
-        e.preventDefault();
-      }
-    } else if (e.touches.length === 2 && ref.isPinching) {
-      const t1 = e.touches[0];
-      const t2 = e.touches[1];
-      const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
-      
-      const ratio = ref.startDist / dist;
-      const len = history.length;
-      const startZoom = ref.startZoom;
-      const initialRangeSize = startZoom.end - startZoom.start;
-      
-      let newRangeSize = Math.round(initialRangeSize * ratio);
-      newRangeSize = Math.max(2, Math.min(len - 1, newRangeSize));
-
-      const rect = svgRef.current.getBoundingClientRect();
-      const relativeX = ((ref.centerX - rect.left) / rect.width);
-      
-      let newStart = Math.round((startZoom.start + initialRangeSize * relativeX) - relativeX * newRangeSize);
-      let newEnd = newStart + newRangeSize;
-
-      if (newStart < 0) {
-        newStart = 0;
-        newEnd = newRangeSize;
-      }
-      if (newEnd >= len) {
-        newEnd = len - 1;
-        newStart = Math.max(0, newEnd - newRangeSize);
-      }
-
-      if (newStart === 0 && newEnd === len - 1) {
-        setZoomRange(null);
-      } else {
-        setZoomRange({ start: newStart, end: newEnd });
-      }
-      e.preventDefault();
-    }
-  };
-
-  const handleTouchEnd = (e) => {
-    const ref = touchRef.current;
-    if (ref && ref.type === "diff") {
-      if (diffStartIdx === diffEndIdx) {
-        setIsDiffActive(false);
-        setDiffStartIdx(null);
-        setDiffEndIdx(null);
-      }
-    }
-    touchRef.current = { lastX: 0, startDist: 0, startZoom: null, isPinching: false, centerX: 0 };
-  };
-
-  const handleTouchStartWithDoubleTap = (e) => {
-    const now = Date.now();
-    if (now - lastTouchTime.current < 300) {
-      e.preventDefault();
-      setZoomRange(null);
-      return;
-    }
-    lastTouchTime.current = now;
-    handleTouchStart(e);
-  };
 
   if (!history || history.length < 2) {
     return (
@@ -750,14 +814,11 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
-        onTouchStart={handleTouchStartWithDoubleTap}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
         style={{ 
           cursor: zoomRange ? (dragStart && dragStart.type === "pan" ? "grabbing" : "grab") : "crosshair", 
           position: "relative",
           width: "100%",
-          touchAction: "none"
+          touchAction: "pan-y"
         }}>
         <svg
           viewBox={`0 0 ${W} ${H}`}
