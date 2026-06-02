@@ -260,14 +260,11 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
 
   /* ─── Gemini fetch — tries models + API versions until one works ─── */
   const GEMINI_ENDPOINTS = [
-    // Exactly what Google AI Studio shows in their curl quickstart:
     { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent" },
     { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent" },
     { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent" },
-    // v1 stable endpoint
-    { url: "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent" },
-    { url: "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent" },
     { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent" },
+    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent" },
   ];
 
   const callGemini = async (key, bodyObj, endpointIdx = 0, attempt = 0) => {
@@ -282,6 +279,9 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
     });
     // Quota, not found, or forbidden → try next endpoint
     if (res.status === 429 || res.status === 404) {
+      if (res.status === 429) {
+        await new Promise(r => setTimeout(r, 3000));
+      }
       return callGemini(key, bodyObj, endpointIdx + 1, 0);
     }
     if (res.status === 403) {
@@ -319,6 +319,9 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
         const result = await ocrReceiptFile(fileList[i], (stage) => {
           setScanningStatus(prev => ({ ...prev, completed: i, stage }));
         });
+
+        // Store rawText on the file object for the text batch AI fallback
+        fileList[i]._rawText = result?.rawText || "";
 
         if (result.success) {
           succeededIndices.add(i);
@@ -371,111 +374,185 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
         }
       } catch (e) {}
 
-      for (const i of failedIndices) {
-        setScanningStatus(prev => ({ ...prev, completed: i, stage: "AI Fallback..." }));
-        const file = fileList[i];
+      // If we have a Gemini API Key, we use the highly efficient Text-only Batch Fallback!
+      if (geminiKey) {
+        setScanningStatus(prev => ({ ...prev, stage: "AI Text Batch Parsing..." }));
         try {
-          const { base64, mime } = await compressImage(file);
-          let parsedData = null;
+          // Prepare raw text blocks for the failed images
+          const failedRawTexts = failedIndices.map(i => {
+            return {
+              index: i,
+              rawText: fileList[i]._rawText || ""
+            };
+          }).filter(item => item.rawText.trim().length > 10);
 
-          if (geminiKey) {
-            // Call client-side Gemini Vision
-            const prompt = `This is a stock trading receipt from Dime! app (Thai broker).
-Analyze the receipt image and extract the following fields in JSON format:
-{
-  "transactionType": "BUY" or "SELL" (look at top keyword: "ซื้อ" is BUY, "ขาย" is SELL),
-  "symbol": "1-6 letter stock ticker in uppercase (e.g. MAGS, MU, AAPL, ASML, NVDA)",
-  "name": "Stock ticker or full company name (e.g. MAGS, MU, AAPL)",
-  "qty": number of shares/units (look for quantity like "188.8256489 หุ้น" or under the table "จำนวนหุ้น"),
-  "price": executed price per share (look for "ราคาที่ได้จริง" in USD or the price per share, NOT the total),
-  "date": transaction date in YYYY-MM-DD format (look for "วันที่ส่งคำสั่ง". Note: the year in the slip is in Buddhist Era, e.g. "68" is 2568 BE -> 2025 CE, "69" is 2569 BE -> 2026 CE. Months are Thai abbreviations: ม.ค.=01, ก.พ.=02, มี.ค.=03, เม.ย.=04, พ.ค.=05, มิ.ย.=06, ก.ค.=07, ส.ค.=08, ก.ย.=09, ต.ค.=10, พ.ย.=11, ธ.ค.=12),
-  "time": transaction execution time in HH:MM format (look at the end of the "วันที่ส่งคำสั่ง" or "วันที่สำเร็จ" line, e.g., "15:40 น." -> "15:40", "02:22 น." -> "02:22". Output empty string if not found)
-}
-Return ONLY a valid JSON object matching the schema above.`;
+          if (failedRawTexts.length > 0) {
+            const prompt = `This is a list of raw OCR text blocks extracted from Dime! app trading receipts (Thai broker).
+Please clean up and parse each block to extract the transaction details.
+For each block, extract:
+- transactionType: "BUY" or "SELL" (look for "ซื้อ" / "ชื้อ" for BUY, "ขาย" for SELL)
+- symbol: Stock ticker in uppercase (e.g. NVDA, AAPL, MU, SCB-GOLD, K-USA)
+- name: Stock name or symbol
+- category: "stock" or "crypto" or "gold" or "fiat"
+- qty: Quantity of shares/units (numeric)
+- price: Executed price per share/unit (numeric, look for "ราคาที่ได้จริง")
+- date: Transaction date in YYYY-MM-DD format (Buddhist Era year conversion: "68" -> 2568 BE -> 2025 CE, "69" -> 2569 BE -> 2026 CE. Months: ม.ค.=01, ก.พ.=02, มี.ค.=03, เม.ย.=04, พ.ค.=05, มิ.ย.=06, ก.ค.=07, ส.ค.=08, ก.ย.=09, ต.ค.=10, พ.ย.=11, ธ.ค.=12)
+- time: Transaction time in HH:MM format (e.g. "15:40")
+
+Here are the OCR text blocks:
+${failedRawTexts.map(item => `
+--- SLIP INDEX: ${item.index} ---
+${item.rawText}
+`).join("\n")}
+
+Respond with ONLY a valid JSON array matching this schema (no markdown wrapping, just raw json):
+[
+  {
+    "index": number,
+    "transactionType": "BUY" | "SELL",
+    "symbol": "STRING",
+    "name": "STRING",
+    "category": "stock" | "crypto" | "gold" | "fiat",
+    "qty": number,
+    "price": number,
+    "date": "YYYY-MM-DD",
+    "time": "HH:MM"
+  }
+]`;
 
             const bodyObj = {
-              contents: [
-                {
-                  parts: [
-                    { text: prompt },
-                    {
-                      inlineData: {
-                        mimeType: mime,
-                        data: base64
-                      }
-                    }
-                  ]
-                }
-              ],
-              generationConfig: {
-                responseMimeType: "application/json"
-              }
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: { responseMimeType: "application/json" }
             };
 
             const response = await callGemini(geminiKey, bodyObj);
             const candidateText = response?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-            const jsonMatch = candidateText.match(/\{[\s\S]*\}/);
+            const jsonMatch = candidateText.match(/\[[\s\S]*\]/);
             if (jsonMatch) {
-              parsedData = JSON.parse(jsonMatch[0]);
-            }
-          } else {
-            // Call Cloudflare Workers AI /api/ocr via the proxy / local api
-            const res = await fetch("/api/ocr", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${userToken}`
-              },
-              body: JSON.stringify({
-                images: [{ base64, mime }]
-              })
-            });
-            if (res.ok) {
-              const resData = await res.json();
-              if (resData.results && resData.results.length > 0) {
-                parsedData = resData.results[0];
-              } else if (resData.errors && resData.errors.length > 0) {
-                throw new Error(resData.errors[0].error);
+              const parsedArray = JSON.parse(jsonMatch[0]);
+              if (Array.isArray(parsedArray)) {
+                parsedArray.forEach(parsedData => {
+                  const idx = parsedData.index;
+                  if (idx != null && failedIndices.includes(idx)) {
+                    let sym = String(parsedData.symbol).toUpperCase().replace(/[^A-Z0-9.-]/g, "");
+                    if (sym === "เบ" || sym === "เน" || sym === "เม" || sym === "เU") sym = "MU";
+                    if (sym === "กอ" || sym === "กO") sym = "KO";
+
+                    let qtyVal = parseFloat(parsedData.qty) || 1;
+                    let priceVal = parseFloat(parsedData.price) || 0;
+
+                    let parsedDate = parsedData.date;
+                    if (!parsedDate || !parsedDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                      parsedDate = new Date().toISOString().split("T")[0];
+                    }
+
+                    newScannedItems.push({
+                      id: `${Date.now()}-ai-${idx}`,
+                      symbol:          sym,
+                      name:            parsedData.name || sym,
+                      type:            parsedData.category || "stock",
+                      qty:             String(qtyVal),
+                      avgPrice:        String(priceVal),
+                      date:            parsedDate,
+                      time:            parsedData.time || "",
+                      transactionType: parsedData.transactionType || "BUY"
+                    });
+                    succeededIndices.add(idx);
+                    delete fileErrors[idx];
+                  }
+                });
               }
-            } else {
-              const errBody = await res.json().catch(() => ({}));
-              throw new Error(errBody?.error || `HTTP ${res.status}`);
             }
-          }
-
-          if (parsedData && parsedData.symbol) {
-            let sym = String(parsedData.symbol).toUpperCase().replace(/[^A-Z0-9.-]/g, "");
-            if (sym === "เบ" || sym === "เน" || sym === "เม" || sym === "เU") sym = "MU";
-            if (sym === "กอ" || sym === "กO") sym = "KO";
-
-            let qtyVal = parseFloat(parsedData.qty) || 1;
-            let priceVal = parseFloat(parsedData.price) || 0;
-
-            let parsedDate = parsedData.date;
-            if (!parsedDate || !parsedDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-              parsedDate = new Date().toISOString().split("T")[0];
-            }
-
-            newScannedItems.push({
-              id: `${Date.now()}-ai-${i}`,
-              symbol:          sym,
-              name:            parsedData.name || sym,
-              type:            parsedData.category || "stock",
-              qty:             String(qtyVal),
-              avgPrice:        String(priceVal),
-              date:            parsedDate,
-              time:            parsedData.time || "",
-              transactionType: parsedData.transactionType || "BUY"
-            });
-            succeededIndices.add(i);
-            // Succeeded using fallback, clear the error!
-            delete fileErrors[i];
-          } else {
-            throw new Error("ไม่สามารถดึงข้อมูลรายการหุ้นได้สำเร็จ");
           }
         } catch (err) {
-          console.error(`AI Fallback failed for image ${i + 1}:`, err.message);
-          fileErrors[i] = `รูป ${i + 1} (AI Fallback): ${err.message}`;
+          console.error("AI Text Batch parsing failed:", err.message);
+          // Mark all failed indices with the batch error
+          failedIndices.forEach(idx => {
+            if (!succeededIndices.has(idx)) {
+              fileErrors[idx] = `รูป ${idx + 1} (AI Text Batch): ${err.message}`;
+            }
+          });
+        }
+      }
+
+      // If any files still failed or we don't have geminiKey, fall back to standard image-based endpoint (or Workers AI)
+      const remainingFailedIndices = failedIndices.filter(i => !succeededIndices.has(i));
+      if (remainingFailedIndices.length > 0) {
+        for (const i of remainingFailedIndices) {
+          setScanningStatus(prev => ({ ...prev, completed: i, stage: "AI Vision Fallback..." }));
+          const file = fileList[i];
+          try {
+            const { base64, mime } = await compressImage(file);
+            let parsedData = null;
+
+            if (geminiKey) {
+              // Call client-side Gemini Vision (individually as safety fallback)
+              const prompt = `This is a stock trading receipt from Dime! app. Extract in JSON format:
+{
+  "transactionType": "BUY" or "SELL",
+  "symbol": "TICKER",
+  "name": "NAME",
+  "qty": number,
+  "price": number,
+  "date": "YYYY-MM-DD",
+  "time": "HH:MM"
+}`;
+              const bodyObj = {
+                contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: mime, data: base64 } }] }],
+                generationConfig: { responseMimeType: "application/json" }
+              };
+              const response = await callGemini(geminiKey, bodyObj);
+              const candidateText = response?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+              const jsonMatch = candidateText.match(/\{[\s\S]*\}/);
+              if (jsonMatch) parsedData = JSON.parse(jsonMatch[0]);
+            } else {
+              // Call Cloudflare Workers AI /api/ocr via proxy
+              const res = await fetch("/api/ocr", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${userToken}`
+                },
+                body: JSON.stringify({ images: [{ base64, mime }] })
+              });
+              if (res.ok) {
+                const resData = await res.json();
+                if (resData.results && resData.results.length > 0) parsedData = resData.results[0];
+              }
+            }
+
+            if (parsedData && parsedData.symbol) {
+              let sym = String(parsedData.symbol).toUpperCase().replace(/[^A-Z0-9.-]/g, "");
+              if (sym === "เบ" || sym === "เน" || sym === "เม" || sym === "เU") sym = "MU";
+              if (sym === "กอ" || sym === "กO") sym = "KO";
+
+              let qtyVal = parseFloat(parsedData.qty) || 1;
+              let priceVal = parseFloat(parsedData.price) || 0;
+              let parsedDate = parsedData.date;
+              if (!parsedDate || !parsedDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                parsedDate = new Date().toISOString().split("T")[0];
+              }
+
+              newScannedItems.push({
+                id: `${Date.now()}-ai-${i}`,
+                symbol:          sym,
+                name:            parsedData.name || sym,
+                type:            parsedData.category || "stock",
+                qty:             String(qtyVal),
+                avgPrice:        String(priceVal),
+                date:            parsedDate,
+                time:            parsedData.time || "",
+                transactionType: parsedData.transactionType || "BUY"
+              });
+              succeededIndices.add(i);
+              delete fileErrors[i];
+            } else {
+              throw new Error("ไม่สามารถดึงข้อมูลรายการหุ้นได้สำเร็จ");
+            }
+          } catch (err) {
+            console.error(`Fallback failed for image ${i + 1}:`, err.message);
+            fileErrors[i] = `รูป ${i + 1} (Fallback): ${err.message}`;
+          }
         }
       }
     }

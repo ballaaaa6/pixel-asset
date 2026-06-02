@@ -2119,10 +2119,39 @@ export default function Dashboard({ user, onLogout, showToast }) {
     const refSym = Object.keys(sparklines).find(k => sparklines[k]?.dates?.length > 1);
     if (!refSym) { setPortfolioHistory([]); return; }
 
+    // Parse and sort price points for each symbol to allow robust closest-date lookups without index bugs
+    const symbolPriceHistories = {};
+    Object.keys(sparklines).forEach(sym => {
+      const symData = sparklines[sym];
+      if (symData && symData.dates && symData.dates.length > 0) {
+        const points = symData.dates.map((d, idx) => ({
+          dateStr: d.split("T")[0],
+          price: symData.closes[idx]
+        })).filter(p => p.price != null && p.price > 0);
+        // Sort by dateStr ascending
+        points.sort((a, b) => a.dateStr.localeCompare(b.dateStr));
+        symbolPriceHistories[sym.toUpperCase()] = points;
+      }
+    });
+
+    const getPriceOnDate = (sym, targetDateStr) => {
+      const points = symbolPriceHistories[sym.toUpperCase()];
+      if (!points || points.length === 0) return null;
+      // Find latest price on or before targetDateStr
+      for (let i = points.length - 1; i >= 0; i--) {
+        if (points[i].dateStr <= targetDateStr) {
+          return points[i].price;
+        }
+      }
+      // Fallback to first available price if targetDateStr is before the first point
+      return points[0].price;
+    };
+
     const refDates = sparklines[refSym].dates;
     let history = refDates.map((date, dayIdx) => {
       let totalUSD = 0;
       let totalCostUSD = 0;
+      const currentDateStr = date.split("T")[0];
 
       assets.forEach(asset => {
         // Fallback to virtual lot if lots are empty/undefined (older data format or imported backup)
@@ -2131,7 +2160,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
           : [{ id: "virtual", date: "1970-01-01", qty: asset.qty, price: (asset.avgCost ?? asset.avgPrice ?? 0) }];
 
         // Filter lots purchased on or before this day
-        const lotsBeforeOrOnDate = assetLots.filter(lot => lot && lot.date && lot.date <= date.split("T")[0]);
+        const lotsBeforeOrOnDate = assetLots.filter(lot => lot && lot.date && lot.date <= currentDateStr);
         if (lotsBeforeOrOnDate.length === 0) return; // not purchased yet
 
         // Calculate qty on this date
@@ -2159,18 +2188,12 @@ export default function Dashboard({ user, onLogout, showToast }) {
             priceUSD = 1.0;
           } else {
             const ticker = getCurrencyTicker(asset.symbol);
-            const symData = sparklines[ticker];
-            if (symData) {
-              const targetIdx = symData.dates.indexOf(date);
-              const priceVal = targetIdx >= 0 ? symData.closes[targetIdx] : symData.closes[dayIdx];
-              if (priceVal != null && priceVal > 0) {
-                if (["EUR", "GBP", "AUD", "NZD"].includes(asset.symbol)) {
-                  priceUSD = priceVal;
-                } else {
-                  priceUSD = 1.0 / priceVal;
-                }
+            const priceVal = getPriceOnDate(ticker, currentDateStr);
+            if (priceVal != null && priceVal > 0) {
+              if (["EUR", "GBP", "AUD", "NZD"].includes(asset.symbol)) {
+                priceUSD = priceVal;
               } else {
-                priceUSD = asset.symbol === "THB" ? 1.0 / (exchangeRate || 35.0) : 1.0;
+                priceUSD = 1.0 / priceVal;
               }
             } else {
               priceUSD = asset.symbol === "THB" ? 1.0 / (exchangeRate || 35.0) : 1.0;
@@ -2183,11 +2206,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
           return;
         }
 
-        const symData = sparklines[asset.symbol.toUpperCase()];
-        if (!symData) return;
-        const targetIdx = symData.dates.indexOf(date);
-        const price = targetIdx >= 0 ? symData.closes[targetIdx] : symData.closes[dayIdx];
-
+        const price = getPriceOnDate(asset.symbol, currentDateStr);
         if (price != null && price > 0) {
           const priceUSD = isThai ? price / exchangeRate : price;
           const valueUSD = priceUSD * qtyOnDate;
@@ -2218,6 +2237,43 @@ export default function Dashboard({ user, onLogout, showToast }) {
     if (earliestDate) {
       const earliestStr = earliestDate.split("T")[0];
       history = history.filter(d => d.date.split("T")[0] >= earliestStr);
+
+      // Prepend exact first purchase date to make the chart and markers start exactly on purchase day
+      if (history.length > 0 && history[0].date.split("T")[0] > earliestStr) {
+        let initialVal = 0;
+        let initialCost = 0;
+        assets.forEach(asset => {
+          const assetLots = asset.lots && asset.lots.length > 0 ? asset.lots : [];
+          const lotsOnEarliest = assetLots.filter(lot => lot && lot.date && lot.date <= earliestStr);
+          if (lotsOnEarliest.length === 0) return;
+          const qty = lotsOnEarliest.reduce((sum, l) => sum + (l.qty || 0), 0);
+          const isThai = asset.symbol.toUpperCase().endsWith(".BK");
+          const isCash = asset.type === "fiat" || asset.category === "fiat";
+          const costUSD = lotsOnEarliest.reduce((sum, l) => {
+            let priceUSD = isThai ? (l.price || 0) / exchangeRate : (l.price || 0);
+            if (isCash) {
+              priceUSD = asset.symbol === "USD" ? 1.0 : (l.price || getCurrencyPriceUSD(asset.symbol, prices, exchangeRate));
+            }
+            return sum + (l.qty || 0) * priceUSD;
+          }, 0);
+
+          let priceUSD = 0;
+          if (isCash) {
+            priceUSD = asset.symbol === "USD" ? 1.0 : (getPriceOnDate(getCurrencyTicker(asset.symbol), earliestStr) || (1.0 / (exchangeRate || 35.0)));
+          } else {
+            const price = getPriceOnDate(asset.symbol, earliestStr);
+            priceUSD = price ? (isThai ? price / exchangeRate : price) : (qty > 0 ? costUSD / qty : 0);
+          }
+          initialVal += priceUSD * qty;
+          initialCost += costUSD;
+        });
+
+        history.unshift({
+          date: earliestStr + "T00:00:00.000Z",
+          value: initialVal,
+          cost: initialCost
+        });
+      }
     }
 
     // If there is only 1 historical point (e.g. bought asset today), pad it to the day before
