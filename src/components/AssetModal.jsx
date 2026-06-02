@@ -258,11 +258,13 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
 
   /* ─── Gemini fetch — tries models + API versions until one works ─── */
   const GEMINI_ENDPOINTS = [
-    // v1 endpoint (stable, not beta)
-    { url: "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent" },
-    { url: "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent" },
+    // Exactly what Google AI Studio shows in their curl quickstart:
+    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent" },
     { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent" },
     { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent" },
+    // v1 stable endpoint
+    { url: "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent" },
+    { url: "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent" },
     { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent" },
   ];
 
