@@ -1166,7 +1166,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
     }
 
     const pData = prices[asset.symbol];
-    let price = pData?.price ?? 0;
+    const regPrice = pData?.price ?? 0;
     
     // Check for active pre-market or after-market pricing
     const isPre = pData?.marketState === "PRE" || pData?.marketState === "PREPRE";
@@ -1177,16 +1177,16 @@ export default function Dashboard({ user, onLogout, showToast }) {
     let extType = null;
     
     if (isPre && pData.prePrice != null && pData.prePrice > 0) {
-      price = pData.prePrice;
       extPrice = pData.prePrice;
       extChangePct = pData.preChangePercent;
       extType = "Pre";
     } else if (isPost && pData.postPrice != null && pData.postPrice > 0) {
-      price = pData.postPrice;
       extPrice = pData.postPrice;
       extChangePct = pData.postChangePercent;
       extType = "After";
     }
+
+    const price = extPrice ?? regPrice;
 
     const priceUSD = isThai ? price / exchangeRate : price;
     const valueUSD = priceUSD * asset.qty;
@@ -1203,6 +1203,32 @@ export default function Dashboard({ user, onLogout, showToast }) {
     const todayChg = ((activePrice - prevClose) * asset.qty);
     const todayPct = (prevClose > 0 ? ((activePrice - prevClose) / prevClose) * 100 : 0);
 
+    // Regular hours calculations
+    const regPriceUSD = isThai ? regPrice / exchangeRate : regPrice;
+    const regValueUSD = regPriceUSD * asset.qty;
+    const regValueTHB = regValueUSD * exchangeRate;
+    const regGainUSD  = regValueUSD - costUSD;
+    const regGainPct  = costUSD > 0 ? (regGainUSD / costUSD) * 100 : 0;
+    const regTodayChg = pData?.change ? (isThai ? pData.change / exchangeRate : pData.change) * asset.qty : 0;
+    const regTodayPct = pData?.changePercent ?? 0;
+
+    // Extended hours calculations
+    let extPriceUSD = null;
+    let extValueUSD = null;
+    let extValueTHB = null;
+    let extGainUSD = null;
+    let extGainPct = null;
+    let extTodayPct = null;
+
+    if (extPrice != null) {
+      extPriceUSD = isThai ? extPrice / exchangeRate : extPrice;
+      extValueUSD = extPriceUSD * asset.qty;
+      extValueTHB = extValueUSD * exchangeRate;
+      extGainUSD = extValueUSD - costUSD;
+      extGainPct = costUSD > 0 ? (extGainUSD / costUSD) * 100 : 0;
+      extTodayPct = extChangePct ?? 0;
+    }
+
     return { 
       price, 
       priceUSD, 
@@ -1215,9 +1241,26 @@ export default function Dashboard({ user, onLogout, showToast }) {
       todayPct,
       extPrice,
       extChangePct,
-      extType
+      extType,
+      // Regular hours fields
+      regPrice,
+      regPriceUSD,
+      regValueUSD,
+      regValueTHB,
+      regGainUSD,
+      regGainPct,
+      regTodayChg,
+      regTodayPct,
+      // Extended hours fields
+      extPriceUSD,
+      extValueUSD,
+      extValueTHB,
+      extGainUSD,
+      extGainPct,
+      extTodayPct
     };
   }, [prices, exchangeRate]);
+
 
   /* ── COMPUTED PORTFOLIO TOTALS ── */
   const { totalUSD, totalCostUSD, todayChangeUSD, bestAsset, sortedAssets, donutSegments } = useMemo(() => {
@@ -1708,7 +1751,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                               {sortConfig.key === "symbol" ? (sortConfig.dir === "asc" ? "▲" : "▼") : "⇅"}
                             </span>
                           </span></th>
-                          <th style={{ textAlign: "right" }}>ราคา / 7 วัน</th>
+                          <th style={{ textAlign: "right" }}>ราคา</th>
                           <SortTh sortKey="value" align="right">มูลค่า</SortTh>
                           <SortTh sortKey="gain"  align="right">กำไร/ขาดทุน</SortTh>
                           <SortTh sortKey="today" align="right">วันนี้</SortTh>
@@ -1761,19 +1804,24 @@ export default function Dashboard({ user, onLogout, showToast }) {
                               <td style={{ textAlign: "right" }}>
                                 {!hasPrices ? (
                                   <div className="skeleton skeleton-text" style={{ width: 70, height: 16, marginLeft: "auto" }} />
+                                ) : isCashAsset ? (
+                                  <span style={{ color: "var(--text-faint)", fontSize: 13 }}>—</span>
                                 ) : (
                                   <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10 }}>
                                     {!isCashAsset && sparklines[asset.symbol]?.closes && (
                                       <SparklineChart closes={sparklines[asset.symbol].closes} />
                                     )}
                                     <div>
+                                      {/* Line 1: Regular Price */}
                                       <div className={`num-tick`} style={{ fontWeight: 700, fontSize: 14 }}>
-                                        {fmt.usd(asset.priceUSD)}
+                                        {fmt.usd(asset.regPriceUSD)}
                                       </div>
-                                      <div className="price-thb">{fmt.thb(asset.priceUSD * exchangeRate)}</div>
-                                      {!isCashAsset && asset.extPrice != null && (
+                                      <div className="price-thb">{fmt.thb(asset.regPriceUSD * exchangeRate)}</div>
+                                      
+                                      {/* Line 2: Extended Hours Price */}
+                                      {asset.extPrice != null && (
                                         <div style={{ fontSize: 10, fontWeight: 700, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 2 }}>
-                                          {asset.extType}: {fmt.usd(asset.extPrice)} ({fmt.pct(asset.extChangePct)})
+                                          {asset.extType}: {fmt.usd(asset.extPriceUSD)} ({fmt.pct(asset.extChangePct)})
                                         </div>
                                       )}
                                     </div>
@@ -1786,11 +1834,26 @@ export default function Dashboard({ user, onLogout, showToast }) {
                                 {!hasPrices ? (
                                   <div className="skeleton skeleton-text" style={{ width: 80, height: 16, marginLeft: "auto" }} />
                                 ) : (
-                                  <>
-                                    <div style={{ fontWeight: 700, fontSize: 14 }}>{fmt.usd(asset.valueUSD)}</div>
-                                    <div className="price-thb">{fmt.thb(asset.valueTHB)}</div>
-                                    <div style={{ fontSize: 11, color: "var(--text-faint)" }}>×{fmt.qty(asset.qty)}</div>
-                                  </>
+                                  <div>
+                                    {/* Line 1: Regular Value */}
+                                    <div style={{ fontWeight: 700, fontSize: 14 }}>
+                                      {fmt.usd(isCashAsset ? asset.valueUSD : asset.regValueUSD)}
+                                    </div>
+                                    <div className="price-thb">
+                                      {isCashAsset ? (
+                                        `${fmt.qty(asset.qty)} ${asset.symbol}`
+                                      ) : (
+                                        fmt.thb(asset.regValueTHB)
+                                      )}
+                                    </div>
+
+                                    {/* Line 2: Extended Hours Value */}
+                                    {!isCashAsset && asset.extPrice != null && (
+                                      <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 2 }}>
+                                        {asset.extType}: {fmt.usd(asset.extValueUSD)} ({fmt.thb(asset.extValueTHB)})
+                                      </div>
+                                    )}
+                                  </div>
                                 )}
                               </td>
 
@@ -1799,9 +1862,19 @@ export default function Dashboard({ user, onLogout, showToast }) {
                                 {!hasPrices || asset.costUSD === 0 || isCashAsset ? (
                                   <span style={{ color: "var(--text-faint)", fontSize: 13 }}>—</span>
                                 ) : (
-                                  <div className={`pnl-cell ${asset.gainUSD >= 0 ? "positive" : "negative"}`}>
-                                    <div>{asset.gainUSD >= 0 ? "+" : ""}{fmt.usd(asset.gainUSD)}</div>
-                                    <div style={{ fontSize: 12 }}>{fmt.pct(asset.gainPct)}</div>
+                                  <div>
+                                    {/* Line 1: Regular Gain/Loss */}
+                                    <div className={`pnl-cell ${asset.regGainUSD >= 0 ? "positive" : "negative"}`}>
+                                      <div>{asset.regGainUSD >= 0 ? "+" : ""}{fmt.usd(asset.regGainUSD)}</div>
+                                      <div style={{ fontSize: 12 }}>{fmt.pct(asset.regGainPct)}</div>
+                                    </div>
+
+                                    {/* Line 2: Extended Gain/Loss */}
+                                    {asset.extPrice != null && (
+                                      <div className={`pnl-cell ${asset.extGainUSD >= 0 ? "positive" : "negative"}`} style={{ fontSize: 10, marginTop: 2 }}>
+                                        <div>{asset.extType}: {asset.extGainUSD >= 0 ? "+" : ""}{fmt.usd(asset.extGainUSD)} ({fmt.pct(asset.extGainPct)})</div>
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                               </td>
@@ -1811,11 +1884,16 @@ export default function Dashboard({ user, onLogout, showToast }) {
                                 {!hasPrices || isCashAsset ? (
                                   <span style={{ color: "var(--text-faint)", fontSize: 13 }}>—</span>
                                 ) : (
-                                  <div className={`pnl-cell ${asset.todayPct >= 0 ? "positive" : "negative"}`}>
-                                    <div style={{ fontSize: 13 }}>{fmt.pct(asset.todayPct)}</div>
-                                    {pData?.prePrice && (
-                                      <div style={{ fontSize: 10, color: "var(--text-faint)", marginTop: 2 }}>
-                                        PRE {fmt.usd(pData.prePrice)}
+                                  <div>
+                                    {/* Line 1: Regular Today Return */}
+                                    <div className={`pnl-cell ${asset.regTodayPct >= 0 ? "positive" : "negative"}`}>
+                                      <div style={{ fontSize: 13 }}>{fmt.pct(asset.regTodayPct)}</div>
+                                    </div>
+
+                                    {/* Line 2: Extended Today Return */}
+                                    {asset.extPrice != null && (
+                                      <div className={`pnl-cell ${asset.extChangePct >= 0 ? "positive" : "negative"}`} style={{ fontSize: 10, marginTop: 2 }}>
+                                        <div>{asset.extType}: {fmt.pct(asset.extChangePct)}</div>
                                       </div>
                                     )}
                                   </div>
@@ -1875,15 +1953,19 @@ export default function Dashboard({ user, onLogout, showToast }) {
                             </div>
                             <div className="mobile-card-right">
                               {hasPrices ? (
-                                <>
-                                  <div className="mobile-card-price">{fmt.usd(asset.priceUSD)}</div>
-                                  <div className="price-thb">{fmt.thb(asset.priceUSD * exchangeRate)}</div>
-                                  {!isCashAsset && asset.extPrice != null && (
-                                    <div style={{ fontSize: 9, fontWeight: 700, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 2 }}>
-                                      {asset.extType}: {fmt.usd(asset.extPrice)} ({fmt.pct(asset.extChangePct)})
-                                    </div>
-                                  )}
-                                </>
+                                isCashAsset ? (
+                                  <span style={{ color: "var(--text-faint)", fontSize: 13 }}>—</span>
+                                ) : (
+                                  <>
+                                    <div className="mobile-card-price">{fmt.usd(asset.regPriceUSD)}</div>
+                                    <div className="price-thb">{fmt.thb(asset.regPriceUSD * exchangeRate)}</div>
+                                    {!isCashAsset && asset.extPrice != null && (
+                                      <div style={{ fontSize: 9, fontWeight: 700, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 2 }}>
+                                        {asset.extType}: {fmt.usd(asset.extPriceUSD)} ({fmt.pct(asset.extChangePct)})
+                                      </div>
+                                    )}
+                                  </>
+                                )
                               ) : (
                                 <div className="skeleton skeleton-text" style={{ width: 80, height: 18 }} />
                               )}
@@ -1903,7 +1985,15 @@ export default function Dashboard({ user, onLogout, showToast }) {
                           <div className="mobile-card-stats">
                             <div className="mobile-stat">
                               <span className="mobile-stat-label">มูลค่า</span>
-                              <span className="mobile-stat-value">{hasPrices ? fmt.usd(asset.valueUSD) : "—"}</span>
+                              <span className="mobile-stat-value">
+                                {hasPrices ? (
+                                  isCashAsset ? (
+                                    `${fmt.qty(asset.qty)} ${asset.symbol} (≈ ${fmt.usd(asset.valueUSD)})`
+                                  ) : (
+                                    fmt.usd(asset.valueUSD)
+                                  )
+                                ) : "—"}
+                              </span>
                             </div>
                             <div className="mobile-stat">
                               <span className="mobile-stat-label">กำไร/ขาดทุน</span>
