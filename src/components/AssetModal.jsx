@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { X, Search, Save, Plus, Trash2, ChevronDown, ChevronUp, History } from "lucide-react";
+import { ocrReceiptFile, terminateTesseract } from "../utils/ocrParser.js";
 
 /* ─── Global Currencies List (165+ สกุลเงินทั่วโลก) ─── */
 const CURRENCIES = [
@@ -306,35 +307,62 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
     const newScannedItems = [];
     const errors = [];
 
+    // ══════════════════════════════════════════════════════════════════════
+    // PRIMARY: Tesseract.js OCR + regex parser (free, offline, no quota)
+    // ══════════════════════════════════════════════════════════════════════
+    let tesseractFailed = false;
     try {
-      // ── Step 1: Compress all images in parallel ──
-      const compressed = await Promise.all(fileList.map(f => compressImage(f)));
-      setScanningStatus(prev => ({ ...prev, completed: Math.ceil(fileList.length * 0.2) }));
+      for (let i = 0; i < fileList.length; i++) {
+        setScanningStatus(prev => ({ ...prev, completed: i }));
+        const result = await ocrReceiptFile(fileList[i], (stage) => {
+          setScanningStatus(prev => ({ ...prev, completed: i, stage }));
+        });
 
-      // ── Step 2: Try our own /api/ocr endpoint (Cloudflare Workers AI — no key needed) ──
-      let usedCloudflare = false;
+        if (result.success) {
+          newScannedItems.push({
+            id: `${Date.now()}-tess-${i}`,
+            symbol:          result.symbol,
+            name:            result.name || result.symbol,
+            type:            result.category || "stock",
+            qty:             result.qty ? String(result.qty) : "",
+            avgPrice:        result.price ? String(result.price) : "",
+            date:            result.date || new Date().toISOString().split("T")[0],
+            transactionType: result.transactionType || "BUY",
+          });
+        } else {
+          // Tesseract succeeded technically but couldn't parse the receipt
+          // → try the API fallback for this specific image
+          errors.push(`รูป ${i + 1}: ${result.error || "อ่านไม่ได้"} (ลองใช้ AI fallback)`)
+          tesseractFailed = true;
+        }
+        setScanningStatus(prev => ({ ...prev, completed: i + 1 }));
+      }
+    } catch (tessErr) {
+      console.warn("Tesseract failed entirely:", tessErr.message);
+      tesseractFailed = true;
+      errors.length = 0; // clear partial errors, try full API fallback
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // FALLBACK A: Cloudflare Workers AI (/api/ocr)
+    // Only if Tesseract couldn't parse some or all images
+    // ══════════════════════════════════════════════════════════════════════
+    if (tesseractFailed && newScannedItems.length < fileList.length) {
       try {
+        const compressed = await Promise.all(fileList.map(f => compressImage(f)));
         const token = localStorage.getItem("auth_token") || "";
         const ocrRes = await fetch("/api/ocr", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            images: compressed.map(c => ({ base64: c.base64, mime: c.mime }))
-          })
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+          body: JSON.stringify({ images: compressed.map(c => ({ base64: c.base64, mime: c.mime })) })
         });
-
         if (ocrRes.ok) {
           const ocrData = await ocrRes.json();
-          // AI binding available → use results
-          if (ocrData.results && Array.isArray(ocrData.results)) {
-            usedCloudflare = true;
+          if (ocrData.results && !ocrData.error) {
             ocrData.results.forEach(data => {
-              if (data.symbol) {
+              if (data.symbol && !/^\d+$/.test(data.symbol)) {
                 newScannedItems.push({
-                  id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}-${data.index}`,
+                  id: `${Date.now()}-cf-${data.index}`,
                   symbol: String(data.symbol).toUpperCase(),
                   name: data.name || String(data.symbol).toUpperCase(),
                   type: data.category || "stock",
@@ -405,8 +433,6 @@ Extract: symbol (ticker, uppercase), name (full name), category ("stock"/"crypto
           }
         }
       }
-    } catch (topErr) {
-      errors.push(topErr.message);
     }
 
     setScanningStatus(prev => ({ ...prev, completed: fileList.length }));
