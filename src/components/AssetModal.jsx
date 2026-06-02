@@ -256,32 +256,37 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
   const NEW_KEY = ""; // no hardcoded key — user must enter via Settings
   const OLD_KEY = ""; // no old key to migrate
 
-  /* ─── Gemini fetch — tries models in order until one works ─── */
-  const GEMINI_MODELS = [
-    "gemini-1.5-flash",       // Free: 1,500 req/day — most reliable
-    "gemini-1.5-flash-8b",    // Free: 1,500 req/day — backup
-    "gemini-2.0-flash",       // Free: 1,000 req/day — some projects restricted
+  /* ─── Gemini fetch — tries models + API versions until one works ─── */
+  const GEMINI_ENDPOINTS = [
+    // v1 endpoint (stable, not beta)
+    { url: "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent" },
+    { url: "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent" },
+    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent" },
+    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent" },
+    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent" },
   ];
 
-  const callGemini = async (key, bodyObj, modelIdx = 0, attempt = 0) => {
-    const model = GEMINI_MODELS[modelIdx] || GEMINI_MODELS[0];
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+  const callGemini = async (key, bodyObj, endpointIdx = 0, attempt = 0) => {
+    if (endpointIdx >= GEMINI_ENDPOINTS.length) {
+      throw new Error("Gemini: ทุก model/endpoint ใช้งานไม่ได้ — กรุณาตรวจสอบ API Key ใน Settings");
+    }
+    const { url } = GEMINI_ENDPOINTS[endpointIdx];
+    const res = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": key
-      },
+      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
       body: JSON.stringify(bodyObj)
     });
-    // Quota exceeded → try next model automatically
-    if (res.status === 429 || res.status === 403) {
-      if (modelIdx < GEMINI_MODELS.length - 1) {
-        return callGemini(key, bodyObj, modelIdx + 1, 0);
-      }
+    // Quota, not found, or forbidden → try next endpoint
+    if (res.status === 429 || res.status === 404) {
+      return callGemini(key, bodyObj, endpointIdx + 1, 0);
+    }
+    if (res.status === 403) {
+      // Could be quota or auth — wait then retry next
       if (attempt === 0) {
-        await new Promise(r => setTimeout(r, 8000));
-        return callGemini(key, bodyObj, 0, 1); // restart from first model after wait
+        await new Promise(r => setTimeout(r, 5000));
+        return callGemini(key, bodyObj, endpointIdx + 1, 0);
       }
+      return callGemini(key, bodyObj, endpointIdx + 1, 0);
     }
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
