@@ -32,18 +32,18 @@ function parseThaiDate(text) {
   if (!text) return null;
 
   const months = [
-    { num: "01", pattern: "[มuU]\\s*\\.?\\s*[คaAดศลoO0]\\s*\\.?|มกราคม" },
-    { num: "02", pattern: "[กnN]\\s*\\.?\\s*[พwW]\\s*\\.?|กุมภาพันธ์" },
-    { num: "03", pattern: "มี\\s*\\.?\\s*[คaAดศลoO0]\\s*\\.?|มีนาคม" },
-    { num: "04", pattern: "เ\\s*[มm]\\s*\\.?\\s*[ยyY9qQ]\\s*\\.?|เมษายน" },
-    { num: "05", pattern: "(?:[พwW]|[0oO])\\s*\\.?\\s*[คaAดศลoO0]\\s*\\.?|พฤษภาคม" },
-    { num: "06", pattern: "มิ\\s*\\.?\\s*[ยyY9qQ]\\s*\\.?|[0oO]\\s*\\.?\\s*[9qQ]\\s*\\.?|มิถุนายน" },
-    { num: "07", pattern: "[กnN]\\s*\\.?\\s*[คaAดศลoO0]\\s*\\.?|กรกฎาคม" },
-    { num: "08", pattern: "[สsS]\\s*\\.?\\s*[คaAดศลoO0]\\s*\\.?|สิงหาคม" },
-    { num: "09", pattern: "[กnN]\\s*\\.?\\s*[ยyY9qQ]\\s*\\.?|กันยายน" },
-    { num: "10", pattern: "[ตtT]\\s*\\.?\\s*[คaAดศลoO0]\\s*\\.?|ตุลาคม" },
-    { num: "11", pattern: "[พwW]\\s*\\.?\\s*[ยyY9qQ]\\s*\\.?|พฤศจิกายน" },
-    { num: "12", pattern: "[ธsS]\\s*\\.?\\s*[คaAดศลoO0]\\s*\\.?|ธันวาคม" }
+    { num: "01", pattern: "[มuUmM]\\s*\\.?\\s*[คaAดศลoO0cCdD]\\s*\\.?|มกราคม" },
+    { num: "02", pattern: "[กnNkKgG]\\s*\\.?\\s*[พwWvV]\\s*\\.?|กุมภาพันธ์" },
+    { num: "03", pattern: "(?:มี|[มmM][ีeEiI])\\s*\\.?\\s*[คaAดศลoO0cCdD]\\s*\\.?|มีนาคม" },
+    { num: "04", pattern: "เ\\s*[มm]\\s*\\.?\\s*[ยyY9qQvVuUnN]\\s*\\.?|เมษายน" },
+    { num: "05", pattern: "(?:[พwWvVhHnN]|[0oO])\\s*\\.?\\s*[คaAดศลoO0cCdD]\\s*\\.?|พฤษภาคม" },
+    { num: "06", pattern: "(?:มิ|[มmM][ิiI])\\s*\\.?\\s*[ยyY9qQvVuUnN]\\s*\\.?|[0oO]\\s*\\.?\\s*[9qQ]\\s*\\.?|มิถุนายน" },
+    { num: "07", pattern: "[กnNkKgG]\\s*\\.?\\s*[คaAดศลoO0cCdD]\\s*\\.?|กรกฎาคม" },
+    { num: "08", pattern: "[สsS]\\s*\\.?\\s*[คaAดศลoO0cCdD]\\s*\\.?|สิงหาคม" },
+    { num: "09", pattern: "[กnNkKgG]\\s*\\.?\\s*[ยyY9qQvVuUnN]\\s*\\.?|กันยายน" },
+    { num: "10", pattern: "[ตtT]\\s*\\.?\\s*[คaAดศลoO0cCdD]\\s*\\.?|ตุลาคม" },
+    { num: "11", pattern: "(?:[พwWvVhHnN]|[0oO])\\s*\\.?\\s*[ยyY9qQvVuUnN]\\s*\\.?|พฤศจิกายน" },
+    { num: "12", pattern: "[ธsStTdD]\\s*\\.?\\s*[คaAดศลoO0cCdD]\\s*\\.?|ธันวาคม" }
   ];
 
   for (const m of months) {
