@@ -48,6 +48,66 @@ function stepPath(pts) {
 }
 
 
+function AssetLogo({ symbol, category, style }) {
+  const [error, setError] = useState(false);
+
+  const cleanSymbol = symbol ? symbol.split(".")[0].toUpperCase() : "";
+
+  const logoUrl = useMemo(() => {
+    if (!symbol) return null;
+    const cat = category || "stock";
+    if (cat === "fiat") {
+      const getCurrencyCountryCode = (sym) => {
+        const map = {
+          THB: "th", USD: "us", EUR: "eu", JPY: "jp", GBP: "gb",
+          AUD: "au", CAD: "ca", SGD: "sg", CHF: "ch", CNY: "cn",
+          HKD: "hk", KRW: "kr", INR: "in", NZD: "nz", SEK: "se",
+          NOK: "no", DKK: "dk", MYR: "my", IDR: "id", PHP: "ph",
+          VND: "vn", TWD: "tw", BRL: "br", RUB: "ru", ZAR: "za",
+          TRY: "tr", MXN: "mx", PLN: "pl", SAR: "sa", AED: "ae",
+          KWD: "kw", QAR: "qa", OMR: "om", BHD: "bh", ILS: "il"
+        };
+        return map[sym] || sym.slice(0, 2).toLowerCase();
+      };
+      return `https://flagcdn.com/w80/${getCurrencyCountryCode(symbol)}.png`;
+    }
+    if (cat === "crypto") {
+      return `https://assets.coincap.io/assets/icons/${cleanSymbol.toLowerCase()}@2x.png`;
+    }
+    if (cat === "gold" || symbol === "XAU") {
+      return `https://images.financialmodelingprep.com/symbol/GLD.png`;
+    }
+    return `https://images.financialmodelingprep.com/symbol/${cleanSymbol}.png`;
+  }, [symbol, category, cleanSymbol]);
+
+  if (error || !logoUrl) {
+    return (
+      <div className={`asset-icon-wrapper ${category || "stock"}`} style={style}>
+        {symbol.slice(0, 2).toUpperCase()}
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={logoUrl}
+      alt={symbol}
+      onError={() => setError(true)}
+      style={{
+        width: 38,
+        height: 38,
+        borderRadius: 12,
+        objectFit: "cover",
+        background: "#FFFFFF",
+        border: "1px solid var(--border)",
+        boxShadow: "var(--shadow-xs)",
+        flexShrink: 0,
+        ...style
+      }}
+    />
+  );
+}
+
 const getCurrencyTicker = (symbol) => {
   if (symbol === "USD") return "USD";
   if (["EUR", "GBP", "AUD", "NZD"].includes(symbol)) {
@@ -1801,9 +1861,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                               {/* Symbol */}
                               <td>
                                 <div className="asset-name-col">
-                                  <div className={`asset-icon-wrapper ${asset.category || "stock"}`}>
-                                    {asset.symbol.slice(0, 2).toUpperCase()}
-                                  </div>
+                                  <AssetLogo symbol={asset.symbol} category={asset.category} />
                                   <div>
                                     <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 2 }}>
                                       <span className="asset-symbol">{asset.symbol}</span>
@@ -1961,9 +2019,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
 
                           <div className="mobile-card-top">
                             <div className="mobile-card-left">
-                              <div className={`asset-icon-wrapper ${asset.category || "stock"}`}>
-                                {asset.symbol.slice(0, 2).toUpperCase()}
-                              </div>
+                              <AssetLogo symbol={asset.symbol} category={asset.category} />
                               <div>
                                 <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
                                   <span className="asset-symbol">{asset.symbol}</span>
