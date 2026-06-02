@@ -202,8 +202,8 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
         setDims({
           w: e.contentRect.width,
           h: isMobile 
-            ? Math.min(480, Math.max(300, e.contentRect.width * 0.85))
-            : Math.min(520, Math.max(380, e.contentRect.width * 0.62))
+            ? Math.min(500, Math.max(320, e.contentRect.width * 0.88))
+            : Math.min(550, Math.max(420, e.contentRect.width * 0.70))
         });
       }
     });
@@ -215,10 +215,10 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
   const H = dims.h;
   
   const isMobile = W < 500;
-  const PAD_L = isMobile ? 36 : 52;
-  const PAD_R = isMobile ? 6 : 10;
-  const PAD_T = isMobile ? 8 : 14;
-  const PAD_B = isMobile ? 24 : 32;
+  const PAD_L = isMobile ? 30 : 42;
+  const PAD_R = isMobile ? 4 : 6;
+  const PAD_T = isMobile ? 4 : 6;
+  const PAD_B = isMobile ? 18 : 24;
 
   const iW = W - PAD_L - PAD_R;
   const iH = H - PAD_T - PAD_B;
@@ -2581,7 +2581,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
             {/* Portfolio Performance Chart */}
-            <div className="card stagger-2">
+            <div className="card stagger-2" style={{ padding: "16px 14px 10px" }}>
               <PortfolioChart
                 history={portfolioHistory}
                 range={chartRange}
