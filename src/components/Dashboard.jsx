@@ -1178,13 +1178,14 @@ export default function Dashboard({ user, onLogout, showToast }) {
     
     if (isPre && pData.prePrice != null && pData.prePrice > 0) {
       extPrice = pData.prePrice;
-      extChangePct = pData.preChangePercent;
+      extChangePct = regPrice > 0 ? ((pData.prePrice - regPrice) / regPrice) * 100 : 0;
       extType = "Pre";
     } else if (isPost && pData.postPrice != null && pData.postPrice > 0) {
       extPrice = pData.postPrice;
-      extChangePct = pData.postChangePercent;
+      extChangePct = regPrice > 0 ? ((pData.postPrice - regPrice) / regPrice) * 100 : 0;
       extType = "After";
     }
+
 
     const price = extPrice ?? regPrice;
 
