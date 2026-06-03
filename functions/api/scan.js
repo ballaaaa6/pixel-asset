@@ -160,8 +160,28 @@ function parseThaiDateToISO(rawStr) {
 function validateSlipData(raw) {
   if (!raw || typeof raw !== "object") return null;
 
-  const action = String(raw.action || "").toUpperCase();
-  if (action !== "BUY" && action !== "SELL") return null;
+  let action = String(raw.action || "").toUpperCase().trim();
+
+  // ── Fallback action detection ──────────────────────────────────────────
+  // ถ้า AI ส่ง action มาเป็นภาษาไทยหรือค่าแปลกๆ ให้แปลงให้ถูก
+  if (action !== "BUY" && action !== "SELL") {
+    const rawAction = String(raw.action || "").trim();
+    if (/ซื้อ|buy/i.test(rawAction)) {
+      action = "BUY";
+    } else if (/ขาย|sell/i.test(rawAction)) {
+      action = "SELL";
+    } else {
+      // ลองดูจาก field อื่นๆ ที่ AI อาจส่งมา
+      const allText = JSON.stringify(raw).toLowerCase();
+      if (/ขาย|sell/.test(allText) && !/ซื้อ|buy/.test(allText)) {
+        action = "SELL";
+      } else if (/ซื้อ|buy/.test(allText)) {
+        action = "BUY";
+      } else {
+        return null;
+      }
+    }
+  }
 
   // Symbol: uppercase alphanumeric + dots/dashes, 1–15 chars
   let symbol = String(raw.symbol || "").trim().toUpperCase().replace(/[^A-Z0-9.\-]/g, "");
@@ -435,7 +455,7 @@ export async function onRequestPost(context) {
           portfolio = mergeLotIntoPortfolio(portfolio, validated);
         }
 
-        results.push({ index: i, ...validated, saved: !skipSave, engine: "Cloudflare Workers AI" });
+        results.push({ index: i, ...validated, raw_ai: parsed, saved: !skipSave, engine: "Cloudflare Workers AI" });
 
       } catch (imgErr) {
         errors.push({ index: i, error: imgErr.message });

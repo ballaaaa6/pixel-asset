@@ -321,6 +321,9 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
 
         if (data.results && data.results.length > 0) {
           const resObj = data.results[0];
+          // Debug: แสดงข้อมูลดิบจาก AI เพื่อตรวจสอบว่า AI ส่งอะไรกลับมา
+          console.log(`🤖 [Scan Debug] Image ${idx + 1} — AI Raw:`, resObj.raw_ai);
+          console.log(`🤖 [Scan Debug] Image ${idx + 1} — Validated:`, { action: resObj.action, symbol: resObj.symbol, price: resObj.actual_price, shares: resObj.share_amount, timestamp: resObj.timestamp });
           const ts = resObj.timestamp || "";
           const date = ts ? ts.split("T")[0] : new Date().toISOString().split("T")[0];
           const time = ts && ts.includes("T") ? ts.split("T")[1].slice(0, 5) : "";
