@@ -7,3 +7,4 @@ dist/
 *.log
 *.traineddata
 scratch/
+.agents/private/
