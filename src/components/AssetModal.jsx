@@ -262,8 +262,12 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
 
   const GEMINI_ENDPOINTS = [
     { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent" },
+    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent" },
     { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" },
-    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent" }
+    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent" },
+    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent" },
+    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent" },
+    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent" }
   ];
 
   const callGemini = async (keyInput, bodyObj, keyIdx = 0, endpointIdx = 0, attempt = 0) => {
@@ -455,12 +459,12 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
       }));
     };
 
-    // Run chunks in parallel batches of PARALLEL_BATCHES
-    for (let i = 0; i < visionChunks.length; i += PARALLEL_BATCHES) {
-      const parallelGroup = visionChunks.slice(i, i + PARALLEL_BATCHES);
-      await Promise.allSettled(
-        parallelGroup.map((chunk, offset) => processChunk(chunk, i + offset))
-      );
+    // Run chunks sequentially with a 1-second delay to avoid concurrent rate limits
+    for (let i = 0; i < visionChunks.length; i++) {
+      await processChunk(visionChunks[i], i);
+      if (i < visionChunks.length - 1) {
+        await new Promise(r => setTimeout(r, 1000));
+      }
     }
 
     // ══════════════════════════════════════════════════════════════════════
