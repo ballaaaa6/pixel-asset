@@ -376,6 +376,12 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
     // Step 5: Deliver results
     // ══════════════════════════════════════════════════════════════════════
     if (newScannedItems.length > 0) {
+      newScannedItems.sort((a, b) => {
+        const dtA = `${a.date || ""}T${a.time || "00:00"}`;
+        const dtB = `${b.date || ""}T${b.time || "00:00"}`;
+        return dtA.localeCompare(dtB);
+      });
+
       if (newScannedItems.length === 1 && scannedQueue.length === 0) {
         const item = newScannedItems[0];
         setSymbol(item.symbol);
@@ -390,7 +396,15 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
         setConfirmed(true);
         triggerToast(`🤖 สแกนใบเสร็จสำเร็จ!\nดึงข้อมูล: ${item.symbol} (${item.transactionType === "BUY" ? "ซื้อ/ฝาก" : "ขาย/ถอน"} · ${item.qty} หน่วย @ $${item.avgPrice})`, "success");
       } else {
-        setScannedQueue(prev => [...prev, ...newScannedItems]);
+        setScannedQueue(prev => {
+          const combined = [...prev, ...newScannedItems];
+          combined.sort((a, b) => {
+            const dtA = `${a.date || ""}T${a.time || "00:00"}`;
+            const dtB = `${b.date || ""}T${b.time || "00:00"}`;
+            return dtA.localeCompare(dtB);
+          });
+          return combined;
+        });
         triggerToast(`🤖 สแกนสำเร็จ ${newScannedItems.length} รายการ! ตรวจสอบและยืนยันด้านล่าง`, "success");
       }
     }
@@ -772,7 +786,16 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
                         </div>
                         <div className="form-group" style={{ marginBottom: 0 }}>
                           <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: 3 }}>ประเภทรายการ</label>
-                          <select className="form-input" style={{ height: 32, padding: "0 4px", fontSize: 12, background: "transparent" }}
+                          <select className="form-input" style={{
+                            height: 32,
+                            padding: "0 4px",
+                            fontSize: 12,
+                            color: item.transactionType === "BUY" ? "var(--gain)" : "var(--loss)",
+                            backgroundColor: item.transactionType === "BUY" ? "var(--gain-light)" : "var(--loss-light)",
+                            borderColor: item.transactionType === "BUY" ? "var(--gain)" : "var(--loss)",
+                            fontWeight: "800",
+                            borderRadius: "8px"
+                          }}
                             value={item.transactionType} onChange={e => {
                               const updated = [...scannedQueue];
                               updated[idx].transactionType = e.target.value;

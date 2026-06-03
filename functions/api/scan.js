@@ -95,38 +95,74 @@ function crossValidateShareAmount(shareAmount, actualPrice) {
 function parseThaiDateToISO(rawStr) {
   if (!rawStr || typeof rawStr !== "string") return "";
 
-  const dayMatch = rawStr.match(/(?:ณ\s+|ส่งคำสั่ง\s+|สำเร็จ\s+)?(\d{1,2})\s+([\u0e00-\u0e7f.]+)\s+(\d{2,4})/);
+  // 1. Try to match Thai Date layout: e.g. "22 ก.ค. 68" or "22 ก.ค. 2025" or "22ก.ค.68"
+  const dayMatch = rawStr.match(/(?:ณ\s+|ส่งคำสั่ง\s+|สำเร็จ\s+)?(\d{1,2})\s*([\u0e00-\u0e7f.]+)\s*(\d{2,4})/);
   const timeMatch = rawStr.match(/(\d{1,2}):(\d{2})/);
 
-  if (!dayMatch) return "";
+  let year = "";
+  let month = "";
+  let dStr = "";
 
-  const dStr = dayMatch[1].padStart(2, "0");
-  const mStr = dayMatch[2].trim();
-  const yStr = dayMatch[3].trim();
+  if (dayMatch) {
+    dStr = dayMatch[1].padStart(2, "0");
+    const mStr = dayMatch[2].trim();
+    const yStr = dayMatch[3].trim();
 
-  const monthMap = {
-    "ม.ค.": "01", "ม.ค": "01", "มกราคม": "01",
-    "ก.พ.": "02", "ก.พ": "02", "กุมภาพันธ์": "02",
-    "มี.ค.": "03", "มี.ค": "03", "มีนาคม": "03",
-    "เม.ย.": "04", "เม.ย": "04", "เมษายน": "04",
-    "พ.ค.": "05", "พ.ค": "05", "พฤษภาคม": "05",
-    "มิ.ย.": "06", "มิ.ย": "06", "มิถุนายน": "06",
-    "ก.ค.": "07", "ก.ค": "07", "กรกฎาคม": "07",
-    "ส.ค.": "08", "ส.ค": "08", "สิงหาคม": "08",
-    "ก.ย.": "09", "ก.ย": "09", "กันยายน": "09",
-    "ต.ค.": "10", "ต.ค": "10", "ตุลาคม": "10",
-    "พ.ย.": "11", "พ.ย": "11", "พฤศจิกายน": "11",
-    "ธ.ค.": "12", "ธ.ค": "12", "ธันวาคม": "12"
-  };
+    const monthMap = {
+      "ม.ค.": "01", "ม.ค": "01", "มกราคม": "01",
+      "ก.พ.": "02", "ก.พ": "02", "กุมภาพันธ์": "02",
+      "มี.ค.": "03", "มี.ค": "03", "มีนาคม": "03",
+      "เม.ย.": "04", "เม.ย": "04", "เมษายน": "04",
+      "พ.ค.": "05", "พ.ค": "05", "พฤษภาคม": "05",
+      "มิ.ย.": "06", "มิ.ย": "06", "มิถุนายน": "06",
+      "ก.ค.": "07", "ก.ค": "07", "กรกฎาคม": "07",
+      "ส.ค.": "08", "ส.ค": "08", "สิงหาคม": "08",
+      "ก.ย.": "09", "ก.ย": "09", "กันยายน": "09",
+      "ต.ค.": "10", "ต.ค": "10", "ตุลาคม": "10",
+      "พ.ย.": "11", "พ.ย": "11", "พฤศจิกายน": "11",
+      "ธ.ค.": "12", "ธ.ค": "12", "ธันวาคม": "12"
+    };
 
-  const month = monthMap[mStr] || monthMap[mStr + "."] || "";
-  if (!month) return "";
-
-  let yr = parseInt(yStr, 10);
-  if (yr < 100) {
-    yr = yr + 2500;
+    month = monthMap[mStr] || monthMap[mStr + "."] || "";
+    if (month) {
+      let yr = parseInt(yStr, 10);
+      if (yr < 100) {
+        // Assume BE year e.g. 68 -> BE 2568 -> CE 2025
+        yr = yr + 2500;
+        year = String(yr - 543);
+      } else if (yr > 2400) {
+        // 4-digit BE year (e.g. 2568 -> CE 2025)
+        year = String(yr - 543);
+      } else {
+        // Already 4-digit CE year (e.g. 2025)
+        year = String(yr);
+      }
+    }
   }
-  const year = String(yr - 543);
+
+  // Fallbacks: If Thai parsing didn't work, try standard date-time string regex matching
+  if (!year || !month || !dStr) {
+    // Check YYYY-MM-DD
+    const isoMatch = rawStr.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+    if (isoMatch) {
+      year = isoMatch[1];
+      month = isoMatch[2].padStart(2, "0");
+      dStr = isoMatch[3].padStart(2, "0");
+    } else {
+      // Check DD/MM/YYYY (CE or BE)
+      const ddmmMatch = rawStr.match(/(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})/);
+      if (ddmmMatch) {
+        dStr = ddmmMatch[1].padStart(2, "0");
+        month = ddmmMatch[2].padStart(2, "0");
+        let yr = parseInt(ddmmMatch[3], 10);
+        if (yr < 100) yr += 2000;
+        if (yr > 2400) yr -= 543;
+        year = String(yr);
+      }
+    }
+  }
+
+  if (!year || !month || !dStr) return "";
 
   let time = "00:00:00";
   if (timeMatch) {
