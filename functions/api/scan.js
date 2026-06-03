@@ -1,10 +1,9 @@
 /**
- * /api/scan — Cloudflare Pages Function
+ * /api/scan — Cloudflare Pages Function (Workers AI Only)
  *
  * Receives one or more base64-encoded financial asset slip images,
- * uses Google Gemini 1.5 Flash with Structured Output (JSON Schema)
- * to extract transaction data, then merges each result as a new lot
- * into the user's portfolio stored in Cloudflare KV (env.PORTFOLIOS).
+ * uses Cloudflare Workers AI (@cf/meta/llama-3.2-11b-vision-instruct)
+ * to extract transaction data, and returns the structured results.
  *
  * POST /api/scan
  * Headers:
@@ -12,12 +11,7 @@
  *   Content-Type:  application/json
  * Body: {
  *   images: [{ base64: string, mime: string }],  // 1–10 images per call
- *   geminiKey: string                             // user's Gemini API key
- * }
- *
- * Response: {
- *   results:  [{ index, action, symbol, actual_price, share_amount, timestamp, saved: bool }],
- *   errors:   [{ index, error }]
+ *   skipSave: boolean                            // true to return results without saving to KV
  * }
  */
 
@@ -29,126 +23,34 @@ const CORS = {
   "Content-Type":                 "application/json",
 };
 
-// ─── Embedded fallbacks ───
-const EMBEDDED_KEYS = [];
+// ─── Prompt & Schema Context ──────────────────────────────────────────────────
+const SYSTEM_PROMPT = `You are a precise financial transaction data extractor.
+Analyze the provided image of a financial trade receipt / slip (typically from the Dime! app by SCB).
+Extract the following fields and return ONLY a raw JSON object. Do NOT wrap it in markdown block, do NOT write markdown code blocks, do NOT write explanations.
 
-const GEMINI_MODELS = [
-  "gemini-2.0-flash",
-  "gemini-2.5-flash",
-  "gemini-2.5-flash-lite-preview-06-17",
-  "gemini-1.5-flash",
-  "gemini-2.0-flash-lite"
-];
-
-async function callGeminiServerSide(keys, bodyObj, keyIdx = 0, modelIdx = 0) {
-  if (keys.length === 0) {
-    throw new Error("No Gemini API key is configured.");
-  }
-  if (keyIdx >= keys.length) {
-    throw new Error("Gemini: ทุก API Key และ Model ใช้งานไม่ได้ — กรุณาตรวจสอบ API Key หรือโควตาหมดทุกคีย์");
-  }
-  if (modelIdx >= GEMINI_MODELS.length) {
-    // If all models fail for this key, move to the next key (start with first model)
-    return callGeminiServerSide(keys, bodyObj, keyIdx + 1, 0);
-  }
-
-  const currentKey = keys[keyIdx];
-  const model = GEMINI_MODELS[modelIdx];
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${currentKey}`;
-
-  try {
-    const res = await fetch(url, {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify(bodyObj),
-    });
-
-    if (res.ok) {
-      return await res.json();
-    }
-
-    const errText = await res.text();
-    console.warn(`Gemini API key [index ${keyIdx}] failed for ${model} with status ${res.status}: ${errText}`);
-
-    if (res.status === 429) {
-      // Quota / Rate limit exceeded: immediately try next key for the same model
-      return callGeminiServerSide(keys, bodyObj, keyIdx + 1, modelIdx);
-    }
-
-    // For other errors (like 404), try the next model on the same key
-    return callGeminiServerSide(keys, bodyObj, keyIdx, modelIdx + 1);
-  } catch (err) {
-    console.error(`Gemini fetch error for key [index ${keyIdx}] on ${model}:`, err);
-    // On network error, immediately rotate to the next key
-    return callGeminiServerSide(keys, bodyObj, keyIdx + 1, modelIdx);
-  }
+Schema:
+{
+  "action": "BUY" or "SELL",
+  "symbol": "Asset ticker (e.g. NVDA, AAPL, BTC, SCB-GOLD)",
+  "actual_price": number (executed price per share/unit, ignore total value),
+  "share_amount": number (number of shares/units/coins traded),
+  "timestamp": "ISO 8601 string YYYY-MM-DDTHH:MM:SS or YYYY-MM-DD"
 }
 
-// ─── JSON Schema for Structured Output ──────────────────────────────────────
-// Gemini will be forced to return EXACTLY these 5 fields — nothing more.
-const SLIP_SCHEMA = {
-  type: "OBJECT",
-  description: "Extracted transaction data from a single financial asset slip.",
-  properties: {
-    action: {
-      type:        "STRING",
-      enum:        ["BUY", "SELL"],
-      description:
-        "Transaction direction. BUY if the user acquired assets (bought, deposited, subscribed). " +
-        "SELL if the user disposed of assets (sold, redeemed, withdrew). " +
-        "Infer from context: the word/color at the top of the slip, total direction, or balance change.",
-    },
-    symbol: {
-      type:        "STRING",
-      description:
-        "The ticker / short code of the asset. " +
-        "For equities: uppercase Latin letters, e.g. NVDA, AAPL, MSFT, 700, SCB. " +
-        "For crypto: uppercase coin code, e.g. BTC, ETH, SOL. " +
-        "For mutual funds: fund code as printed. " +
-        "Return ONLY the ticker — no exchange suffix, no currency symbol.",
-    },
-    actual_price: {
-      type:        "NUMBER",
-      description:
-        "Executed price PER UNIT of the asset in the original currency shown on the slip. " +
-        "Look for labels such as: Execution Price, Match Price, ราคาที่ได้จริง, ราคาจริง, " +
-        "Avg Price, Fill Price, NAV, หน่วยละ, per unit, per share. " +
-        "Do NOT use: total value, commission, fee, tax, exchange rate, or net payable amount.",
-    },
-    share_amount: {
-      type:        "NUMBER",
-      description:
-        "Number of units / shares / coins actually received or sold. " +
-        "Look for labels such as: จำนวนหุ้น, จำนวนหน่วย, จำนวนเหรียญ, Volume, Amount, Quantity, Units, Shares. " +
-        "May be a long decimal (e.g. 17.5941041). " +
-        "Do NOT use monetary amounts (THB/USD totals).",
-    },
-    timestamp: {
-      type:        "STRING",
-      description:
-        "Date and time when the transaction was COMPLETED / EXECUTED, in ISO 8601 format " +
-        "YYYY-MM-DDTHH:MM:SS. " +
-        "Look for labels: วันที่สำเร็จ, วันที่ได้จริง, Execution Date, Trade Date, Fill Time, วันที่ส่งคำสั่ง. " +
-        "Thai Buddhist Era (BE) year conversion: subtract 543 (e.g. 2568 → 2025, 68 → 2025). " +
-        "Thai month abbreviations: ม.ค.=01 ก.พ.=02 มี.ค.=03 เม.ย.=04 พ.ค.=05 มิ.ย.=06 " +
-        "ก.ค.=07 ส.ค.=08 ก.ย.=09 ต.ค.=10 พ.ย.=11 ธ.ค.=12. " +
-        "If only a date is visible (no time), use T00:00:00. " +
-        "Return an empty string if no date information is found at all.",
-    },
-  },
-  required: ["action", "symbol", "actual_price", "share_amount", "timestamp"],
-};
+Extraction tips:
+1. Action: "ซื้อ" -> BUY, "ขาย" -> SELL.
+2. Symbol: Look for the ticker near the top after "ซื้อ" or "ขาย".
+3. Actual Price: Use the executed price per share (ราคาที่ได้จริง), NOT the set price (ราคาที่คุณตั้ง) and NOT the total payment (ยอดที่ต้องชำระ).
+4. Share Amount: Use quantity of shares (จำนวนหุ้น / จำนวนหน่วย / จำนวนเหรียญ).
+5. Timestamp: Use the order execution date (วันที่ส่งคำสั่ง). Convert Thai Buddhist Era year (e.g., 68 -> 2025) and Thai months (พ.ค. -> 05).
 
-// ─── Prompt (broker-agnostic, language-agnostic) ─────────────────────────────
-const SYSTEM_PROMPT = `You are a financial data extraction assistant.
-You will be shown an image of a financial transaction slip — this could be from any broker, exchange, fund, or platform, in any language.
-Your task is to extract exactly the 5 fields defined in the response schema.
-Be precise. Do not guess or hallucinate values. If a field cannot be determined from the image, use 0 for numbers and "" for strings.`;
+Return ONLY the raw JSON string. Example output:
+{"action":"BUY","symbol":"NVDA","actual_price":130.60,"share_amount":17.5941,"timestamp":"2025-05-23T22:14:00"}`;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
- * Clean and validate the raw object returned by Gemini structured output.
+ * Clean and validate the raw object returned by Workers AI.
  */
 function validateSlipData(raw) {
   if (!raw || typeof raw !== "object") return null;
@@ -156,7 +58,7 @@ function validateSlipData(raw) {
   const action = String(raw.action || "").toUpperCase();
   if (action !== "BUY" && action !== "SELL") return null;
 
-  // Symbol: uppercase alphanumeric + dots/dashes, 1–10 chars
+  // Symbol: uppercase alphanumeric + dots/dashes, 1–15 chars
   let symbol = String(raw.symbol || "").trim().toUpperCase().replace(/[^A-Z0-9.\-]/g, "");
   if (!symbol || /^\d+$/.test(symbol)) return null;
 
@@ -166,7 +68,6 @@ function validateSlipData(raw) {
 
   // Timestamp: ensure it's a plausible ISO string or derive from partial data
   let timestamp = String(raw.timestamp || "").trim();
-  // Basic sanity: must contain 4-digit year between 1990–2100
   if (!/\d{4}/.test(timestamp)) timestamp = "";
 
   return { action, symbol, actual_price, share_amount, timestamp };
@@ -191,8 +92,6 @@ function parseTimestamp(ts) {
 
 /**
  * Merge a new transaction lot into the portfolio array.
- * Matches by symbol (case-insensitive).
- * Recomputes qty and avgCost from all buy lots.
  */
 function mergeLotIntoPortfolio(portfolio, slip) {
   const { date, time } = parseTimestamp(slip.timestamp);
@@ -216,7 +115,6 @@ function mergeLotIntoPortfolio(portfolio, slip) {
     const allLots  = [...(existing.lots || []), newLot];
     const totalQty = allLots.reduce((s, l) => s + l.qty, 0);
 
-    // avgCost = weighted average of positive (BUY) lots only
     const buyLots  = allLots.filter((l) => l.qty > 0);
     const buyQty   = buyLots.reduce((s, l) => s + l.qty, 0);
     const buyCost  = buyLots.reduce((s, l) => s + l.qty * l.price, 0);
@@ -224,12 +122,11 @@ function mergeLotIntoPortfolio(portfolio, slip) {
 
     portfolio[existingIdx] = { ...existing, lots: allLots, qty: totalQty, avgCost };
   } else {
-    // New asset entry
     portfolio.push({
       id:       `asset-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       symbol:   slip.symbol,
-      name:     slip.symbol,        // caller can enrich later via /api/prices
-      category: "stock",            // default; caller can override
+      name:     slip.symbol,
+      category: "stock",
       lots:     [newLot],
       qty:      lotQty,
       avgCost:  slip.actual_price,
@@ -257,35 +154,36 @@ async function callWorkersAIVision(ai, base64, mime) {
   }
   const imageBytes = Array.from(bytes);
 
-  const prompt = `You are a precise financial transaction data extractor.
-Analyze this financial trade receipt image (typically from the Dime! trading app).
-Extract the following fields and return ONLY a raw JSON object matching this schema:
-{
-  "action": "BUY" or "SELL",
-  "symbol": "ticker code (e.g. NVDA, AAPL, BTC, SCB-GOLD)",
-  "actual_price": number (executed price per unit/share),
-  "share_amount": number (quantity of shares/units/coins traded),
-  "timestamp": "ISO 8601 string YYYY-MM-DDTHH:MM:SS or YYYY-MM-DD"
-}
-Do NOT return markdown (no \`\`\`json), no explanation, and no extra text. Only return raw JSON.`;
-
   const model = "@cf/meta/llama-3.2-11b-vision-instruct";
 
   let response;
   try {
     response = await ai.run(model, {
-      prompt,
+      prompt: SYSTEM_PROMPT,
       image: imageBytes,
       max_tokens: 256,
       temperature: 0.0,
     });
   } catch (err) {
-    if (err.message && (err.message.includes("license") || err.message.includes("agree") || err.message.includes("Acceptable Use Policy"))) {
+    // If terms of service code 5016, or license consent is required
+    if (err.message && (err.message.includes("5016") || err.message.includes("license") || err.message.includes("agree") || err.message.includes("Acceptable Use Policy"))) {
       try {
         console.log("Agreeing to Meta license terms for llama-3.2...");
-        await ai.run(model, { prompt: "agree" });
+        try {
+          await ai.run(model, { prompt: "agree" });
+        } catch (agreeErr) {
+          // If the error message is confirmation of agreement, ignore the throw
+          if (!agreeErr.message.includes("Thank you for agreeing")) {
+            throw agreeErr;
+          }
+        }
+        
+        // Wait 1.2 seconds for propagation on Cloudflare global edge
+        await new Promise(r => setTimeout(r, 1200));
+
+        // Retry vision generation
         response = await ai.run(model, {
-          prompt,
+          prompt: SYSTEM_PROMPT,
           image: imageBytes,
           max_tokens: 256,
           temperature: 0.0,
@@ -333,26 +231,16 @@ export async function onRequestPost(context) {
 
     // ── Parse body ────────────────────────────────────────────────────────────
     const body = await request.json();
-    const { images, geminiKey, skipSave } = body;
-
-    const configKeys = String(env.GEMINI_KEYS || "")
-      .split(/[\s,;\n\r]+/)
-      .map(k => k.trim())
-      .filter(Boolean);
-    const userKeys = String(geminiKey || "")
-      .split(/[\s,;\n\r]+/)
-      .map(k => k.trim())
-      .filter(Boolean);
-    const keys = [...userKeys, ...configKeys, ...EMBEDDED_KEYS];
+    const { images, skipSave } = body;
 
     const hasWorkersAI = !!env.AI;
-
-    if (keys.length === 0 && !hasWorkersAI) {
+    if (!hasWorkersAI) {
       return new Response(
-        JSON.stringify({ error: "Gemini API key or Cloudflare Workers AI binding is required" }),
-        { status: 400, headers: CORS }
+        JSON.stringify({ error: "Cloudflare Workers AI binding [env.AI] is missing in this project" }),
+        { status: 500, headers: CORS }
       );
     }
+
     if (!Array.isArray(images) || images.length === 0) {
       return new Response(
         JSON.stringify({ error: "images array is required and must not be empty" }),
@@ -377,7 +265,7 @@ export async function onRequestPost(context) {
       portfolio = [];
     }
 
-    // ── Process each image via Gemini Vision ──────────────────────────────────
+    // ── Process each image via Workers AI ─────────────────────────────────────
     const results = [];
     const errors  = [];
 
@@ -389,48 +277,9 @@ export async function onRequestPost(context) {
       }
 
       try {
-        let parsed = null;
-        let usedAI = "Gemini Server-Side";
-
-        // Try Gemini first if keys are available
-        if (keys.length > 0) {
-          try {
-            // Build Gemini request with Structured Output (JSON Schema)
-            const geminiBody = {
-              system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-              contents: [
-                {
-                  parts: [
-                    { text: "Extract the transaction data from this financial asset slip image." },
-                    { inline_data: { mime_type: mime, data: base64 } },
-                  ],
-                },
-              ],
-              generationConfig: {
-                response_mime_type: "application/json",
-                response_schema:    SLIP_SCHEMA,
-                temperature:        0.0,
-                max_output_tokens:  256,
-              },
-            };
-
-            const geminiData = await callGeminiServerSide(keys, geminiBody);
-            const rawText    = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-            parsed = JSON.parse(rawText);
-          } catch (geminiErr) {
-            console.warn(`Server-side Gemini failed, trying Workers AI fallback: ${geminiErr.message}`);
-            if (!hasWorkersAI) throw geminiErr;
-          }
-        }
-
-        // If Gemini was not used or failed, fallback to Workers AI
-        if (!parsed && hasWorkersAI) {
-          usedAI = "Cloudflare Workers AI (Llama 3.2 Vision)";
-          parsed = await callWorkersAIVision(env.AI, base64, mime);
-        }
-
+        const parsed = await callWorkersAIVision(env.AI, base64, mime);
         if (!parsed) {
-          throw new Error("Failed to extract data using all available AI engines.");
+          throw new Error("Failed to extract data using Workers AI.");
         }
 
         const validated = validateSlipData(parsed);
@@ -445,7 +294,7 @@ export async function onRequestPost(context) {
           portfolio = mergeLotIntoPortfolio(portfolio, validated);
         }
 
-        results.push({ index: i, ...validated, saved: !skipSave, engine: usedAI });
+        results.push({ index: i, ...validated, saved: !skipSave, engine: "Cloudflare Workers AI" });
 
       } catch (imgErr) {
         errors.push({ index: i, error: imgErr.message });

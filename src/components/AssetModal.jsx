@@ -254,70 +254,6 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
     img.src = url;
   });
 
-  // ─── Embedded fallbacks (loaded from environment variables via Vite) ───
-  const EMBEDDED_KEYS = String(import.meta.env.VITE_GEMINI_KEYS || "")
-    .split(/[\s,;\n\r]+/)
-    .map(k => k.trim())
-    .filter(Boolean);
-
-  const GEMINI_ENDPOINTS = [
-    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent" },
-    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" },
-    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite-preview-06-17:generateContent" },
-    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent" },
-    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent" }
-  ];
-
-  const callGemini = async (keyInput, bodyObj, keyIdx = 0, endpointIdx = 0, attempt = 0) => {
-    const userKeys = String(keyInput || "")
-      .split(/[\s,;\n\r]+/)
-      .map(k => k.trim())
-      .filter(Boolean);
-    const keys = [...userKeys, ...EMBEDDED_KEYS];
-
-    if (keys.length === 0) {
-      throw new Error("กรุณาตั้งค่า Gemini API Key ใน Settings ก่อนใช้งาน");
-    }
-
-    if (keyIdx >= keys.length) {
-      throw new Error("Gemini: ทุก API Key และ Model ใช้งานไม่ได้ — กรุณาตรวจสอบ API Key ใน Settings หรือโควตาหมดทุกคีย์");
-    }
-
-    if (endpointIdx >= GEMINI_ENDPOINTS.length) {
-      // If we exhausted all models for this key, try the next key
-      return callGemini(keyInput, bodyObj, keyIdx + 1, 0, 0);
-    }
-
-    const currentKey = keys[keyIdx];
-    const { url } = GEMINI_ENDPOINTS[endpointIdx];
-
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": currentKey },
-        body: JSON.stringify(bodyObj)
-      });
-
-      if (res.ok) {
-        return await res.json();
-      }
-
-      const errText = await res.text();
-      console.warn(`Gemini API key [index ${keyIdx}] failed for ${url} with status ${res.status}: ${errText}`);
-
-      if (res.status === 429) {
-        // Quota limit exceeded: try next key immediately for the same model
-        return callGemini(keyInput, bodyObj, keyIdx + 1, endpointIdx, 0);
-      }
-
-      // For other errors (like 404), try the next model on the same key
-      return callGemini(keyInput, bodyObj, keyIdx, endpointIdx + 1, 0);
-    } catch (err) {
-      console.error(`Gemini fetch error for key [index ${keyIdx}] on ${url}:`, err);
-      return callGemini(keyInput, bodyObj, keyIdx + 1, endpointIdx, 0);
-    }
-  };
-
   const processReceiptImages = async (files) => {
     if (!files || files.length === 0) return;
     const fileList = Array.from(files);
@@ -326,15 +262,6 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
 
     const newScannedItems = [];
     const fileErrors = {};
-    const succeededIndices = new Set();
-
-    const geminiKey = localStorage.getItem("gemini_api_key");
-    const userKeys = String(geminiKey || "").split(/[\s,;\n\r]+/).map(k => k.trim()).filter(Boolean);
-    const hasKeys = userKeys.length > 0 || EMBEDDED_KEYS.length > 0;
-
-    if (!hasKeys) {
-      triggerToast("🤖 ไม่พบ API Key: กำลังเริ่มระบบสแกนสลิปด้วย Cloudflare Workers AI (ฟรี)", "info");
-    }
 
     // ══════════════════════════════════════════════════════════════════════
     // Step 1: Compress all images to base64
@@ -351,272 +278,93 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
     }
 
     // ══════════════════════════════════════════════════════════════════════
-    // Step 2: Batch images into chunks of 2 for client Gemini Vision API
-    // ══════════════════════════════════════════════════════════════════════
-    const BATCH_SIZE = 2;
-    const visionChunks = [];
-    for (let i = 0; i < imagesToProcess.length; i += BATCH_SIZE) {
-      visionChunks.push(imagesToProcess.slice(i, i + BATCH_SIZE));
-    }
-
-    // Build optimized prompt and schema
-    const prompt = buildDimeReceiptPrompt(fileList.length);
-    const responseSchema = getDimeReceiptSchema();
-
-    // ══════════════════════════════════════════════════════════════════════
-    // Step 3: Process chunks in parallel using client Gemini (if keys available)
+    // Step 2: Process images sequentially using Cloudflare Workers AI
     // ══════════════════════════════════════════════════════════════════════
     let completedImages = 0;
+    const userSession = localStorage.getItem("portfolio_user");
+    let token = "";
+    if (userSession) {
+      try {
+        token = JSON.parse(userSession)?.token || "";
+      } catch (_) {}
+    }
 
-    const processChunk = async (chunk, chunkIdx) => {
+    for (const img of imagesToProcess) {
+      const idx = img.index;
       setScanningStatus(prev => ({
         ...prev,
-        stage: `🤖 AI Vision: กำลังสแกนกลุ่มที่ ${chunkIdx + 1}/${visionChunks.length} (${chunk.length} รูป)...`
+        stage: `🤖 กำลังสแกนรูปที่ ${completedImages + 1}/${imagesToProcess.length}...`
       }));
 
       try {
-        const parts = [{ text: prompt }];
-        chunk.forEach(img => {
-          parts.push({ text: `\n--- SLIP INDEX: ${img.index} ---` });
-          parts.push({ inlineData: { mimeType: img.mime, data: img.base64 } });
+        const res = await fetch("/api/scan", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            images: [{ base64: img.base64, mime: img.mime }],
+            skipSave: true
+          })
         });
 
-        const bodyObj = {
-          contents: [{ parts }],
-          generationConfig: {
-            responseMimeType: "application/json",
-            responseSchema
-          }
-        };
-
-        const response = await callGemini(geminiKey, bodyObj);
-        const candidateText = response?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
-        // Parse JSON: try direct parse first (structured output), then regex fallback
-        let parsedArray = null;
-        try {
-          const direct = JSON.parse(candidateText);
-          parsedArray = Array.isArray(direct) ? direct : (direct ? [direct] : null);
-        } catch (_) {
-          const jsonMatch = candidateText.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
-          if (jsonMatch) {
-            try {
-              const parsed = JSON.parse(jsonMatch[0]);
-              parsedArray = Array.isArray(parsed) ? parsed : [parsed];
-            } catch (_2) { /* ignore */ }
-          }
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `Server status ${res.status}`);
         }
 
-        if (parsedArray && parsedArray.length > 0) {
-          parsedArray.forEach((parsedData, arrayIdx) => {
-            let idx = parsedData.index;
-            let matchedImg = chunk.find(item => item.index === idx);
-            if (!matchedImg && arrayIdx < chunk.length) {
-              matchedImg = chunk[arrayIdx];
-              idx = matchedImg.index;
-            }
-            if (idx != null && matchedImg) {
-              const validated = validateParsedReceipt(parsedData, idx);
-              if (validated) {
-                newScannedItems.push({
-                  id: `${Date.now()}-ai-${idx}`,
-                  symbol:          validated.symbol,
-                  name:            validated.name,
-                  type:            validated.category,
-                  qty:             String(validated.qty),
-                  avgPrice:        String(validated.price),
-                  date:            validated.date,
-                  time:            validated.time,
-                  transactionType: validated.transactionType
-                });
-                succeededIndices.add(idx);
-                delete fileErrors[idx];
-              } else {
-                fileErrors[idx] = `รูป ${idx + 1}: AI อ่านได้แต่ข้อมูลไม่ครบหรือไม่ถูกต้อง`;
-              }
-            }
-          });
+        const data = await res.json();
+        if (data.errors && data.errors.length > 0) {
+          throw new Error(data.errors[0].error);
+        }
+
+        if (data.results && data.results.length > 0) {
+          const resObj = data.results[0];
+          const ts = resObj.timestamp || "";
+          const date = ts ? ts.split("T")[0] : new Date().toISOString().split("T")[0];
+          const time = ts && ts.includes("T") ? ts.split("T")[1].slice(0, 5) : "";
+
+          const validated = validateParsedReceipt({
+            symbol:          resObj.symbol,
+            name:            resObj.symbol,
+            category:        "stock",
+            qty:             resObj.share_amount,
+            price:           resObj.actual_price,
+            date,
+            time,
+            transactionType: resObj.action
+          }, idx);
+
+          if (validated) {
+            newScannedItems.push({
+              id: `${Date.now()}-workers-ai-${idx}`,
+              symbol:          validated.symbol,
+              name:            validated.name,
+              type:            validated.category,
+              qty:             String(validated.qty),
+              avgPrice:        String(validated.price),
+              date:            validated.date,
+              time:            validated.time,
+              transactionType: validated.transactionType
+            });
+            delete fileErrors[idx];
+          } else {
+            fileErrors[idx] = `รูป ${idx + 1}: AI สแกนผ่านแต่ข้อมูลไม่สมบูรณ์`;
+          }
         } else {
-          throw new Error(`AI ไม่ส่งข้อมูล JSON กลับมา (raw: ${candidateText.slice(0, 120)})`);
+          throw new Error("No results returned from server-side scan");
         }
-      } catch (visionErr) {
-        console.error(`AI Vision Batch chunk ${chunkIdx + 1} failed:`, visionErr.message);
-        chunk.forEach(img => {
-          if (!succeededIndices.has(img.index)) {
-            fileErrors[img.index] = `รูป ${img.index + 1} (AI Vision): ${visionErr.message}`;
-          }
-        });
+      } catch (scanErr) {
+        console.error(`Cloudflare scan failed for image ${idx + 1}:`, scanErr.message);
+        fileErrors[idx] = `รูป ${idx + 1}: สแกนไม่สำเร็จ — ${scanErr.message}`;
       }
 
-      // Update progress
-      completedImages += chunk.length;
+      completedImages++;
       setScanningStatus(prev => ({
         ...prev,
         completed: Math.min(fileList.length, completedImages)
       }));
-    };
-
-    // Run client chunks sequentially only if keys are available
-    if (hasKeys) {
-      for (let i = 0; i < visionChunks.length; i++) {
-        await processChunk(visionChunks[i], i);
-        if (i < visionChunks.length - 1) {
-          await new Promise(r => setTimeout(r, 1000));
-        }
-      }
-    }
-
-    // ══════════════════════════════════════════════════════════════════════
-    // Step 4: Process remaining failed images individually (runs all if hasKeys is false)
-    // ══════════════════════════════════════════════════════════════════════
-    const failedIndices = [];
-    for (let i = 0; i < fileList.length; i++) {
-      if (!succeededIndices.has(i)) failedIndices.push(i);
-    }
-
-    if (failedIndices.length > 0 && failedIndices.length <= 10) {
-      const modeName = hasKeys ? "ลองใหม่อีกครั้ง" : "สแกนสลิปด้วย Cloudflare AI";
-      setScanningStatus(prev => ({ ...prev, stage: `🔄 ${modeName}: ${failedIndices.length} รูป...` }));
-
-      for (const idx of failedIndices) {
-        const img = imagesToProcess.find(img => img.index === idx);
-        if (!img) continue;
-
-        try {
-          let retryParsed = null;
-          let scannedBy = "client-gemini";
-
-          // Try client Gemini if keys are available
-          if (hasKeys) {
-            try {
-              const parts = [
-                { text: prompt },
-                { text: `\n--- SLIP INDEX: ${idx} ---` },
-                { inlineData: { mimeType: img.mime, data: img.base64 } }
-              ];
-
-              const bodyObj = {
-                contents: [{ parts }],
-                generationConfig: {
-                  responseMimeType: "application/json",
-                  responseSchema
-                }
-              };
-
-              const response = await callGemini(geminiKey, bodyObj);
-              const candidateText = response?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
-              let parsedArray = null;
-              try {
-                const direct = JSON.parse(candidateText);
-                parsedArray = Array.isArray(direct) ? direct : (direct ? [direct] : null);
-              } catch (_) {
-                const jsonMatch = candidateText.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
-                if (jsonMatch) {
-                  try {
-                    const parsed = JSON.parse(jsonMatch[0]);
-                    parsedArray = Array.isArray(parsed) ? parsed : [parsed];
-                  } catch (_2) { /* ignore */ }
-                }
-              }
-
-              if (parsedArray && parsedArray.length > 0) {
-                retryParsed = parsedArray[0];
-              }
-            } catch (geminiErr) {
-              console.warn(`Client Gemini retry failed for image ${idx + 1}, falling back to Cloudflare Workers AI:`, geminiErr.message);
-            }
-          }
-
-          // Fallback: Call Serverless API (/api/scan) to use Cloudflare Workers AI
-          if (!retryParsed) {
-            scannedBy = "server-workers-ai";
-            const userSession = localStorage.getItem("portfolio_user");
-            let token = "";
-            if (userSession) {
-              try {
-                token = JSON.parse(userSession)?.token || "";
-              } catch (_) {}
-            }
-
-            const res = await fetch("/api/scan", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`
-              },
-              body: JSON.stringify({
-                images: [{ base64: img.base64, mime: img.mime }],
-                geminiKey: geminiKey || "",
-                skipSave: true
-              })
-            });
-
-            if (!res.ok) {
-              const errData = await res.json().catch(() => ({}));
-              throw new Error(errData.error || `Server status ${res.status}`);
-            }
-
-            const data = await res.json();
-            if (data.errors && data.errors.length > 0) {
-              throw new Error(data.errors[0].error);
-            }
-
-            if (data.results && data.results.length > 0) {
-              const resObj = data.results[0];
-              const ts = resObj.timestamp || "";
-              const date = ts ? ts.split("T")[0] : new Date().toISOString().split("T")[0];
-              const time = ts && ts.includes("T") ? ts.split("T")[1].slice(0, 5) : "";
-
-              retryParsed = {
-                symbol:          resObj.symbol,
-                name:            resObj.symbol,
-                category:        "stock", // default
-                qty:             resObj.share_amount,
-                price:           resObj.actual_price,
-                date,
-                time,
-                transactionType: resObj.action
-              };
-            } else {
-              throw new Error("No results returned from server-side scan");
-            }
-          }
-
-          if (retryParsed) {
-            const validated = validateParsedReceipt(retryParsed, idx);
-            if (validated) {
-              newScannedItems.push({
-                id: `${Date.now()}-${scannedBy}-${idx}`,
-                symbol:          validated.symbol,
-                name:            validated.name,
-                type:            validated.category,
-                qty:             String(validated.qty),
-                avgPrice:        String(validated.price),
-                date:            validated.date,
-                time:            validated.time,
-                transactionType: validated.transactionType
-              });
-              succeededIndices.add(idx);
-              delete fileErrors[idx];
-            } else {
-              fileErrors[idx] = `รูป ${idx + 1}: AI อ่านได้แต่ข้อมูลไม่ครบถ้วนหรือแปลกประหลาด`;
-            }
-          }
-        } catch (retryErr) {
-          console.error(`Retry/Cloudflare scan failed for image ${idx + 1}:`, retryErr.message);
-          fileErrors[idx] = `รูป ${idx + 1}: สแกนไม่สำเร็จ — ${retryErr.message}`;
-        }
-
-        // Update progress individually when running individual scan/retry
-        if (!hasKeys) {
-          completedImages++;
-          setScanningStatus(prev => ({
-            ...prev,
-            completed: Math.min(fileList.length, completedImages)
-          }));
-        }
-      }
     }
 
     setScanningStatus(prev => ({ ...prev, completed: fileList.length }));
