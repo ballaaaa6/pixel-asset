@@ -296,7 +296,7 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
           bestDiff = 0;
         }
 
-        if (bestIdx >= 0 && (bestDiff < 7 * 86400000 || bestDiff === 0)) {
+        if (bestIdx >= 0) {
           if (!map[bestIdx]) map[bestIdx] = [];
           map[bestIdx].push({
             symbol: asset.symbol,
@@ -2112,8 +2112,51 @@ export default function Dashboard({ user, onLogout, showToast }) {
         return a.symbol;
       }).filter(Boolean))];
 
-      // Fetch prices for the requested timeframe range directly
-      const optimalRange = range;
+      // Calculate optimal timeframe range based on earliest transaction date (including cash)
+      let earliestDate = null;
+      portfolioAssets.forEach(asset => {
+        const assetLots = asset.lots && asset.lots.length > 0 ? asset.lots : [];
+        assetLots.forEach(lot => {
+          if (lot && lot.date && lot.date !== "1970-01-01") {
+            if (!earliestDate || lot.date < earliestDate) {
+              earliestDate = lot.date;
+            }
+          }
+        });
+      });
+
+      let optimalRange = range;
+      if (earliestDate) {
+        const earliestTime = new Date(earliestDate + "T00:00:00.000Z").getTime();
+        const ageInDays = (Date.now() - earliestTime) / 86400000;
+
+        const rangeDurationDays = {
+          "1D": 1,
+          "1W": 7,
+          "1M": 30,
+          "3M": 90,
+          "6M": 180,
+          "YTD": 365,
+          "1Y": 365,
+          "5Y": 1825,
+          "MAX": Infinity
+        };
+
+        const rangesOrder = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "5Y", "MAX"];
+        let matchedRange = "1D";
+        for (const r of rangesOrder) {
+          matchedRange = r;
+          if (rangeDurationDays[r] >= ageInDays) {
+            break;
+          }
+        }
+
+        const requestedIdx = rangesOrder.indexOf(range);
+        const matchedIdx = rangesOrder.indexOf(matchedRange);
+        if (matchedIdx < requestedIdx) {
+          optimalRange = matchedRange;
+        }
+      }
 
       const res = await fetch(`/api/prices?sparkline=${encodeURIComponent(syms.join(","))}&tf=${optimalRange}`);
       if (res.ok) {
@@ -2222,12 +2265,9 @@ export default function Dashboard({ user, onLogout, showToast }) {
     // Sort timeline ascending
     let timeline = Array.from(allDatesSet).sort((a, b) => a.localeCompare(b));
 
-    // 2. Find the earliest stock/asset purchase date (excluding fiat cash if we have stocks)
+    // 2. Find the earliest transaction date across all assets (including cash)
     let earliestDate = null;
-    const hasNonCash = assets.some(a => a.type !== "fiat" && a.category !== "fiat");
     assets.forEach(asset => {
-      const isCash = asset.type === "fiat" || asset.category === "fiat";
-      if (hasNonCash && isCash) return;
       const assetLots = asset.lots && asset.lots.length > 0 ? asset.lots : [];
       assetLots.forEach(lot => {
         if (lot && lot.date && lot.date !== "1970-01-01") {

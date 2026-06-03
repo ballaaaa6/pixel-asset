@@ -411,7 +411,7 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
         bestDiff = 0;
       }
 
-      if (bestIdx >= startIdx && bestIdx <= endIdx && (bestDiff < 7 * 86400000 || bestDiff === 0)) {
+      if (bestIdx >= startIdx && bestIdx <= endIdx) {
         const displayIdx = bestIdx - startIdx;
         const x = PAD_L + (displayIdx / (displayedCandles.length - 1)) * iW;
         const priceUSD = lot.price && isThai ? lot.price / exchangeRate : lot.price;
