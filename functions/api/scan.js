@@ -29,15 +29,15 @@ Your task is to transcribe specific text fields from the receipt image.
 Extract the data into a JSON object with the following fields. Do not translate the text, just transcribe exactly what is visible on the image:
 
 {
-  "header_text": "The green/red text indicating the action and asset, e.g. 'ซื้อ NVDA' or 'ขาย NVDA'",
-  "header_color": "The color of the header text, which is either 'green' or 'red/pink'",
-  "status_text": "The status section text at the top, e.g. 'จับคู่แล้ว', 'สำเร็จ. คุณได้รับเงินค่าขายคืนแล้ว', 'คำสั่งซื้อของคุณ...'",
-  "bold_amount": "The large bold amount displayed under the asset name, e.g. '15,400.00 USD' or '100.5480039 หุ้น'",
-  "symbol": "The uppercase stock ticker symbol, e.g. 'NVDA'",
-  "actual_price": "The executed price per share next to 'ราคาที่ได้จริง', e.g. '183.12 USD' or '172.10 USD'",
-  "stock_value": "The total stock value next to 'มูลค่าหุ้น', e.g. '15,400.00 USD' or '17,304.81 USD'",
-  "qty_table": "The quantity of shares next to 'จำนวนหุ้น' or 'จำนวนหน่วย' in the details table if it exists (e.g. '84.0939307'), otherwise 'N/A'",
-  "raw_date": "The date-time string next to 'วันที่ส่งคำสั่ง', 'วันที่สำเร็จ', or inside the top card (e.g. '22 ก.ค. 68 - 13:33 น.')",
+  "header_text": "The green/red text showing the transaction type and ticker (e.g. ซื้อ [ticker] or ขาย [ticker])",
+  "header_color": "The color of the header text (either 'green' or 'red/pink')",
+  "status_text": "The status section text near the top (e.g. จับคู่แล้ว or สำเร็จ. คุณได้รับเงินค่าขายคืนแล้ว)",
+  "bold_amount": "The large bold amount displayed under the asset name (e.g. total currency amount or unit count like '[number] หุ้น' or '[number] หน่วย')",
+  "symbol": "The uppercase stock ticker symbol from the header",
+  "actual_price": "The executed price per share next to 'ราคาที่ได้จริง' (transcribe exact numeric text and currency like '[number] USD')",
+  "stock_value": "The total stock value next to 'มูลค่าหุ้น' (transcribe exact numeric text and currency)",
+  "qty_table": "The quantity of shares next to 'จำนวนหุ้น' or 'จำนวนหน่วย' in the details table (transcribe the exact number, or 'N/A' if the row does not exist)",
+  "raw_date": "The date-time string next to 'วันที่ส่งคำสั่ง', 'วันที่สำเร็จ', or inside the top card 'สถานะ (ณ ...)' (transcribe the exact text, e.g., '[day] [month] [year] - [time]')",
   "has_received_cash_back_label": true or false, indicating if the label 'ยอดที่จะได้รับคืน' or phrase 'เงินค่าขายคืน' appears anywhere on the receipt,
   "has_payment_amount_label": true or false, indicating if the label 'ยอดที่ต้องชำระ' appears anywhere on the receipt
 }
@@ -95,8 +95,8 @@ function crossValidateShareAmount(shareAmount, actualPrice) {
 function parseThaiDateToISO(rawStr) {
   if (!rawStr || typeof rawStr !== "string") return "";
 
-  // 1. Try to match Thai Date layout: e.g. "22 ก.ค. 68" or "22 ก.ค. 2025" or "22ก.ค.68"
-  const dayMatch = rawStr.match(/(?:ณ\s+|ส่งคำสั่ง\s+|สำเร็จ\s+)?(\d{1,2})\s*([\u0e00-\u0e7f.]+)\s*(\d{2,4})/);
+  // 1. Try to match Thai Date layout with explicit months: e.g. "22 ก.ค. 68" or "22 ก.ค. 2025" or "22ก.ค.68"
+  const dayMatch = rawStr.match(/(?:ณ\s+|ส่งคำสั่ง\s+|สำเร็จ\s+)?(\d{1,2})\s*(ม\.ค\.|ก\.พ\.|มี\.ค\.|เม\.ย\.|พ\.ค\.|มิ\.ย\.|ก\.ค\.|ส\.ค\.|ก\.ย\.|ต\.ค\.|พ\.ย\.|ธ\.ค\.|ม\.ค|ก\.พ|มี\.ค|เม\.ย|พ\.ค|มิ\.ย|ก\.ค|ส\.ค|ก\.ย|ต\.ค|พ\.ย|ธ\.ค|มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)\s*(\d{2,4})/);
   const timeMatch = rawStr.match(/(\d{1,2}):(\d{2})/);
 
   let year = "";
