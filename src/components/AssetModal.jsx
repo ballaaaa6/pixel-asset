@@ -254,9 +254,11 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
     img.src = url;
   });
 
-  // Keys are stored only in localStorage (entered via Settings)
-  const NEW_KEY = ""; // no hardcoded key — user must enter via Settings
-  const OLD_KEY = ""; // no old key to migrate
+  // ─── Embedded fallbacks ───
+  const EMBEDDED_KEYS = [
+    // Add hardcoded fallback API keys here if you want to embed them:
+    // "AIzaSy..."
+  ];
 
   const GEMINI_ENDPOINTS = [
     { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent" },
@@ -264,27 +266,53 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
     { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent" }
   ];
 
-  const callGemini = async (key, bodyObj, endpointIdx = 0, attempt = 0) => {
-    if (endpointIdx >= GEMINI_ENDPOINTS.length) {
-      throw new Error("Gemini: \u0e17\u0e38\u0e01 model/endpoint \u0e43\u0e0a\u0e49\u0e07\u0e32\u0e19\u0e44\u0e21\u0e48\u0e44\u0e14\u0e49 \u2014 \u0e01\u0e23\u0e38\u0e13\u0e32\u0e15\u0e23\u0e27\u0e0a\u0e2a\u0e2d\u0e1a API Key \u0e43\u0e19 Settings");
+  const callGemini = async (keyInput, bodyObj, keyIdx = 0, endpointIdx = 0, attempt = 0) => {
+    const userKeys = String(keyInput || "")
+      .split(/[\s,;\n\r]+/)
+      .map(k => k.trim())
+      .filter(Boolean);
+    const keys = [...userKeys, ...EMBEDDED_KEYS];
+
+    if (keys.length === 0) {
+      throw new Error("กรุณาตั้งค่า Gemini API Key ใน Settings ก่อนใช้งาน");
     }
+
+    if (keyIdx >= keys.length) {
+      throw new Error("Gemini: ทุก API Key และ Model ใช้งานไม่ได้ — กรุณาตรวจสอบ API Key ใน Settings หรือโควตาหมดทุกคีย์");
+    }
+
+    if (endpointIdx >= GEMINI_ENDPOINTS.length) {
+      // If we exhausted all models for this key, try the next key
+      return callGemini(keyInput, bodyObj, keyIdx + 1, 0, 0);
+    }
+
+    const currentKey = keys[keyIdx];
     const { url } = GEMINI_ENDPOINTS[endpointIdx];
+
     try {
       const res = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+        headers: { "Content-Type": "application/json", "x-goog-api-key": currentKey },
         body: JSON.stringify(bodyObj)
       });
+
       if (res.ok) {
         return await res.json();
       }
-      if (res.status === 429 && attempt === 0) {
-        await new Promise(r => setTimeout(r, 2000));
-        return callGemini(key, bodyObj, endpointIdx, 1);
+
+      const errText = await res.text();
+      console.warn(`Gemini API key [index ${keyIdx}] failed for ${url} with status ${res.status}: ${errText}`);
+
+      if (res.status === 429) {
+        // Quota limit exceeded: try next key immediately for the same model
+        return callGemini(keyInput, bodyObj, keyIdx + 1, endpointIdx, 0);
       }
-      return callGemini(key, bodyObj, endpointIdx + 1, 0);
+
+      // For other errors (like 404), try the next model on the same key
+      return callGemini(keyInput, bodyObj, keyIdx, endpointIdx + 1, 0);
     } catch (err) {
-      return callGemini(key, bodyObj, endpointIdx + 1, 0);
+      console.error(`Gemini fetch error for key [index ${keyIdx}] on ${url}:`, err);
+      return callGemini(keyInput, bodyObj, keyIdx + 1, endpointIdx, 0);
     }
   };
 
@@ -299,11 +327,13 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
     const succeededIndices = new Set();
 
     const geminiKey = localStorage.getItem("gemini_api_key");
+    const userKeys = String(geminiKey || "").split(/[\s,;\n\r]+/).map(k => k.trim()).filter(Boolean);
+    const hasKeys = userKeys.length > 0 || EMBEDDED_KEYS.length > 0;
 
     // ══════════════════════════════════════════════════════════════════════
     // Guard: Gemini API Key is REQUIRED for receipt scanning
     // ══════════════════════════════════════════════════════════════════════
-    if (!geminiKey) {
+    if (!hasKeys) {
       setScanning(false);
       setScanningStatus({ active: false, total: 0, completed: 0 });
       triggerToast(

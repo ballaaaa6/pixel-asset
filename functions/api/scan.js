@@ -29,9 +29,61 @@ const CORS = {
   "Content-Type":                 "application/json",
 };
 
-// ─── Gemini endpoint (3.5 Flash — fast, cheap, vision-capable) ───────────────
-const GEMINI_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent";
+// ─── Embedded fallbacks ───
+const EMBEDDED_KEYS = [
+  // Add hardcoded fallback API keys here if you want to embed them:
+  // "AIzaSy..."
+];
+
+const GEMINI_MODELS = [
+  "gemini-3.5-flash",
+  "gemini-2.5-flash",
+  "gemini-2.0-flash"
+];
+
+async function callGeminiServerSide(keys, bodyObj, keyIdx = 0, modelIdx = 0) {
+  if (keys.length === 0) {
+    throw new Error("No Gemini API key is configured.");
+  }
+  if (keyIdx >= keys.length) {
+    throw new Error("Gemini: ทุก API Key และ Model ใช้งานไม่ได้ — กรุณาตรวจสอบ API Key หรือโควตาหมดทุกคีย์");
+  }
+  if (modelIdx >= GEMINI_MODELS.length) {
+    // If all models fail for this key, move to the next key (start with first model)
+    return callGeminiServerSide(keys, bodyObj, keyIdx + 1, 0);
+  }
+
+  const currentKey = keys[keyIdx];
+  const model = GEMINI_MODELS[modelIdx];
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${currentKey}`;
+
+  try {
+    const res = await fetch(url, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify(bodyObj),
+    });
+
+    if (res.ok) {
+      return await res.json();
+    }
+
+    const errText = await res.text();
+    console.warn(`Gemini API key [index ${keyIdx}] failed for ${model} with status ${res.status}: ${errText}`);
+
+    if (res.status === 429) {
+      // Quota / Rate limit exceeded: immediately try next key for the same model
+      return callGeminiServerSide(keys, bodyObj, keyIdx + 1, modelIdx);
+    }
+
+    // For other errors (like 404), try the next model on the same key
+    return callGeminiServerSide(keys, bodyObj, keyIdx, modelIdx + 1);
+  } catch (err) {
+    console.error(`Gemini fetch error for key [index ${keyIdx}] on ${model}:`, err);
+    // On network error, immediately rotate to the next key
+    return callGeminiServerSide(keys, bodyObj, keyIdx + 1, modelIdx);
+  }
+}
 
 // ─── JSON Schema for Structured Output ──────────────────────────────────────
 // Gemini will be forced to return EXACTLY these 5 fields — nothing more.
@@ -205,9 +257,15 @@ export async function onRequestPost(context) {
     const body = await request.json();
     const { images, geminiKey } = body;
 
-    if (!geminiKey) {
+    const userKeys = String(geminiKey || "")
+      .split(/[\s,;\n\r]+/)
+      .map(k => k.trim())
+      .filter(Boolean);
+    const keys = [...userKeys, ...EMBEDDED_KEYS];
+
+    if (keys.length === 0) {
       return new Response(
-        JSON.stringify({ error: "geminiKey is required" }),
+        JSON.stringify({ error: "Gemini API key is required" }),
         { status: 400, headers: CORS }
       );
     }
@@ -266,18 +324,7 @@ export async function onRequestPost(context) {
           },
         };
 
-        const geminiRes = await fetch(`${GEMINI_URL}?key=${geminiKey}`, {
-          method:  "POST",
-          headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify(geminiBody),
-        });
-
-        if (!geminiRes.ok) {
-          const errText = await geminiRes.text();
-          throw new Error(`Gemini API error ${geminiRes.status}: ${errText.slice(0, 200)}`);
-        }
-
-        const geminiData = await geminiRes.json();
+        const geminiData = await callGeminiServerSide(keys, geminiBody);
         const rawText    = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
         let parsed = null;
