@@ -31,8 +31,9 @@ Schema:
 {
   "action": "BUY" or "SELL",
   "symbol": "ticker",
-  "actual_price": number,
-  "share_amount": number,
+  "actual_price": "string_or_number",
+  "share_amount": "string_or_number",
+  "raw_date": "string",
   "timestamp": "ISO 8601 YYYY-MM-DDTHH:MM:SS"
 }
 
@@ -47,43 +48,90 @@ RULES FOR EXTRACTION:
    - The stock ticker is the uppercase English letters right after "ซื้อ" or "ขาย".
    - Example: "ซื้อ NVDA" -> symbol is "NVDA".
 
-3. TIMESTAMP (Transaction Date and Time):
-   - Look at the VERY TOP of the slip, inside the first header box labeled "สถานะ" (Status).
-   - Locate the text: "สถานะ (ณ DD เดือนย่อ YY - HH:MM น.)"
-     - Examples:
-       - "สถานะ (ณ 5 ก.ย. 68 - 23:21 น.)" -> Date is 5 Sep 2025, Time is 23:21
-       - "สถานะ (ณ 30 มิ.ย. 68 - 20:58 น.)" -> Date is 30 Jun 2025, Time is 20:58
-       - "สถานะ (ณ 21 ก.ค. 68 - 13:31 น.)" -> Date is 21 Jul 2025, Time is 13:31
-   - Convert Thai Buddhist Era year (YY) to CE Gregorian year: YY + 1957 (e.g. 68 -> 2025, 69 -> 2026).
-   - Convert Thai month abbreviations correctly:
-     - ม.ค. = 01 (Jan)
-     - ก.พ. = 02 (Feb)
-     - มี.ค. = 03 (Mar)
-     - เม.ย. = 04 (Apr)
-     - พ.ค. = 05 (May)
-     - มิ.ย. = 06 (Jun)
-     - ก.ค. = 07 (Jul)
-     - ส.ค. = 08 (Aug)
-     - ก.ย. = 09 (Sep)
-     - ต.ค. = 10 (Oct)
-     - พ.ย. = 11 (Nov)
-     - ธ.ค. = 12 (Dec)
-   - Combine into ISO 8601 string: YYYY-MM-DDTHH:MM:SS.
+3. RAW DATE & TIMESTAMP:
+   - The date and time can be located in two main places:
+     A. Top Status Card: Inside parentheses of the "สถานะ" (Status) card (e.g. "สถานะ (ณ 5 ก.ย. 68 - 20:43 น.)" or "สถานะ (ณ 22 ก.ค. 68 - 13:33 น.)").
+     B. Bottom Details Section: Next to "วันที่ส่งคำสั่ง" or "วันที่คำสั่งสำเร็จ" (e.g. "วันที่ส่งคำสั่ง: 5 ก.ย. 68 - 20:43 น.").
+   - Extract the full raw date-time string as "raw_date" (e.g., "5 ก.ย. 68 - 20:43 น." or "ณ 22 ก.ค. 68 - 13:33 น."). Look at both places and use whichever is visible and most complete.
+   - For "timestamp", convert it to ISO 8601 (YYYY-MM-DDTHH:MM:SS) format if possible.
+     - Convert Thai Buddhist Era year (YY) to CE Gregorian year: YY + 1957 (e.g. 68 -> 2025, 69 -> 2026).
+     - Convert Thai month abbreviations (ม.ค.=01, ก.พ.=02, มี.ค.=03, เม.ย.=04, พ.ค.=05, มิ.ย.=06, ก.ค.=07, ส.ค.=08, ก.ย.=09, ต.ค.=10, พ.ย.=11, ธ.ค.=12).
 
 4. ACTUAL PRICE (ราคาที่ได้จริง - Price Per Share):
-   - Locate the label "ราคาที่ได้จริง" (Executed/Actual Price).
-   - The value is the number directly below it (followed by currency like USD or THB).
-   - Ignore "ราคาที่คุณตั้ง" (Your set price) and total transaction amounts like "ยอดที่ต้องชำระ" / "ยอดที่จะได้รับคืน".
+   - Always locate the label "ราคาที่ได้จริง" (Executed/Actual Price).
+   - Extract the value shown directly under or next to it (e.g. "168.55 USD", "183.17 USD", "172.10 USD", "172.18 USD").
+   - Ignore "ราคาที่คุณตั้ง" (Your set price) and total transaction amounts like "ยอดที่ต้องชำระ" / "ยอดที่จะได้รับคืน" / "มูลค่าหุ้น".
 
 5. SHARE AMOUNT (Quantity of shares/units):
-   - There are two layouts depending on order type:
-     A. If there is a line labeled "จำนวนหุ้น" (Number of shares) or "จำนวนหน่วย" in the table below the main header:
-        - Extract the value from this line (e.g., "จำนวนหุ้น 66.9618521" -> share_amount is 66.9618521).
-     B. If there is NO "จำนวนหุ้น" or "จำนวนหน่วย" line in the table below:
-        - Look at the top of the box. Extract the big bold number followed by "หุ้น" or "หน่วย" (e.g., "10 หุ้น" or "60 หุ้น" -> share_amount is 10 or 60).
-   - NEVER use cash values (e.g. "10,475.45 USD" or total stock value "มูลค่าหุ้น" 10,475.44 USD) as share_amount.`;
+   - You must be extremely careful to extract fractional shares (decimals, e.g. 84.0321676 or 100.5480039). Do not truncate, round, or omit any digits!
+   - Determine which layout the receipt uses:
+     - Layout 1: There is a row in the table labeled "จำนวนหุ้น" (Number of shares) or "จำนวนหน่วย" (e.g. "จำนวนหุ้น: 84.0321676"). Extract this decimal number.
+     - Layout 2: There is NO "จำนวนหุ้น" or "จำนวนหน่วย" row in the table. Instead, look at the top section under the ticker header. There is a big bold number followed by "หุ้น" or "หน่วย" (e.g. "1 หุ้น", "60 หุ้น", "100.5480039 หุ้น"). Extract this number.
+   - WARNING: Never use cash values ending with currency names (e.g. "15,400.00 USD" or "10,325.65 USD") as the share amount.
+   - WARNING: Never confuse "share_amount" with "actual_price" or total values.`;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Clean a string representation of a number to a clean float.
+ */
+function parseNumeric(value) {
+  if (typeof value === "number") return value;
+  if (!value) return 0;
+  const cleaned = String(value)
+    .replace(/[$,฿]/g, "")
+    .replace(/,/g, "")
+    .replace(/[^0-9.]/g, "")
+    .trim();
+  return parseFloat(cleaned) || 0;
+}
+
+/**
+ * Parse a raw Thai date string into ISO 8601 (YYYY-MM-DDTHH:MM:SS) format.
+ */
+function parseThaiDateToISO(rawStr) {
+  if (!rawStr || typeof rawStr !== "string") return "";
+
+  const dayMatch = rawStr.match(/(?:ณ\s+|ส่งคำสั่ง\s+|สำเร็จ\s+)?(\d{1,2})\s+([\u0e00-\u0e7f.]+)\s+(\d{2,4})/);
+  const timeMatch = rawStr.match(/(\d{1,2}):(\d{2})/);
+
+  if (!dayMatch) return "";
+
+  const dStr = dayMatch[1].padStart(2, "0");
+  const mStr = dayMatch[2].trim();
+  const yStr = dayMatch[3].trim();
+
+  const monthMap = {
+    "ม.ค.": "01", "ม.ค": "01", "มกราคม": "01",
+    "ก.พ.": "02", "ก.พ": "02", "กุมภาพันธ์": "02",
+    "มี.ค.": "03", "มี.ค": "03", "มีนาคม": "03",
+    "เม.ย.": "04", "เม.ย": "04", "เมษายน": "04",
+    "พ.ค.": "05", "พ.ค": "05", "พฤษภาคม": "05",
+    "มิ.ย.": "06", "มิ.ย": "06", "มิถุนายน": "06",
+    "ก.ค.": "07", "ก.ค": "07", "กรกฎาคม": "07",
+    "ส.ค.": "08", "ส.ค": "08", "สิงหาคม": "08",
+    "ก.ย.": "09", "ก.ย": "09", "กันยายน": "09",
+    "ต.ค.": "10", "ต.ค": "10", "ตุลาคม": "10",
+    "พ.ย.": "11", "พ.ย": "11", "พฤศจิกายน": "11",
+    "ธ.ค.": "12", "ธ.ค": "12", "ธันวาคม": "12"
+  };
+
+  const month = monthMap[mStr] || monthMap[mStr + "."] || "";
+  if (!month) return "";
+
+  let yr = parseInt(yStr, 10);
+  if (yr < 100) {
+    yr = yr + 2500;
+  }
+  const year = String(yr - 543);
+
+  let time = "00:00:00";
+  if (timeMatch) {
+    time = `${timeMatch[1].padStart(2, "0")}:${timeMatch[2]}:00`;
+  }
+
+  return `${year}-${month}-${dStr}T${time}`;
+}
 
 /**
  * Clean and validate the raw object returned by Workers AI.
@@ -98,13 +146,21 @@ function validateSlipData(raw) {
   let symbol = String(raw.symbol || "").trim().toUpperCase().replace(/[^A-Z0-9.\-]/g, "");
   if (!symbol || /^\d+$/.test(symbol)) return null;
 
-  const actual_price  = parseFloat(raw.actual_price)  || 0;
-  const share_amount  = parseFloat(raw.share_amount)  || 0;
+  const actual_price  = parseNumeric(raw.actual_price);
+  const share_amount  = parseNumeric(raw.share_amount);
   if (actual_price <= 0 || share_amount <= 0) return null;
 
-  // Timestamp: ensure it's a plausible ISO string or derive from partial data
-  let timestamp = String(raw.timestamp || "").trim();
-  if (!/\d{4}/.test(timestamp)) timestamp = "";
+  // Timestamp parsing with regex helper fallback
+  let timestamp = "";
+  if (raw.raw_date) {
+    timestamp = parseThaiDateToISO(raw.raw_date);
+  }
+  if (!timestamp && raw.timestamp) {
+    timestamp = String(raw.timestamp).trim();
+  }
+  if (!/\d{4}/.test(timestamp)) {
+    timestamp = "";
+  }
 
   return { action, symbol, actual_price, share_amount, timestamp };
 }

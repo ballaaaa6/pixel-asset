@@ -111,6 +111,20 @@ export function getDimeReceiptSchema() {
 }
 
 /**
+ * Clean a string representation of a number to a clean float.
+ */
+function parseNumeric(value) {
+  if (typeof value === "number") return value;
+  if (!value) return 0;
+  const cleaned = String(value)
+    .replace(/[$,฿]/g, "")
+    .replace(/,/g, "")
+    .replace(/[^0-9.]/g, "")
+    .trim();
+  return parseFloat(cleaned) || 0;
+}
+
+/**
  * Validate and clean a single parsed receipt from AI response.
  * Returns a cleaned object or null if invalid.
  */
@@ -124,12 +138,12 @@ export function validateParsedReceipt(data, imageIndex) {
   if (!symbol || /^\d+$/.test(symbol)) return null;
 
   // ── Quantity ──
-  const qty = parseFloat(data.qty);
-  if (isNaN(qty) || qty <= 0) return null;
+  const qty = parseNumeric(data.qty);
+  if (qty <= 0) return null;
 
   // ── Price ──
-  let price = parseFloat(data.price);
-  if (isNaN(price) || price <= 0) return null;
+  let price = parseNumeric(data.price);
+  if (price <= 0) return null;
 
   // Sanity check: if price looks like a total (> $50,000 and qty > 1), divide
   if (price > 50000 && qty > 1) {
