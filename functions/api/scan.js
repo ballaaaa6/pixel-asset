@@ -26,26 +26,48 @@ const CORS = {
 // ─── Prompt & Schema Context ──────────────────────────────────────────────────
 const SYSTEM_PROMPT = `You are a precise financial transaction data extractor.
 Analyze the provided image of a financial trade receipt / slip (typically from the Dime! app by SCB).
-Extract the following fields and return ONLY a raw JSON object. Do NOT wrap it in markdown block, do NOT write markdown code blocks, do NOT write explanations.
+Extract the following fields and return ONLY a raw JSON object matching the Schema.
 
 Schema:
 {
   "action": "BUY" or "SELL",
   "symbol": "Asset ticker (e.g. NVDA, AAPL, BTC, SCB-GOLD)",
-  "actual_price": number (executed price per share/unit, ignore total value),
-  "share_amount": number (number of shares/units/coins traded),
+  "actual_price": number,
+  "share_amount": number,
   "timestamp": "ISO 8601 string YYYY-MM-DDTHH:MM:SS or YYYY-MM-DD"
 }
 
-Extraction tips:
-1. Action: "ซื้อ" -> BUY, "ขาย" -> SELL.
-2. Symbol: Look for the ticker near the top after "ซื้อ" or "ขาย".
-3. Actual Price: Use the executed price per share (ราคาที่ได้จริง), NOT the set price (ราคาที่คุณตั้ง) and NOT the total payment (ยอดที่ต้องชำระ).
-4. Share Amount: Use quantity of shares (จำนวนหุ้น / จำนวนหน่วย / จำนวนเหรียญ).
-5. Timestamp: Use the order execution date (วันที่ส่งคำสั่ง). Convert Thai Buddhist Era year (e.g., 68 -> 2025) and Thai months (พ.ค. -> 05).
+CRITICAL RULES FOR ACCURACY:
+
+1. ACTION (BUY or SELL):
+   - Check the top left header or text. "ซื้อ" means BUY. "ขาย" means SELL.
+
+2. SYMBOL (Ticker):
+   - Look for the ticker near the top right after "ซื้อ" or "ขาย".
+   - Examples: "ซื้อ NVDA" -> symbol is "NVDA". "ขาย AAPL" -> symbol is "AAPL".
+
+3. ACTUAL PRICE (ราคาที่ได้จริง / Executed Price):
+   - You MUST extract the price per share from the "ราคาที่ได้จริง" (Executed Price) line.
+   - Ignore "ราคาที่คุณตั้ง" (Your set price / Limit price).
+   - Ignore "ค่าธรรมเนียม & ภาษี" (Fees & Taxes) — fees are usually tiny numbers like 0.01, 0.05, 0.08, 0.12 USD/THB. NEVER use them.
+   - Ignore "ยอดชำระสุทธิ" / "ยอดรับสุทธิ" / "ยอดที่ต้องจ่าย" (Total Net Amount).
+   - Price must be the actual price per share/unit.
+
+4. SHARE AMOUNT (จำนวนหุ้น / จำนวนหน่วย / Quantity):
+   - Extract the quantity from the "จำนวนหุ้น" or "จำนวนหน่วย" (Quantity) field.
+   - This represents the number of shares or units you actually bought or sold.
+   - It can be a decimal (e.g., 17.5941041) or integer (e.g., 10).
+   - Ignore fee/tax numbers (e.g., 0.01, 0.08, 0.05).
+   - NEVER use cash values (USD/THB totals) for share_amount.
+
+5. TIMESTAMP (วันที่ส่งคำสั่ง / Transaction Time):
+   - Extract the date and time from the "วันที่ส่งคำสั่ง" (Order Date) field.
+   - Convert Thai Buddhist Era (BE) year to Gregorian (CE) year by subtracting 543 (e.g., year 68 -> 2025 CE, year 2568 -> 2025 CE).
+   - Convert Thai month abbreviations (ม.ค.=01, ก.พ.=02, มี.ค.=03, เม.ย.=04, พ.ค.=05, มิ.ย.=06, ก.ค.=07, ส.ค.=08, ก.ย.=09, ต.ค.=10, พ.ย.=11, ธ.ค.=12).
+   - Output format: YYYY-MM-DDTHH:MM:SS. If time is missing, use T00:00:00.
 
 Return ONLY the raw JSON string. Example output:
-{"action":"BUY","symbol":"NVDA","actual_price":130.60,"share_amount":17.5941,"timestamp":"2025-05-23T22:14:00"}`;
+{"action":"BUY","symbol":"NVDA","actual_price":130.60,"share_amount":17.5941041,"timestamp":"2025-05-23T22:14:00"}`;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
