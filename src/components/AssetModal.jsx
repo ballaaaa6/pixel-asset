@@ -332,19 +332,8 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
     const userKeys = String(geminiKey || "").split(/[\s,;\n\r]+/).map(k => k.trim()).filter(Boolean);
     const hasKeys = userKeys.length > 0 || EMBEDDED_KEYS.length > 0;
 
-    // ══════════════════════════════════════════════════════════════════════
-    // Guard: Gemini API Key is REQUIRED for receipt scanning
-    // ══════════════════════════════════════════════════════════════════════
     if (!hasKeys) {
-      setScanning(false);
-      setScanningStatus({ active: false, total: 0, completed: 0 });
-      triggerToast(
-        "⚠️ กรุณาตั้งค่า Gemini API Key ก่อนใช้งานสแกนสลิป\n" +
-        "ไปที่ ⚙️ Settings → ใส่ Gemini API Key (ฟรี)\n" +
-        "สมัครได้ที่ aistudio.google.com",
-        "warning"
-      );
-      return;
+      triggerToast("🤖 ไม่พบ API Key: กำลังเริ่มระบบสแกนสลิปด้วย Cloudflare Workers AI (ฟรี)", "info");
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -362,10 +351,9 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
     }
 
     // ══════════════════════════════════════════════════════════════════════
-    // Step 2: Batch images into chunks of 5 for Gemini Vision API
+    // Step 2: Batch images into chunks of 2 for client Gemini Vision API
     // ══════════════════════════════════════════════════════════════════════
     const BATCH_SIZE = 2;
-    const PARALLEL_BATCHES = 3;
     const visionChunks = [];
     for (let i = 0; i < imagesToProcess.length; i += BATCH_SIZE) {
       visionChunks.push(imagesToProcess.slice(i, i + BATCH_SIZE));
@@ -376,7 +364,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
     const responseSchema = getDimeReceiptSchema();
 
     // ══════════════════════════════════════════════════════════════════════
-    // Step 3: Process chunks in parallel (up to PARALLEL_BATCHES at a time)
+    // Step 3: Process chunks in parallel using client Gemini (if keys available)
     // ══════════════════════════════════════════════════════════════════════
     let completedImages = 0;
 
@@ -468,16 +456,18 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
       }));
     };
 
-    // Run chunks sequentially with a 1-second delay to avoid concurrent rate limits
-    for (let i = 0; i < visionChunks.length; i++) {
-      await processChunk(visionChunks[i], i);
-      if (i < visionChunks.length - 1) {
-        await new Promise(r => setTimeout(r, 1000));
+    // Run client chunks sequentially only if keys are available
+    if (hasKeys) {
+      for (let i = 0; i < visionChunks.length; i++) {
+        await processChunk(visionChunks[i], i);
+        if (i < visionChunks.length - 1) {
+          await new Promise(r => setTimeout(r, 1000));
+        }
       }
     }
 
     // ══════════════════════════════════════════════════════════════════════
-    // Step 4: Retry failed images individually (single-image retry)
+    // Step 4: Process remaining failed images individually (runs all if hasKeys is false)
     // ══════════════════════════════════════════════════════════════════════
     const failedIndices = [];
     for (let i = 0; i < fileList.length; i++) {
@@ -485,42 +475,111 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
     }
 
     if (failedIndices.length > 0 && failedIndices.length <= 10) {
-      setScanningStatus(prev => ({ ...prev, stage: `🔄 ลองใหม่อีกครั้ง: ${failedIndices.length} รูปที่เหลือ...` }));
+      const modeName = hasKeys ? "ลองใหม่อีกครั้ง" : "สแกนสลิปด้วย Cloudflare AI";
+      setScanningStatus(prev => ({ ...prev, stage: `🔄 ${modeName}: ${failedIndices.length} รูป...` }));
 
       for (const idx of failedIndices) {
         const img = imagesToProcess.find(img => img.index === idx);
         if (!img) continue;
 
         try {
-          const parts = [
-            { text: prompt },
-            { text: `\n--- SLIP INDEX: ${idx} ---` },
-            { inlineData: { mimeType: img.mime, data: img.base64 } }
-          ];
-
-          const bodyObj = {
-            contents: [{ parts }],
-            generationConfig: {
-              responseMimeType: "application/json",
-              responseSchema
-            }
-          };
-
-          const response = await callGemini(geminiKey, bodyObj);
-          const candidateText = response?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
-          // Parse JSON: try direct parse first (structured output), then regex fallback
           let retryParsed = null;
-          try {
-            const direct = JSON.parse(candidateText);
-            retryParsed = Array.isArray(direct) ? direct[0] : direct;
-          } catch (_) {
-            const jsonMatch = candidateText.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
-            if (jsonMatch) {
+          let scannedBy = "client-gemini";
+
+          // Try client Gemini if keys are available
+          if (hasKeys) {
+            try {
+              const parts = [
+                { text: prompt },
+                { text: `\n--- SLIP INDEX: ${idx} ---` },
+                { inlineData: { mimeType: img.mime, data: img.base64 } }
+              ];
+
+              const bodyObj = {
+                contents: [{ parts }],
+                generationConfig: {
+                  responseMimeType: "application/json",
+                  responseSchema
+                }
+              };
+
+              const response = await callGemini(geminiKey, bodyObj);
+              const candidateText = response?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+              let parsedArray = null;
               try {
-                const parsed = JSON.parse(jsonMatch[0]);
-                retryParsed = Array.isArray(parsed) ? parsed[0] : parsed;
-              } catch (_2) { /* ignore */ }
+                const direct = JSON.parse(candidateText);
+                parsedArray = Array.isArray(direct) ? direct : (direct ? [direct] : null);
+              } catch (_) {
+                const jsonMatch = candidateText.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
+                if (jsonMatch) {
+                  try {
+                    const parsed = JSON.parse(jsonMatch[0]);
+                    parsedArray = Array.isArray(parsed) ? parsed : [parsed];
+                  } catch (_2) { /* ignore */ }
+                }
+              }
+
+              if (parsedArray && parsedArray.length > 0) {
+                retryParsed = parsedArray[0];
+              }
+            } catch (geminiErr) {
+              console.warn(`Client Gemini retry failed for image ${idx + 1}, falling back to Cloudflare Workers AI:`, geminiErr.message);
+            }
+          }
+
+          // Fallback: Call Serverless API (/api/scan) to use Cloudflare Workers AI
+          if (!retryParsed) {
+            scannedBy = "server-workers-ai";
+            const userSession = localStorage.getItem("portfolio_user");
+            let token = "";
+            if (userSession) {
+              try {
+                token = JSON.parse(userSession)?.token || "";
+              } catch (_) {}
+            }
+
+            const res = await fetch("/api/scan", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                images: [{ base64: img.base64, mime: img.mime }],
+                geminiKey: geminiKey || "",
+                skipSave: true
+              })
+            });
+
+            if (!res.ok) {
+              const errData = await res.json().catch(() => ({}));
+              throw new Error(errData.error || `Server status ${res.status}`);
+            }
+
+            const data = await res.json();
+            if (data.errors && data.errors.length > 0) {
+              throw new Error(data.errors[0].error);
+            }
+
+            if (data.results && data.results.length > 0) {
+              const resObj = data.results[0];
+              const ts = resObj.timestamp || "";
+              const date = ts ? ts.split("T")[0] : new Date().toISOString().split("T")[0];
+              const time = ts && ts.includes("T") ? ts.split("T")[1].slice(0, 5) : "";
+
+              retryParsed = {
+                symbol:          resObj.symbol,
+                name:            resObj.symbol,
+                category:        "stock", // default
+                qty:             resObj.share_amount,
+                price:           resObj.actual_price,
+                date,
+                time,
+                transactionType: resObj.action
+              };
+            } else {
+              throw new Error("No results returned from server-side scan");
             }
           }
 
@@ -528,7 +587,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
             const validated = validateParsedReceipt(retryParsed, idx);
             if (validated) {
               newScannedItems.push({
-                id: `${Date.now()}-retry-${idx}`,
+                id: `${Date.now()}-${scannedBy}-${idx}`,
                 symbol:          validated.symbol,
                 name:            validated.name,
                 type:            validated.category,
@@ -540,11 +599,22 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
               });
               succeededIndices.add(idx);
               delete fileErrors[idx];
+            } else {
+              fileErrors[idx] = `รูป ${idx + 1}: AI อ่านได้แต่ข้อมูลไม่ครบถ้วนหรือแปลกประหลาด`;
             }
           }
         } catch (retryErr) {
-          console.error(`Retry failed for image ${idx + 1}:`, retryErr.message);
+          console.error(`Retry/Cloudflare scan failed for image ${idx + 1}:`, retryErr.message);
           fileErrors[idx] = `รูป ${idx + 1}: สแกนไม่สำเร็จ — ${retryErr.message}`;
+        }
+
+        // Update progress individually when running individual scan/retry
+        if (!hasKeys) {
+          completedImages++;
+          setScanningStatus(prev => ({
+            ...prev,
+            completed: Math.min(fileList.length, completedImages)
+          }));
         }
       }
     }

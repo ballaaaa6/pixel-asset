@@ -33,11 +33,11 @@ const CORS = {
 const EMBEDDED_KEYS = [];
 
 const GEMINI_MODELS = [
-  "gemini-3.5-flash",
-  "gemini-flash-latest",
+  "gemini-2.0-flash",
   "gemini-2.5-flash",
-  "gemini-2.5-flash-lite",
-  "gemini-flash-lite-latest"
+  "gemini-2.5-flash-lite-preview-06-17",
+  "gemini-1.5-flash",
+  "gemini-2.0-flash-lite"
 ];
 
 async function callGeminiServerSide(keys, bodyObj, keyIdx = 0, modelIdx = 0) {
@@ -239,6 +239,85 @@ function mergeLotIntoPortfolio(portfolio, slip) {
   return portfolio;
 }
 
+/**
+ * Call Cloudflare Workers AI Vision Llama-3.2-11b-vision-instruct model.
+ */
+async function callWorkersAIVision(ai, base64, mime) {
+  let binaryString;
+  try {
+    binaryString = atob(base64);
+  } catch (e) {
+    throw new Error("Invalid base64 image data");
+  }
+
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  const imageBytes = Array.from(bytes);
+
+  const prompt = `You are a precise financial transaction data extractor.
+Analyze this financial trade receipt image (typically from the Dime! trading app).
+Extract the following fields and return ONLY a raw JSON object matching this schema:
+{
+  "action": "BUY" or "SELL",
+  "symbol": "ticker code (e.g. NVDA, AAPL, BTC, SCB-GOLD)",
+  "actual_price": number (executed price per unit/share),
+  "share_amount": number (quantity of shares/units/coins traded),
+  "timestamp": "ISO 8601 string YYYY-MM-DDTHH:MM:SS or YYYY-MM-DD"
+}
+Do NOT return markdown (no \`\`\`json), no explanation, and no extra text. Only return raw JSON.`;
+
+  const model = "@cf/meta/llama-3.2-11b-vision-instruct";
+
+  let response;
+  try {
+    response = await ai.run(model, {
+      prompt,
+      image: imageBytes,
+      max_tokens: 256,
+      temperature: 0.0,
+    });
+  } catch (err) {
+    if (err.message && (err.message.includes("license") || err.message.includes("agree") || err.message.includes("Acceptable Use Policy"))) {
+      try {
+        console.log("Agreeing to Meta license terms for llama-3.2...");
+        await ai.run(model, { prompt: "agree" });
+        response = await ai.run(model, {
+          prompt,
+          image: imageBytes,
+          max_tokens: 256,
+          temperature: 0.0,
+        });
+      } catch (retryErr) {
+        throw new Error(`Workers AI run failed after license agreement: ${retryErr.message}`);
+      }
+    } else {
+      throw new Error(`Workers AI run failed: ${err.message}`);
+    }
+  }
+
+  const resultText = response?.response || response?.text || "";
+  if (!resultText) {
+    throw new Error("Empty response from Cloudflare Workers AI");
+  }
+
+  try {
+    return JSON.parse(resultText.trim());
+  } catch (_) {
+    const jsonMatch = resultText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        return JSON.parse(jsonMatch[0]);
+      } catch (_2) {
+        throw new Error(`Failed to parse extracted JSON from text: ${resultText.slice(0, 150)}`);
+      }
+    }
+    throw new Error(`Cloudflare AI did not return a valid JSON object: ${resultText.slice(0, 150)}`);
+  }
+}
+
 // ─── Main Handler ─────────────────────────────────────────────────────────────
 
 export async function onRequestPost(context) {
@@ -254,7 +333,7 @@ export async function onRequestPost(context) {
 
     // ── Parse body ────────────────────────────────────────────────────────────
     const body = await request.json();
-    const { images, geminiKey } = body;
+    const { images, geminiKey, skipSave } = body;
 
     const configKeys = String(env.GEMINI_KEYS || "")
       .split(/[\s,;\n\r]+/)
@@ -266,9 +345,11 @@ export async function onRequestPost(context) {
       .filter(Boolean);
     const keys = [...userKeys, ...configKeys, ...EMBEDDED_KEYS];
 
-    if (keys.length === 0) {
+    const hasWorkersAI = !!env.AI;
+
+    if (keys.length === 0 && !hasWorkersAI) {
       return new Response(
-        JSON.stringify({ error: "Gemini API key is required" }),
+        JSON.stringify({ error: "Gemini API key or Cloudflare Workers AI binding is required" }),
         { status: 400, headers: CORS }
       );
     }
@@ -308,33 +389,48 @@ export async function onRequestPost(context) {
       }
 
       try {
-        // Build Gemini request with Structured Output (JSON Schema)
-        const geminiBody = {
-          system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-          contents: [
-            {
-              parts: [
-                { text: "Extract the transaction data from this financial asset slip image." },
-                { inline_data: { mime_type: mime, data: base64 } },
-              ],
-            },
-          ],
-          generationConfig: {
-            response_mime_type: "application/json",
-            response_schema:    SLIP_SCHEMA,
-            temperature:        0.0,   // deterministic for data extraction
-            max_output_tokens:  256,
-          },
-        };
-
-        const geminiData = await callGeminiServerSide(keys, geminiBody);
-        const rawText    = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
         let parsed = null;
-        try {
-          parsed = JSON.parse(rawText);
-        } catch {
-          throw new Error(`Could not parse Gemini response as JSON: ${rawText.slice(0, 100)}`);
+        let usedAI = "Gemini Server-Side";
+
+        // Try Gemini first if keys are available
+        if (keys.length > 0) {
+          try {
+            // Build Gemini request with Structured Output (JSON Schema)
+            const geminiBody = {
+              system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+              contents: [
+                {
+                  parts: [
+                    { text: "Extract the transaction data from this financial asset slip image." },
+                    { inline_data: { mime_type: mime, data: base64 } },
+                  ],
+                },
+              ],
+              generationConfig: {
+                response_mime_type: "application/json",
+                response_schema:    SLIP_SCHEMA,
+                temperature:        0.0,
+                max_output_tokens:  256,
+              },
+            };
+
+            const geminiData = await callGeminiServerSide(keys, geminiBody);
+            const rawText    = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+            parsed = JSON.parse(rawText);
+          } catch (geminiErr) {
+            console.warn(`Server-side Gemini failed, trying Workers AI fallback: ${geminiErr.message}`);
+            if (!hasWorkersAI) throw geminiErr;
+          }
+        }
+
+        // If Gemini was not used or failed, fallback to Workers AI
+        if (!parsed && hasWorkersAI) {
+          usedAI = "Cloudflare Workers AI (Llama 3.2 Vision)";
+          parsed = await callWorkersAIVision(env.AI, base64, mime);
+        }
+
+        if (!parsed) {
+          throw new Error("Failed to extract data using all available AI engines.");
         }
 
         const validated = validateSlipData(parsed);
@@ -344,10 +440,12 @@ export async function onRequestPost(context) {
           );
         }
 
-        // Merge into portfolio
-        portfolio = mergeLotIntoPortfolio(portfolio, validated);
+        // Merge into portfolio if not skipping save
+        if (!skipSave) {
+          portfolio = mergeLotIntoPortfolio(portfolio, validated);
+        }
 
-        results.push({ index: i, ...validated, saved: true });
+        results.push({ index: i, ...validated, saved: !skipSave, engine: usedAI });
 
       } catch (imgErr) {
         errors.push({ index: i, error: imgErr.message });
@@ -355,7 +453,7 @@ export async function onRequestPost(context) {
     }
 
     // ── Persist updated portfolio to KV ───────────────────────────────────────
-    if (results.length > 0) {
+    if (results.length > 0 && !skipSave) {
       await PORTFOLIOS.put(`portfolio:${userId}`, JSON.stringify(portfolio));
     }
 
