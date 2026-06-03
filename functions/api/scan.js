@@ -265,48 +265,38 @@ function validateSlipData(raw) {
   // 4. Resolve Quantity (share_amount) with cross-validation
   let share_amount = 0;
 
-  if (action === "BUY") {
-    // For BUY: qty is usually in the table (qtyTable)
-    if (qtyTable > 0) {
-      share_amount = qtyTable;
-    } else {
-      const total = stockValue > 0 ? stockValue : boldNum;
-      if (total > 0) {
-        share_amount = total / price;
-      }
-    }
-
-    // Cross-validation: If qty * price is off by > 5% compared to total value, recalculate
-    const totalVal = stockValue > 0 ? stockValue : boldNum;
-    if (totalVal > 0 && share_amount > 0) {
-      const computedTotal = share_amount * price;
-      const diff = Math.abs(computedTotal - totalVal) / totalVal;
-      if (diff > 0.05) {
-        share_amount = totalVal / price;
-      }
-    }
-  } else {
-    // For SELL: qty is usually in boldNum (e.g. "100.5480039 หุ้น")
-    if (boldNum > 0 && bold.includes("หุ้น")) {
+  // Rule 4.1: If quantity is explicitly in the details table, use it as the highest priority
+  if (qtyTable > 0) {
+    share_amount = qtyTable;
+  }
+  // Rule 4.2: If the bold amount at the top is explicitly labeled as shares/units (common in Limit orders and SELLs)
+  else if (boldNum > 0 && (bold.includes("หุ้น") || bold.includes("หน่วย") || bold.includes("share") || bold.includes("unit"))) {
+    share_amount = boldNum;
+  }
+  // Rule 4.3: If it's a SELL and we have a total stock value, divide it by the price
+  else if (action === "SELL") {
+    if (stockValue > 0) {
+      share_amount = stockValue / price;
+    } else if (boldNum > 0) {
       share_amount = boldNum;
-    } else if (qtyTable > 0) {
-      share_amount = qtyTable;
-    } else {
-      if (stockValue > 0) {
-        share_amount = stockValue / price;
-      }
     }
+  }
+  // Rule 4.4: If it's a BUY and the bold amount is a monetary value, divide by price
+  else {
+    const total = stockValue > 0 ? stockValue : boldNum;
+    if (total > 0) {
+      share_amount = total / price;
+    }
+  }
 
-    // Cross-validation: Verify with stockValue
-    if (stockValue > 0 && share_amount > 0) {
-      const computedTotal = share_amount * price;
-      const diff = Math.abs(computedTotal - stockValue) / stockValue;
-      if (diff > 0.05) {
-        if (boldNum > 0 && boldNum !== stockValue) {
-          share_amount = boldNum;
-        } else {
-          share_amount = stockValue / price;
-        }
+  // Cross-validation: Detect obvious mix-ups between total value and share count
+  if (share_amount > 0 && price > 0) {
+    const product = share_amount * price;
+    // If the product of quantity and price is > 500k USD, it's almost certainly a total cost value misclassified as quantity
+    if (product > 500000) {
+      const corrected = share_amount / price;
+      if (corrected > 0.0001) {
+        share_amount = corrected;
       }
     }
   }
