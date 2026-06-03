@@ -4155,47 +4155,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
                 </div>
               </div>
 
-              {/* SECTION 4: AI OCR CONFIG */}
-              <div style={{
-                background: "#FFFFFF",
-                border: "1px solid var(--border)",
-                borderRadius: "16px",
-                padding: "16px",
-                display: "flex",
-                flexDirection: "column",
-                gap: 16
-              }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)", borderBottom: "1.5px solid var(--primary-light)", paddingBottom: 6, display: "block" }}>
-                  🤖 ตั้งค่า AI OCR (Gemini API Key)
-                </span>
-
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    Google Gemini API Key(s) — รองรับการหมุนเวียนคีย์ (Key Rotation)
-                    {geminiKey
-                      ? <span style={{ fontSize: 10, background: "#E3FAF2", color: "#00B98A", borderRadius: 6, padding: "2px 8px", fontWeight: 700 }}>✓ ตั้งค่าแล้ว</span>
-                      : <span style={{ fontSize: 10, background: "#FFEBEB", color: "#FF4B55", borderRadius: 6, padding: "2px 8px", fontWeight: 700 }}>⚠ ยังไม่ได้ตั้งค่า</span>
-                    }
-                  </label>
-                  <textarea
-                    className="form-input"
-                    style={{ height: 60, resize: "vertical", fontFamily: "monospace", fontSize: 12 }}
-                    placeholder="วาง API Key ที่นี่ (สามารถใส่ได้หลายคีย์ คั่นด้วยเครื่องหมายจุลภาค , หรือขึ้นบรรทัดใหม่)"
-                    value={geminiKey}
-                    onChange={(e) => {
-                      setGeminiKey(e.target.value);
-                      localStorage.setItem("gemini_api_key", e.target.value);
-                    }}
-                  />
-                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 8, lineHeight: 1.6, background: "#F8FAFC", borderRadius: 8, padding: "8px 10px" }}>
-                    <strong>วิธีรับ key ฟรีเพื่อเพิ่มโควตา (แนะนำให้สร้างจากหลายบัญชีเพื่อสลับคีย์กันติดลิมิต):</strong><br/>
-                    1. เปิด <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" style={{ color: "var(--primary)", fontWeight: 700 }}>aistudio.google.com/app/apikey</a><br/>
-                    2. กด <strong>"Create API key"</strong> → เลือก project และคัดลอกคีย์<br/>
-                    3. นำคีย์มาวางในช่องด้านบน หากมีหลายคีย์สามารถคั่นด้วยเครื่องหมายจุลภาค (,) หรือใส่คนละบรรทัดได้<br/>
-                    <span style={{ color: "var(--text-faint)", fontSize: 10 }}>🔒 Key เก็บในเครื่องคุณเท่านั้น ไม่ถูกส่งไปที่ server</span>
-                  </div>
-                </div>
-              </div>
 
 
               {/* SECTION 5: DATA MANAGEMENT */}

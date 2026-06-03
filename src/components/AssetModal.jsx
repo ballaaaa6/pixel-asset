@@ -254,11 +254,11 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
     img.src = url;
   });
 
-  // ─── Embedded fallbacks ───
-  const EMBEDDED_KEYS = [
-    // Add hardcoded fallback API keys here if you want to embed them:
-    // "AIzaSy..."
-  ];
+  // ─── Embedded fallbacks (loaded from environment variables via Vite) ───
+  const EMBEDDED_KEYS = String(import.meta.env.VITE_GEMINI_KEYS || "")
+    .split(/[\s,;\n\r]+/)
+    .map(k => k.trim())
+    .filter(Boolean);
 
   const GEMINI_ENDPOINTS = [
     { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent" },

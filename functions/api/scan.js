@@ -30,10 +30,7 @@ const CORS = {
 };
 
 // ─── Embedded fallbacks ───
-const EMBEDDED_KEYS = [
-  // Add hardcoded fallback API keys here if you want to embed them:
-  // "AIzaSy..."
-];
+const EMBEDDED_KEYS = [];
 
 const GEMINI_MODELS = [
   "gemini-3.5-flash",
@@ -257,11 +254,15 @@ export async function onRequestPost(context) {
     const body = await request.json();
     const { images, geminiKey } = body;
 
+    const configKeys = String(env.GEMINI_KEYS || "")
+      .split(/[\s,;\n\r]+/)
+      .map(k => k.trim())
+      .filter(Boolean);
     const userKeys = String(geminiKey || "")
       .split(/[\s,;\n\r]+/)
       .map(k => k.trim())
       .filter(Boolean);
-    const keys = [...userKeys, ...EMBEDDED_KEYS];
+    const keys = [...userKeys, ...configKeys, ...EMBEDDED_KEYS];
 
     if (keys.length === 0) {
       return new Response(
