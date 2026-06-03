@@ -181,7 +181,10 @@ async function callWorkersAIVision(ai, base64, mime) {
   let response;
   try {
     response = await ai.run(model, {
-      prompt: SYSTEM_PROMPT,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: "Extract the transaction data from this receipt image." }
+      ],
       image: imageBytes,
       max_tokens: 256,
       temperature: 0.0,
@@ -206,9 +209,12 @@ async function callWorkersAIVision(ai, base64, mime) {
         // Wait 1.2 seconds for propagation on Cloudflare global edge
         await new Promise(r => setTimeout(r, 1200));
 
-        // Retry vision generation with JSON mode
+        // Retry vision generation with JSON mode and messages
         response = await ai.run(model, {
-          prompt: SYSTEM_PROMPT,
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            { role: "user", content: "Extract the transaction data from this receipt image." }
+          ],
           image: imageBytes,
           max_tokens: 256,
           temperature: 0.0,
