@@ -277,11 +277,11 @@ function validateSlipData(raw) {
     }
   }
 
-  // Check currency in bold_amount and stock_value
+  // Check currency in bold_amount and stock_value (specifically targeting currency indicators next to totals)
   const boldStr = String(raw.bold_amount || "").toLowerCase();
   const valueStr = String(raw.stock_value || "").toLowerCase();
-  const allText = JSON.stringify(raw).toLowerCase();
-  const hasTHBUnit = boldStr.includes("บาท") || boldStr.includes("thb") || boldStr.includes("฿") || allText.includes("บาท") || allText.includes("thb");
+  const hasTHBUnit = boldStr.includes("บาท") || boldStr.includes("thb") || boldStr.includes("฿") ||
+                     valueStr.includes("บาท") || valueStr.includes("thb") || valueStr.includes("฿");
 
   if (price <= 0) return null;
 
