@@ -265,8 +265,6 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
     { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent" },
     { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" },
     { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent" },
-    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent" },
-    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent" },
     { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent" }
   ];
 
@@ -366,7 +364,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
     // ══════════════════════════════════════════════════════════════════════
     // Step 2: Batch images into chunks of 5 for Gemini Vision API
     // ══════════════════════════════════════════════════════════════════════
-    const BATCH_SIZE = 5;
+    const BATCH_SIZE = 2;
     const PARALLEL_BATCHES = 3;
     const visionChunks = [];
     for (let i = 0; i < imagesToProcess.length; i += BATCH_SIZE) {
