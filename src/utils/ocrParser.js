@@ -1,572 +1,178 @@
 /**
- * ocrParser.js — Tesseract.js + Dime! receipt regex parser
+ * ocrParser.js — Gemini Vision API receipt parser for Dime! trading receipts
  *
- * Strategy:
- * 1. Tesseract.js extracts raw text from image (tha+eng)
- * 2. Normalize Thai characters and spacing around numbers/decimals
- * 3. Regex patterns specific to Dime! format extract fields
- * 4. Verify all required fields (symbol, qty, price) are present.
- *    If any are missing, return success: false to trigger AI fallback.
+ * Strategy (v2 — Gemini Vision Only):
+ * 1. Send receipt images to Google Gemini Vision API in batches
+ * 2. Use structured output (responseSchema) for consistent JSON format
+ * 3. Validate and clean extracted fields
+ *
+ * Removed: Tesseract.js, Canvas Cropping, regex-based parsing
+ * Reason: Tesseract.js cannot reliably read modern Thai UI fonts (Dime! app)
  */
 
-import { createWorker } from "tesseract.js";
+/**
+ * Build the optimized Gemini Vision prompt for Dime! receipts.
+ * Includes 1-shot example and detailed field definitions.
+ */
+export function buildDimeReceiptPrompt(imageCount) {
+  return `You are analyzing ${imageCount} stock trading receipt image(s) from the Dime! app (Thai broker by SCBS).
 
-/** Normalize OCR raw text to handle Thai Unicode variants and number spacing */
-function normalizeOcrText(rawText) {
-  if (!rawText) return "";
-  let t = rawText.normalize("NFC");
+IMPORTANT INSTRUCTIONS:
+- Each image is a single receipt screenshot
+- Extract data EXACTLY as shown on the receipt — do NOT guess or infer values
+- The receipt is in Thai language with some English (stock symbols, USD amounts)
 
-  // 1. Normalize Thai SARA AM: U+0E4D (NIKHAHIT) + U+0E32 (SARA AA) -> U+0E33 (SARA AM)
-  t = t.replace(/\u0e4d\u0e32/g, "\u0e33");
+FIELD EXTRACTION RULES:
 
-  // 2. Remove space around decimal points in numbers (e.g. "51 . 62" -> "51.62")
-  t = t.replace(/(\d+)\s*\.\s*(\d+)/g, "$1.$2");
+1. transactionType:
+   - Look at the TOP LEFT of the receipt
+   - "ซื้อ" = "BUY"
+   - "ขาย" = "SELL"
 
-  // 3. Remove space around commas in numbers (e.g. "10, 000" -> "10,000")
-  t = t.replace(/(\d+)\s*,\s*(\d+)/g, "$1,$2");
+2. symbol:
+   - The stock ticker appears RIGHT AFTER "ซื้อ" or "ขาย" at the top
+   - Always uppercase English letters (e.g., NVDA, AAPL, MU, TSLA, MSFT, AMZN, META, GOOGL)
+   - For Thai mutual funds: e.g., K-USA, SCB-GOLD, K-CHANGE
 
-  return t;
-}
+3. qty (จำนวนหุ้น):
+   - For MARKET orders: look for the number in the "จำนวนหุ้น" column (right side of the price table)
+   - For LIMIT orders: look for the number followed by "หุ้น" near the top (e.g., "10 หุ้น", "1 หุ้น", "60 หุ้น")
+   - Can be fractional (e.g., 17.5941041, 75.9920476)
+   - NEVER use the total amount as qty
 
-function parseThaiTime(text) {
-  if (!text) return null;
-  // Match HH:MM format, possibly followed by " น." or " น" or "น"
-  const match = text.match(/(\d{1,2})\s*:\s*(\d{2})/);
-  if (match) {
-    const hour = match[1].padStart(2, "0");
-    const minute = match[2];
-    return `${hour}:${minute}`;
-  }
-  return null;
-}
+4. price (ราคาที่ได้จริง — Executed Price Per Share):
+   - THIS IS CRITICAL: Use ONLY the "ราคาที่ได้จริง" (executed/actual price) value
+   - For MARKET orders: it appears as "ราคาที่ได้จริง" with a USD amount (e.g., "130.60 USD")
+   - For LIMIT orders: there are TWO prices — "ราคาที่คุณตั้ง" (your set price) and "ราคาที่ได้จริง" (executed price) — use the SECOND one (ราคาที่ได้จริง)
+   - This is the PRICE PER SHARE, not the total
+   - Do NOT use มูลค่าหุ้น (total stock value) or ยอดที่ต้องชำระ (total payment)
 
-function parseThaiDate(text) {
-  if (!text) return null;
+5. date (วันที่ส่งคำสั่ง — Order Date):
+   - Find "วันที่ส่งคำสั่ง" label
+   - Format: DD เดือนย่อ YY (Thai Buddhist Era abbreviated month + 2-digit BE year)
+   - Convert to YYYY-MM-DD (CE/Gregorian):
+     - Year conversion: YY + 1957 (e.g., 68 → 2025, 69 → 2026)
+     - Month mapping: ม.ค.=01, ก.พ.=02, มี.ค.=03, เม.ย.=04, พ.ค.=05, มิ.ย.=06, ก.ค.=07, ส.ค.=08, ก.ย.=09, ต.ค.=10, พ.ย.=11, ธ.ค.=12
+   - Example: "23 พ.ค. 68" → "2025-05-23"
+   - Example: "5 ก.ย. 68" → "2025-09-05"
 
-  const months = [
-    { num: "01", pattern: "[มuUmM]\\s*\\.?\\s*[คaAดศลoO0cCdDnNuUvV]\\s*\\.?|มกราคม" },
-    { num: "02", pattern: "[กnNkKgG]\\s*\\.?\\s*[พwWvV]\\s*\\.?|กุมภาพันธ์" },
-    { num: "03", pattern: "(?:มี|[มmM][ีeEiI])\\s*\\.?\\s*[คaAดศลoO0cCdDnNuUvV]\\s*\\.?|มีนาคม" },
-    { num: "04", pattern: "เ\\s*[มm]\\s*\\.?\\s*[ยyY9qQvVuUnN]\\s*\\.?|เมษายน" },
-    { num: "05", pattern: "(?:[พwWvVhHnN]|[0oO])\\s*\\.?\\s*[คaAดศลoO0cCdDnNuUvV]\\s*\\.?|พฤษภาคม" },
-    { num: "06", pattern: "(?:มิ|[มmM][ิiI])\\s*\\.?\\s*[ยyY9qQvVuUnN]\\s*\\.?|[0oO]\\s*\\.?\\s*[9qQ]\\s*\\.?|มิถุนายน" },
-    { num: "07", pattern: "[กnNkKgG]\\s*\\.?\\s*[คaAดศลoO0cCdDnNuUvV]\\s*\\.?|กรกฎาคม" },
-    { num: "08", pattern: "[สsS]\\s*\\.?\\s*[คaAดศลoO0cCdDnNuUvV]\\s*\\.?|สิงหาคม" },
-    { num: "09", pattern: "[กnNkKgG]\\s*\\.?\\s*[ยyY9qQvVuUnN]\\s*\\.?|กันยายน" },
-    { num: "10", pattern: "[ตtT]\\s*\\.?\\s*[คaAดศลoO0cCdDnNuUvV]\\s*\\.?|ตุลาคม" },
-    { num: "11", pattern: "(?:[พwWvVhHnN]|[0oO])\\s*\\.?\\s*[ยyY9qQvVuUnN]\\s*\\.?|พฤศจิกายน" },
-    { num: "12", pattern: "[ธsStTdD]\\s*\\.?\\s*[คaAดศลoO0cCdDnNuUvV]\\s*\\.?|ธันวาคม" }
-  ];
+6. time:
+   - On the same line as the date, after the dash
+   - Format: HH:MM (24-hour)
+   - Example: "23 พ.ค. 68 - 22:14 น." → time = "22:14"
 
-  for (const m of months) {
-    // Match day (1-2 digits) + spaces + month pattern + spaces + year (2 or 4 digits)
-    const re = new RegExp(`(\\d{1,2})\\s*(?:${m.pattern})\\s*(\\d{2,4})`, "i");
-    const match = text.match(re);
-    if (match) {
-      const day = String(parseInt(match[1])).padStart(2, "0");
-      let year = parseInt(match[2]);
-      if (year < 100) year = year + 1957; // "68" -> 2025
-      if (year > 2400) year = year - 543;
-      if (year > 2100) year = year - 543;
-      return `${year}-${m.num}-${day}`;
-    }
-  }
-  return null;
-}
+7. name: Full company/asset name for the symbol
+   - NVDA → "NVIDIA Corporation"
+   - AAPL → "Apple Inc."
+   - MU → "Micron Technology"
+   etc.
 
-/** Remove thousand-comma separators and parse float */
-function parseAmt(str) {
-  return parseFloat(String(str).replace(/,/g, "")) || 0;
-}
+8. category: "stock" for US/Thai equities, "crypto" for BTC/ETH etc, "gold" for gold ETFs/funds
 
-/** Extract numbers that are clearly separated (preceded/followed by whitespace or punctuation) */
-function extractCleanNumbers(block) {
-  const found = [];
-  const re = /(?:^|[\s,()\-+*/])(\d+(?:,\d{3})*(?:\.\d+)?)(?=$|[\s,()\-+*/])/g;
-  let m;
-  while ((m = re.exec(block)) !== null) {
-    const val = parseAmt(m[1]);
-    if (val > 0) found.push(val);
-  }
-  return found;
+EXAMPLE — Market Order (Buy):
+Receipt shows: "ซื้อ NVDA", "ราคาที่ได้จริง 130.60 USD", "จำนวนหุ้น 17.5941041", "วันที่ส่งคำสั่ง 23 พ.ค. 68 - 22:14 น."
+Expected output:
+{"index":0,"transactionType":"BUY","symbol":"NVDA","name":"NVIDIA Corporation","category":"stock","qty":17.5941041,"price":130.60,"date":"2025-05-23","time":"22:14"}
+
+EXAMPLE — Limit Order (Sell):
+Receipt shows: "ขาย NVDA", "60 หุ้น", "ราคาที่คุณตั้ง 172.18 USD", "ราคาที่ได้จริง 172.18 USD", "วันที่ส่งคำสั่ง 18 ก.ค. 68 - 21:28 น."
+Expected output:
+{"index":0,"transactionType":"SELL","symbol":"NVDA","name":"NVIDIA Corporation","category":"stock","qty":60,"price":172.18,"date":"2025-07-18","time":"21:28"}
+
+For each receipt image, output a JSON object. If analyzing multiple images, output a JSON array.
+Each object MUST include the "index" field matching the SLIP INDEX number provided before each image.
+
+Output ONLY valid JSON — no explanations, no markdown, no extra text.`;
 }
 
 /**
- * Parse raw OCR text from a Dime! receipt.
+ * Gemini response schema for structured output.
+ * Forces the AI to return data in exactly this shape.
  */
-export function parseDimeReceipt(rawText) {
-  if (!rawText || rawText.trim().length < 20) return null;
-  
-  // Normalize character variants and spacing issues first
-  const text = normalizeOcrText(rawText);
-
-  // Extract the first 15 lines to find transaction type & ticker (wider window handles top empty/garbage lines)
-  const searchLines = text.split(/[\r\n]+/).slice(0, 15).join("\n");
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // Transaction type — support standard terms and common OCR typos
-  // ──────────────────────────────────────────────────────────────────────────
-  let transactionType = "BUY";
-  if (/ขาย|ทาย|นาบ|นาก|uo|Sell|SELL/i.test(searchLines)) {
-    transactionType = "SELL";
-  } else if (/ซื้อ|ชื้อ|ชือ|ซือ|ซื่อ|do|bo|Buy|BUY/i.test(searchLines)) {
-    transactionType = "BUY";
-  }
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // Symbol — look for ticker right after Buy/Sell keywords (optional spaces)
-  // ──────────────────────────────────────────────────────────────────────────
-  let symbol = null;
-  const txMatch = searchLines.match(/(?:ซื้อ|ขาย|do|uo|ชื้อ|ชือ|ซือ|ซื่อ|Buy|Sell)\s*(?:สำเร็จ|หุ้น|กองทุน)?\s*([A-Za-z0-9.-]{1,10})/i);
-  if (txMatch) symbol = txMatch[1];
-
-  if (!symbol) {
-    // Fallback: ticker adjacent to exchange name
-    const exMatch = searchLines.match(/\b([A-Za-z0-9.-]{2,10})\b\s*(?:NASDAQ|NYSE|BATS|SET|ASX)/i);
-    if (exMatch) symbol = exMatch[1];
-  }
-
-  if (!symbol) {
-    // Fallback 2: Look at the first 10 lines for any word that is 2-6 uppercase English letters,
-    // excluding known common keywords.
-    const blacklist = new Set(["BUY", "SELL", "USD", "THB", "DIME", "FAST", "MARKET", "LIMIT", "BATS", "NASDAQ", "NYSE", "SET", "ASX"]);
-    const lines = text.split(/[\r\n]+/);
-    for (let i = 0; i < Math.min(lines.length, 10); i++) {
-      const words = lines[i].match(/\b[A-Za-z]{2,6}\b/g);
-      if (words) {
-        for (const w of words) {
-          const wUpper = w.toUpperCase();
-          if (!blacklist.has(wUpper)) {
-            symbol = wUpper;
-            break;
-          }
-        }
-      }
-      if (symbol) break;
-    }
-  }
-
-  // Map common garbled Thai characters back to English symbols
-  if (symbol) {
-    const symUpper = symbol.trim().toUpperCase();
-    if (symUpper === "เบ" || symUpper === "เน" || symUpper === "เม" || symUpper === "เU") {
-      symbol = "MU";
-    } else if (symUpper === "กอ" || symUpper === "กO") {
-      symbol = "KO";
-    } else {
-      // Clean symbol to only allow uppercase English letters, numbers, dots, and dashes
-      symbol = symUpper.replace(/[^A-Z0-9.-]/g, "");
-    }
-  }
-
-  if (!symbol || /^\d+$/.test(symbol)) return null;
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // Category
-  // ──────────────────────────────────────────────────────────────────────────
-  const CRYPTO = new Set(["BTC","ETH","SOL","XRP","ADA","DOT","MATIC","AVAX","LINK","UNI","BNB","USDT","DOGE"]);
-  let category = "stock";
-  if (CRYPTO.has(symbol)) category = "crypto";
-  if (/Bitkub|Binance|คริปโต/i.test(text)) category = "crypto";
-  if (/ทอง|Gold|XAU/i.test(text) && !CRYPTO.has(symbol)) category = "gold";
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // Quantity — หุ้น may be garbled by Tesseract
-  // ──────────────────────────────────────────────────────────────────────────
-  let qty = null;
-
-  // Extract the text section between the Exchange/Header and the Price Table Header
-  const headerMatch = text.match(/(?:NASDAQ|NYSE|BATS|SET|ASX|ซื้อ|ขาย|do|uo)[\s\S]*?(?=ราคา(?!ตลาด)|ธาคา(?!ตลาด)|ธาศา|รากา|ราค(?!ตลาด|าตลาด)|คุณตั้ง|ตั้ง|ได้จริง)/i);
-  if (headerMatch) {
-    const sectionText = headerMatch[0];
-    const unitPattern = /(?:หุ้น|หุน|ห[ุูu][้o]?[นn]|[Aa][uu]|[Ii][uu]|[Uu][uu]|[Hh][uu][nN]|[Aa][nN]|[Uu][nN]|[Kk][uu]|[ศสช][ุูu][้o]?[นn]|shares?|หน่วย|หนวย|หน[วว][ยย]|units?|เหรียญ|เหรียณ|coins?)/i;
-    const qtyUnitMatch = sectionText.match(new RegExp(`(\\d+(?:,\\d{3})*(?:\\.\\d+)?)\\s*${unitPattern.source}`, "i"));
-    if (qtyUnitMatch) {
-      qty = parseFloat(qtyUnitMatch[1].replace(/,/g, ""));
-    } else {
-      // Fallback: pick the last non-zero number in the section if no unit matched
-      const numMatches = extractCleanNumbers(sectionText);
-      if (numMatches.length > 0) {
-        const candidates = numMatches.filter(n => n < 10000);
-        if (candidates.length > 0) {
-          qty = candidates[candidates.length - 1];
-        }
-      }
-    }
-  }
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // Price — "ราคาที่ได้จริง" is the SECOND column in a two-column table.
-  // ──────────────────────────────────────────────────────────────────────────
-  let price = null;
-  let qtyFromTable = null;
-
-  const priceBlockMatch = text.match(
-    /(?:ราคา(?!ตลาด)|ธาคา(?!ตลาด)|ธาศา|รากา|ราค(?!ตลาด|าตลาด)|คุณตั้ง|ได้จริง|ได้จ|ได้959|ได้จ5)[\s\S]*?(?=ยอดที่|ยอด|มูลค่า|ค่าคอม|คุณได้รับ|$)/i
-  );
-  if (priceBlockMatch) {
-    const blockText = priceBlockMatch[0];
-    
-    // Find all USD amounts by matching numbers followed by common currency word garbles
-    const usdRe = /(?:^|[\s,()\-+*/])(\d+(?:,\d{3})*(?:\.\d+)?)\s*(?:USD|บรอ|บรอ|บรอ|บรอ|บรอ|บรั|บรต|บธ|บธิ|บธุ|บธ|บร)(?=$|[\s,()\-+*/])/gi;
-    const usdValues = [];
-    let m;
-    while ((m = usdRe.exec(blockText)) !== null) {
-      usdValues.push(parseAmt(m[1]));
-    }
-    
-    const allNums = extractCleanNumbers(blockText);
-    
-    // Line-by-line layout analysis (price and qty side-by-side)
-    const lines = blockText.split(/[\r\n]+/);
-    for (const line of lines) {
-      const lineNums = extractCleanNumbers(line);
-      if (lineNums.length === 2) {
-        if (transactionType === "BUY" && !qty) {
-          // Buy market order: Price is first, Qty is second
-          price = lineNums[0];
-          qtyFromTable = lineNums[1];
-        } else {
-          // Limit order: Limit Price is first, Executed Price is second
-          price = lineNums[1];
-        }
-      }
-    }
-    
-    // If layout analysis didn't find price, fall back to currency-labeled values
-    if (!price && usdValues.length > 0) {
-      price = usdValues[usdValues.length - 1]; // rightmost = executed price
-    }
-
-    // Flat block-level fallback if line-by-line or currency match was partial
-    if ((!price || (!qty && !qtyFromTable)) && allNums.length >= 2) {
-      if (transactionType === "BUY" && !qty) {
-        if (!price) price = allNums[0];
-        if (!qtyFromTable) qtyFromTable = allNums[1];
-      } else {
-        if (!price) price = allNums[allNums.length - 1];
-      }
-    }
-    
-    // If layout analysis didn't find qty, filter allNums
-    if (!qty && !qtyFromTable) {
-      const nonUsdNums = allNums.filter(n => !usdValues.includes(n) && n !== price);
-      if (nonUsdNums.length > 0) {
-        qtyFromTable = nonUsdNums[0];
-      }
-    }
-  }
-
-  // GLOBAL FALLBACK: If block matching failed, scan the entire text line-by-line
-  if (!price || (!qty && !qtyFromTable)) {
-    const lines = text.split(/[\r\n]+/);
-    for (const line of lines) {
-      const lineNums = extractCleanNumbers(line);
-      if (lineNums.length === 2 && /USD|บรอ|บรั|บรต|บธ|บธิ|บธุ|บธ|บร/i.test(line)) {
-        if (transactionType === "BUY" && !qty) {
-          if (!price) price = lineNums[0];
-          if (!qtyFromTable) qtyFromTable = lineNums[1];
-        } else {
-          if (!price) price = lineNums[1];
-        }
-      }
-    }
-  }
-
-  // If quantity was not in header but was in table (Buy Market orders)
-  if (qtyFromTable && !qty) {
-    qty = qtyFromTable;
-  }
-
-  // Final fallback using a global search in case header matching failed
-  if (!qty) {
-    const unitPattern = /(?:หุ้น|หุน|ห[ุูu][้o]?[นn]|[Aa][uu]|[Ii][uu]|[Uu][uu]|[Hh][uu][nN]|[Aa][nN]|[Uu][nN]|[Kk][uu]|[ศสช][ุูu][้o]?[นn]|shares?|หน่วย|หนวย|หน[วว][ยย]|units?|เหรียญ|เหรียณ|coins?)/i;
-    const globalMatch = text.match(new RegExp(`(\\d+(?:,\\d{3})*(?:\\.\\d+)?)\\s*${unitPattern.source}`, "i"));
-    if (globalMatch) {
-      qty = parseFloat(globalMatch[1].replace(/,/g, ""));
-    }
-  }
-
-  // Fallback executed price section search
-  if (!price) {
-    const execSection = text.match(/(?:ราคาที่ได้จริง|ราคาที่ได้|ได้จริง|ราคาที่ได้959|ราคที่ได้จ5|ธาคา|รวยกีโช้จ5)[\s\S]{0,150}/i);
-    if (execSection) {
-      const allUSD = [];
-      const usdRe = /(?:^|[\s,()\-+*/])(\d+(?:,\d{3})*(?:\.\d+)?)\s*(?:USD|บรอ|บรอ|บรอ|บรอ|บรอ|บรั|บรต|บธ|บธิ|บธุ|บธ|บร)(?=$|[\s,()\-+*/])/gi;
-      let m;
-      while ((m = usdRe.exec(execSection[0])) !== null) {
-        allUSD.push(parseAmt(m[1]));
-      }
-      if (allUSD.length > 0) price = allUSD[allUSD.length - 1];
-    }
-  }
-
-  // Fallback: derive price from total ÷ qty
-  if (!price && qty && qty > 0) {
-    const totalMatch = text.match(
-      /(?:ยอดที่ต้องชำระ|ยอดที่จะได้รับคืน|ยอดที่ต้องชําระ|ยอดที่|มูลค่าหุ้น|มูลค่า)[\s\S]{0,100}?([\d,]+\.?\d*)\s*USD/i
-    );
-    if (totalMatch) {
-      price = parseAmt(totalMatch[1]) / qty;
-    }
-  }
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // Date & Time — from "วันที่ส่งคำสั่ง  19 พ.ค. 69 - 02:22 น."
-  // ──────────────────────────────────────────────────────────────────────────
-  let date = null;
-  let time = "";
-  const dateLine = text.match(/วันที่ส่งคำสั่ง[\s\S]{0,120}/) || text.match(/วันที่สำเร็จ[\s\S]{0,120}/);
-  if (dateLine) {
-    date = parseThaiDate(dateLine[0]);
-    time = parseThaiTime(dateLine[0]) || "";
-  }
-  if (!date) date = parseThaiDate(text);
-  if (!date) date = new Date().toISOString().split("T")[0];
-  if (!time) time = parseThaiTime(text) || "";
-
+export function getDimeReceiptSchema() {
   return {
-    symbol:          symbol.toUpperCase(),
-    name:            symbol.toUpperCase(),
-    category,
-    transactionType,
-    qty,
-    price,
-    date,
-    time,
+    type: "ARRAY",
+    items: {
+      type: "OBJECT",
+      properties: {
+        index:           { type: "INTEGER",  description: "Image index number" },
+        transactionType: { type: "STRING",   description: "BUY or SELL",                     enum: ["BUY", "SELL"] },
+        symbol:          { type: "STRING",   description: "Stock ticker symbol (uppercase)" },
+        name:            { type: "STRING",   description: "Full company/asset name" },
+        category:        { type: "STRING",   description: "Asset category",                  enum: ["stock", "crypto", "gold", "fiat"] },
+        qty:             { type: "NUMBER",   description: "Quantity of shares/units" },
+        price:           { type: "NUMBER",   description: "Executed price per share (ราคาที่ได้จริง)" },
+        date:            { type: "STRING",   description: "Transaction date in YYYY-MM-DD format" },
+        time:            { type: "STRING",   description: "Transaction time in HH:MM format" }
+      },
+      required: ["index", "transactionType", "symbol", "name", "category", "qty", "price", "date", "time"]
+    }
   };
 }
 
 /**
- * Crop the uploaded Dime! slip into 3 horizontal bands:
- * - Band 1 (Top): Buy/Sell and Stock Ticker (y: 10% to 35%)
- * - Band 2 (Middle): Price, Quantity table (y: 38% to 70%)
- * - Band 3 (Bottom): Execution Date & Time (y: 70% to 92%)
- * Uses HTML5 Canvas on client-side for relative percentage coordinates.
+ * Validate and clean a single parsed receipt from AI response.
+ * Returns a cleaned object or null if invalid.
  */
-export function cropReceiptBands(file) {
-  return new Promise((resolve) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-      const w = img.naturalWidth;
-      const h = img.naturalHeight;
+export function validateParsedReceipt(data, imageIndex) {
+  if (!data) return null;
 
-      // Helper to crop a percentage region and return as Blob
-      const getBandBlob = (syPct, shPct) => {
-        const sy = Math.floor(h * syPct);
-        const sh = Math.floor(h * shPct);
-        canvas.width = w;
-        canvas.height = sh;
-        ctx.clearRect(0, 0, w, sh);
-        ctx.drawImage(img, 0, sy, w, sh, 0, 0, w, sh);
-        return new Promise((res) => {
-          canvas.toBlob((blob) => res(blob), "image/jpeg", 0.90);
-        });
-      };
+  // ── Symbol cleanup ──
+  let symbol = String(data.symbol || "").trim().toUpperCase();
+  // Allow Thai mutual fund symbols with hyphens (e.g. K-USA, SCB-GOLD)
+  symbol = symbol.replace(/[^A-Z0-9.-]/g, "");
+  if (!symbol || /^\d+$/.test(symbol)) return null;
 
-      Promise.all([
-        getBandBlob(0.10, 0.25), // Band 1 (Top): y 10% to 35%
-        getBandBlob(0.38, 0.32), // Band 2 (Middle): y 38% to 70%
-        getBandBlob(0.70, 0.22)  // Band 3 (Bottom): y 70% to 92%
-      ]).then(([b1, b2, b3]) => {
-        resolve({ band1: b1, band2: b2, band3: b3 });
-      }).catch(() => {
-        resolve(null);
-      });
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      resolve(null);
-    };
-    img.src = url;
-  });
-}
+  // ── Quantity ──
+  const qty = parseFloat(data.qty);
+  if (isNaN(qty) || qty <= 0) return null;
 
-/**
- * Parse fields from 3 cropped text bands
- */
-export function parseDimeReceiptFromBands(text1, text2, text3) {
-  const t1 = normalizeOcrText(text1);
-  const t2 = normalizeOcrText(text2);
-  const t3 = normalizeOcrText(text3);
+  // ── Price ──
+  let price = parseFloat(data.price);
+  if (isNaN(price) || price <= 0) return null;
 
-  // 1. Transaction Type & Symbol from Band 1
-  let transactionType = "BUY";
-  if (/ขาย|ทาย|นาบ|นาก|uo|Sell|SELL/i.test(t1)) {
-    transactionType = "SELL";
-  } else if (/ซื้อ|ชื้อ|ชือ|ซือ|ซื่อ|do|bo|Buy|BUY/i.test(t1)) {
-    transactionType = "BUY";
+  // Sanity check: if price looks like a total (> $50,000 and qty > 1), divide
+  if (price > 50000 && qty > 1) {
+    price = Math.round((price / qty) * 100) / 100;
   }
 
-  let symbol = null;
-  const txMatch = t1.match(/(?:ซื้อ|ขาย|do|uo|ชื้อ|ชือ|ซือ|ซื่อ|Buy|Sell)\s*(?:สำเร็จ|หุ้น|กองทุน)?\s*([A-Za-z0-9.-]{1,10})/i);
-  if (txMatch) symbol = txMatch[1];
-
-  if (!symbol) {
-    const blacklist = new Set(["BUY", "SELL", "USD", "THB", "DIME", "FAST", "MARKET", "LIMIT", "BATS", "NASDAQ", "NYSE", "SET", "ASX"]);
-    const lines = t1.split(/[\r\n]+/);
-    for (let i = 0; i < Math.min(lines.length, 10); i++) {
-      const words = lines[i].match(/\b[A-Za-z]{2,6}\b/g);
-      if (words) {
-        for (const w of words) {
-          const wUpper = w.toUpperCase();
-          if (!blacklist.has(wUpper)) {
-            symbol = wUpper;
-            break;
-          }
-        }
-      }
-      if (symbol) break;
-    }
+  // ── Date validation ──
+  let date = String(data.date || "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    date = new Date().toISOString().split("T")[0];
+  }
+  // Sanity: year should be 2020-2030
+  const year = parseInt(date.split("-")[0]);
+  if (year < 2020 || year > 2030) {
+    date = new Date().toISOString().split("T")[0];
   }
 
-  if (symbol) {
-    const symUpper = symbol.trim().toUpperCase();
-    if (symUpper === "เบ" || symUpper === "เน" || symUpper === "เม" || symUpper === "เU") {
-      symbol = "MU";
-    } else if (symUpper === "กอ" || symUpper === "กO") {
-      symbol = "KO";
-    } else {
-      symbol = symUpper.replace(/[^A-Z0-9.-]/g, "");
-    }
+  // ── Time validation ──
+  let time = String(data.time || "");
+  if (!/^\d{1,2}:\d{2}$/.test(time)) {
+    time = "";
   }
 
-  // 2. Quantity & Price from Band 2
-  let qty = null;
-  const unitPattern = /(?:หุ้น|หุน|ห[ุูu][้o]?[นn]|[Aa][uu]|[Ii][uu]|[Uu][uu]|[Hh][uu][nN]|[Aa][nN]|[Uu][nN]|[Kk][uu]|[ศสช][ุูu][้o]?[นn]|shares?|หน่วย|หนวย|หน[วว][ยย]|units?|เหรียญ|เหรียณ|coins?)/i;
-  const qtyUnitMatch = t2.match(new RegExp(`(\\d+(?:,\\d{3})*(?:\\.\\d+)?)\\s*${unitPattern.source}`, "i"));
-  if (qtyUnitMatch) {
-    qty = parseFloat(qtyUnitMatch[1].replace(/,/g, ""));
-  } else {
-    const cleanNums = extractCleanNumbers(t2);
-    if (cleanNums.length > 0) {
-      const candidates = cleanNums.filter(n => n < 10000);
-      if (candidates.length > 0) {
-        qty = candidates[candidates.length - 1];
-      }
-    }
+  // ── Transaction type ──
+  const transactionType = String(data.transactionType || "BUY").toUpperCase();
+  if (transactionType !== "BUY" && transactionType !== "SELL") {
+    return null;
   }
 
-  let price = null;
-  const usdRe = /(?:^|[\s,()\-+*/])(\d+(?:,\d{3})*(?:\.\d+)?)\s*(?:USD|บรอ|บรั|บรต|บธ|บธิ|บธุ|บธ|บร)(?=$|[\s,()\-+*/])/gi;
-  const usdValues = [];
-  let m;
-  while ((m = usdRe.exec(t2)) !== null) {
-    usdValues.push(parseAmt(m[1]));
-  }
-
-  const allNums = extractCleanNumbers(t2);
-  const lines = t2.split(/[\r\n]+/);
-  for (const line of lines) {
-    const lineNums = extractCleanNumbers(line);
-    if (lineNums.length === 2) {
-      if (transactionType === "BUY" && !qty) {
-        price = lineNums[0];
-        qty = lineNums[1];
-      } else {
-        price = lineNums[1];
-      }
-    }
-  }
-
-  if (!price && usdValues.length > 0) {
-    price = usdValues[usdValues.length - 1];
-  }
-
-  if (!price && allNums.length > 0) {
-    const priceCandidates = allNums.filter(n => n !== qty);
-    if (priceCandidates.length > 0) {
-      price = priceCandidates[priceCandidates.length - 1];
-    }
-  }
-
-  // 3. Date & Time from Band 3
-  let date = parseThaiDate(t3);
-  let time = parseThaiTime(t3) || "";
-
-  if (!date) date = new Date().toISOString().split("T")[0];
-
-  const CRYPTO = new Set(["BTC","ETH","SOL","XRP","ADA","DOT","MATIC","AVAX","LINK","UNI","BNB","USDT","DOGE"]);
-  let category = "stock";
-  if (symbol && CRYPTO.has(symbol.toUpperCase())) category = "crypto";
-  if (/Bitkub|Binance|คริปโต/i.test(t2) || /Bitkub|Binance|คริปโต/i.test(t3)) category = "crypto";
-  if (symbol && /ทอง|Gold|XAU/i.test(symbol.toUpperCase())) category = "gold";
+  // ── Category ──
+  const VALID_CATEGORIES = new Set(["stock", "crypto", "gold", "fiat"]);
+  let category = String(data.category || "stock").toLowerCase();
+  if (!VALID_CATEGORIES.has(category)) category = "stock";
 
   return {
-    symbol: symbol ? symbol.toUpperCase() : null,
-    name: symbol ? symbol.toUpperCase() : null,
+    index: imageIndex ?? data.index ?? 0,
+    symbol,
+    name: String(data.name || symbol),
     category,
     transactionType,
     qty,
-    price,
+    price: Math.round(price * 100) / 100,
     date,
     time
   };
-}
-
-// ─── Tesseract worker (singleton, reused across images) ────────────────────
-let _worker = null;
-
-async function getWorker() {
-  if (_worker) return _worker;
-  _worker = await createWorker("tha+eng");
-  await _worker.setParameters({ preserve_interword_spaces: "1" });
-  return _worker;
-}
-
-/**
- * OCR a single image file using Tiered OCR Fallback:
- * Tier 1: Relative Canvas Cropping + Tesseract.js (high accuracy, no cross-talk)
- * Tier 2: Full image Tesseract.js OCR (fail-safe for cropped/non-standard screenshots)
- */
-export async function ocrReceiptFile(file, onProgress) {
-  try {
-    const worker = await getWorker();
-
-    // Tier 1: Band-based OCR
-    onProgress?.("อ่านสลิป (เฉพาะส่วน)...");
-    const bands = await cropReceiptBands(file);
-    let parsed = null;
-    let rawText = "";
-
-    if (bands && bands.band1 && bands.band2 && bands.band3) {
-      const res1 = await worker.recognize(bands.band1);
-      const text1 = res1.data.text;
-
-      const res2 = await worker.recognize(bands.band2);
-      const text2 = res2.data.text;
-
-      const res3 = await worker.recognize(bands.band3);
-      const text3 = res3.data.text;
-
-      rawText = `[BAND 1 - TOP]\n${text1}\n[BAND 2 - MIDDLE]\n${text2}\n[BAND 3 - BOTTOM]\n${text3}`;
-      parsed = parseDimeReceiptFromBands(text1, text2, text3);
-    }
-
-    // Tier 2: Full-image fallback if Tier 1 misses crucial fields
-    if (!parsed || !parsed.symbol || !parsed.qty || !parsed.price) {
-      onProgress?.("อ่านสลิป (เต็มใบ)...");
-      const { data: { text } } = await worker.recognize(file);
-      rawText = text;
-      parsed = parseDimeReceipt(text);
-    }
-
-    // Debug: expose raw text in dev
-    if (import.meta.env?.DEV) console.log("[OCR raw]", rawText);
-
-    if (!parsed || !parsed.symbol || !parsed.qty || !parsed.price) {
-      return { success: false, error: "ไม่สามารถอ่านข้อมูลหุ้น จำนวน หรือราคาได้ครบถ้วน", rawText };
-    }
-    return { success: true, ...parsed, rawText };
-  } catch (err) {
-    return { success: false, error: err.message };
-  }
-}
-
-export async function terminateTesseract() {
-  if (_worker) { await _worker.terminate(); _worker = null; }
 }

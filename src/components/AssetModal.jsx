@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { X, Search, Save, Plus, Trash2, ChevronDown, ChevronUp, History } from "lucide-react";
-import { ocrReceiptFile, terminateTesseract } from "../utils/ocrParser.js";
+import { buildDimeReceiptPrompt, getDimeReceiptSchema, validateParsedReceipt } from "../utils/ocrParser.js";
 
 /* ─── Global Currencies List (165+ สกุลเงินทั่วโลก) ─── */
 const CURRENCIES = [
@@ -298,304 +298,208 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
     const fileErrors = {};
     const succeededIndices = new Set();
 
-    // Helper for concurrency-limited parallel execution
-    const limitConcurrency = async (items, limit, fn) => {
-      const results = [];
-      const executing = new Set();
-      for (const item of items) {
-        const p = Promise.resolve().then(() => fn(item));
-        results.push(p);
-        executing.add(p);
-        const clean = () => executing.delete(p);
-        p.then(clean, clean);
-        if (executing.size >= limit) {
-          await Promise.race(executing);
-        }
-      }
-      return Promise.all(results);
-    };
-
     const geminiKey = localStorage.getItem("gemini_api_key");
 
-    if (geminiKey) {
-      // ══════════════════════════════════════════════════════════════════════
-      // PRIMARY: Google Gemini Vision API Batch OCR (High Accuracy & Speed)
-      // ══════════════════════════════════════════════════════════════════════
-      setScanningStatus(prev => ({ ...prev, stage: "AI Vision Batch: กำลังประมวลผลไฟล์ภาพ..." }));
+    // ══════════════════════════════════════════════════════════════════════
+    // Guard: Gemini API Key is REQUIRED for receipt scanning
+    // ══════════════════════════════════════════════════════════════════════
+    if (!geminiKey) {
+      setScanning(false);
+      setScanningStatus({ active: false, total: 0, completed: 0 });
+      triggerToast(
+        "⚠️ กรุณาตั้งค่า Gemini API Key ก่อนใช้งานสแกนสลิป\n" +
+        "ไปที่ ⚙️ Settings → ใส่ Gemini API Key (ฟรี)\n" +
+        "สมัครได้ที่ aistudio.google.com",
+        "warning"
+      );
+      return;
+    }
 
-      const imagesToProcess = [];
-      for (let idx = 0; idx < fileList.length; idx++) {
-        try {
-          const { base64, mime } = await compressImage(fileList[idx]);
-          imagesToProcess.push({ index: idx, base64, mime });
-        } catch (compressErr) {
-          fileErrors[idx] = `รูป ${idx + 1} (Compression): ${compressErr.message}`;
+    // ══════════════════════════════════════════════════════════════════════
+    // Step 1: Compress all images to base64
+    // ══════════════════════════════════════════════════════════════════════
+    setScanningStatus(prev => ({ ...prev, stage: "📦 กำลังบีบอัดรูปภาพ..." }));
+    const imagesToProcess = [];
+    for (let idx = 0; idx < fileList.length; idx++) {
+      try {
+        const { base64, mime } = await compressImage(fileList[idx]);
+        imagesToProcess.push({ index: idx, base64, mime });
+      } catch (compressErr) {
+        fileErrors[idx] = `รูป ${idx + 1} (Compression): ${compressErr.message}`;
+      }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // Step 2: Batch images into chunks of 5 for Gemini Vision API
+    // ══════════════════════════════════════════════════════════════════════
+    const BATCH_SIZE = 5;
+    const PARALLEL_BATCHES = 3;
+    const visionChunks = [];
+    for (let i = 0; i < imagesToProcess.length; i += BATCH_SIZE) {
+      visionChunks.push(imagesToProcess.slice(i, i + BATCH_SIZE));
+    }
+
+    // Build optimized prompt and schema
+    const prompt = buildDimeReceiptPrompt(fileList.length);
+    const responseSchema = getDimeReceiptSchema();
+
+    // ══════════════════════════════════════════════════════════════════════
+    // Step 3: Process chunks in parallel (up to PARALLEL_BATCHES at a time)
+    // ══════════════════════════════════════════════════════════════════════
+    let completedImages = 0;
+
+    const processChunk = async (chunk, chunkIdx) => {
+      setScanningStatus(prev => ({
+        ...prev,
+        stage: `🤖 AI Vision: กำลังสแกนกลุ่มที่ ${chunkIdx + 1}/${visionChunks.length} (${chunk.length} รูป)...`
+      }));
+
+      try {
+        const parts = [{ text: prompt }];
+        chunk.forEach(img => {
+          parts.push({ text: `\n--- SLIP INDEX: ${img.index} ---` });
+          parts.push({ inlineData: { mimeType: img.mime, data: img.base64 } });
+        });
+
+        const bodyObj = {
+          contents: [{ parts }],
+          generationConfig: {
+            responseMimeType: "application/json",
+            responseSchema
+          }
+        };
+
+        const response = await callGemini(geminiKey, bodyObj);
+        const candidateText = response?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        const jsonMatch = candidateText.match(/\[[\s\S]*\]/);
+
+        if (jsonMatch) {
+          const parsedArray = JSON.parse(jsonMatch[0]);
+          if (Array.isArray(parsedArray)) {
+            parsedArray.forEach((parsedData, arrayIdx) => {
+              let idx = parsedData.index;
+              let matchedImg = chunk.find(item => item.index === idx);
+              if (!matchedImg && arrayIdx < chunk.length) {
+                matchedImg = chunk[arrayIdx];
+                idx = matchedImg.index;
+              }
+              if (idx != null && matchedImg) {
+                const validated = validateParsedReceipt(parsedData, idx);
+                if (validated) {
+                  newScannedItems.push({
+                    id: `${Date.now()}-ai-${idx}`,
+                    symbol:          validated.symbol,
+                    name:            validated.name,
+                    type:            validated.category,
+                    qty:             String(validated.qty),
+                    avgPrice:        String(validated.price),
+                    date:            validated.date,
+                    time:            validated.time,
+                    transactionType: validated.transactionType
+                  });
+                  succeededIndices.add(idx);
+                  delete fileErrors[idx];
+                } else {
+                  fileErrors[idx] = `รูป ${idx + 1}: AI อ่านได้แต่ข้อมูลไม่ครบหรือไม่ถูกต้อง`;
+                }
+              }
+            });
+          }
+        } else {
+          throw new Error("AI ไม่ส่งข้อมูล JSON กลับมา");
         }
+      } catch (visionErr) {
+        console.error(`AI Vision Batch chunk ${chunkIdx + 1} failed:`, visionErr.message);
+        chunk.forEach(img => {
+          if (!succeededIndices.has(img.index)) {
+            fileErrors[img.index] = `รูป ${img.index + 1} (AI Vision): ${visionErr.message}`;
+          }
+        });
       }
 
-      const visionChunks = [];
-      for (let i = 0; i < imagesToProcess.length; i += 3) {
-        visionChunks.push(imagesToProcess.slice(i, i + 3));
-      }
+      // Update progress
+      completedImages += chunk.length;
+      setScanningStatus(prev => ({
+        ...prev,
+        completed: Math.min(fileList.length, completedImages)
+      }));
+    };
 
-      for (let c = 0; c < visionChunks.length; c++) {
-        const chunk = visionChunks[c];
-        setScanningStatus(prev => ({
-          ...prev,
-          stage: `AI Vision: กำลังสแกนรูปกลุ่มที่ ${c + 1}/${visionChunks.length}...`
-        }));
+    // Run chunks in parallel batches of PARALLEL_BATCHES
+    for (let i = 0; i < visionChunks.length; i += PARALLEL_BATCHES) {
+      const parallelGroup = visionChunks.slice(i, i + PARALLEL_BATCHES);
+      await Promise.allSettled(
+        parallelGroup.map((chunk, offset) => processChunk(chunk, i + offset))
+      );
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // Step 4: Retry failed images individually (single-image retry)
+    // ══════════════════════════════════════════════════════════════════════
+    const failedIndices = [];
+    for (let i = 0; i < fileList.length; i++) {
+      if (!succeededIndices.has(i)) failedIndices.push(i);
+    }
+
+    if (failedIndices.length > 0 && failedIndices.length <= 10) {
+      setScanningStatus(prev => ({ ...prev, stage: `🔄 ลองใหม่อีกครั้ง: ${failedIndices.length} รูปที่เหลือ...` }));
+
+      for (const idx of failedIndices) {
+        const img = imagesToProcess.find(img => img.index === idx);
+        if (!img) continue;
 
         try {
-          const prompt = `These are stock trading receipt images from the Dime! app (Thai broker).
-Please analyze each image and extract the transaction details in a JSON array.
-For each item, specify:
-- index: The index number corresponding to the image (e.g. the SLIP INDEX number shown below)
-- transactionType: "BUY" or "SELL" (look for "ซื้อ" / "ชื้อ" for BUY, "ขาย" for SELL)
-- symbol: Stock ticker in uppercase (e.g. NVDA, AAPL, MU, SCB-GOLD, K-USA)
-- name: Stock name or symbol
-- category: "stock" or "crypto" or "gold" or "fiat"
-- qty: Quantity of shares/units (numeric)
-- price: Executed price per share/unit (numeric, look for "ราคาที่ได้จริง" - DO NOT use the total price, extract the price per share)
-- date: Transaction date in YYYY-MM-DD format (Buddhist Era year conversion: "68" -> 2568 BE -> 2025 CE, "69" -> 2569 BE -> 2026 CE. Months: ม.ค.=01, ก.พ.=02, มี.ค.=03, เม.ย.=04, พ.ค.=05, มิ.ย.=06, ก.ค.=07, ส.ค.=08, ก.ย.=09, ต.ค.=10, พ.ย.=11, ธ.ค.=12)
-- time: Transaction time in HH:MM format (e.g. "15:40" or "02:22")
-
-Format the response strictly as a JSON array matching this schema:
-[
-  {
-    "index": number,
-    "transactionType": "BUY" | "SELL",
-    "symbol": "STRING",
-    "name": "STRING",
-    "category": "stock" | "crypto" | "gold" | "fiat",
-    "qty": number,
-    "price": number,
-    "date": "YYYY-MM-DD",
-    "time": "HH:MM"
-  }
-]`;
-
-          const parts = [{ text: prompt }];
-          chunk.forEach(img => {
-            parts.push({ text: `\n--- SLIP INDEX: ${img.index} ---` });
-            parts.push({ inlineData: { mimeType: img.mime, data: img.base64 } });
-          });
+          const parts = [
+            { text: prompt },
+            { text: `\n--- SLIP INDEX: ${idx} ---` },
+            { inlineData: { mimeType: img.mime, data: img.base64 } }
+          ];
 
           const bodyObj = {
             contents: [{ parts }],
-            generationConfig: { responseMimeType: "application/json" }
+            generationConfig: {
+              responseMimeType: "application/json",
+              responseSchema
+            }
           };
 
           const response = await callGemini(geminiKey, bodyObj);
           const candidateText = response?.candidates?.[0]?.content?.parts?.[0]?.text || "";
           const jsonMatch = candidateText.match(/\[[\s\S]*\]/);
+
           if (jsonMatch) {
             const parsedArray = JSON.parse(jsonMatch[0]);
-            if (Array.isArray(parsedArray)) {
-              parsedArray.forEach((parsedData, arrayIdx) => {
-                let idx = parsedData.index;
-                let matchedImg = chunk.find(item => item.index === idx);
-                if (!matchedImg && arrayIdx < chunk.length) {
-                  matchedImg = chunk[arrayIdx];
-                  idx = matchedImg.index;
-                }
-                if (idx != null && matchedImg) {
-                  let sym = String(parsedData.symbol).toUpperCase().replace(/[^A-Z0-9.-]/g, "");
-                  if (sym === "เบ" || sym === "เน" || sym === "เม" || sym === "เU") sym = "MU";
-                  if (sym === "กอ" || sym === "กO") sym = "KO";
-
-                  let qtyVal = parseFloat(parsedData.qty) || 1;
-                  let priceVal = parseFloat(parsedData.price) || 0;
-                  let parsedDate = parsedData.date;
-                  if (!parsedDate || !parsedDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                    parsedDate = new Date().toISOString().split("T")[0];
-                  }
-
-                  newScannedItems.push({
-                    id: `${Date.now()}-ai-${idx}`,
-                    symbol:          sym,
-                    name:            parsedData.name || sym,
-                    type:            parsedData.category || "stock",
-                    qty:             String(qtyVal),
-                    avgPrice:        String(priceVal),
-                    date:            parsedDate,
-                    time:            parsedData.time || "",
-                    transactionType: parsedData.transactionType || "BUY"
-                  });
-                  succeededIndices.add(idx);
-                  delete fileErrors[idx];
-                }
-              });
-            }
-          }
-        } catch (visionErr) {
-          console.error(`AI Vision Batch chunk ${c+1} failed:`, visionErr.message);
-          chunk.forEach(img => {
-            if (!succeededIndices.has(img.index)) {
-              fileErrors[img.index] = `รูป ${img.index + 1} (AI Vision): ${visionErr.message}`;
-            }
-          });
-        }
-
-        setScanningStatus(prev => ({
-          ...prev,
-          completed: Math.min(fileList.length, (c + 1) * 3)
-        }));
-      }
-    } else {
-      // ══════════════════════════════════════════════════════════════════════
-      // PRIMARY: Parallel Tesseract.js OCR + regex parser (if no Gemini API Key)
-      // ══════════════════════════════════════════════════════════════════════
-      setScanningStatus(prev => ({ ...prev, stage: "Tesseract OCR: กำลังสแกนตัวอักษรขนานกัน..." }));
-
-      let tessCompletedCount = 0;
-      const tesseractItems = fileList.map((file, idx) => ({ file, idx }));
-
-      try {
-        await limitConcurrency(tesseractItems, 4, async ({ file, idx }) => {
-          const result = await ocrReceiptFile(file, (stage) => {
-            setScanningStatus(prev => ({
-              ...prev,
-              stage: `รูปที่ ${idx + 1}: ${stage === "reading" ? "อ่านข้อความ" : "วิเคราะห์สลิป"}...`
-            }));
-          });
-
-          // Store rawText on the file object for the text batch AI fallback
-          file._rawText = result?.rawText || "";
-
-          if (result.success) {
-            succeededIndices.add(idx);
-            newScannedItems.push({
-              id: `${Date.now()}-tess-${idx}`,
-              symbol:          result.symbol,
-              name:            result.name || result.symbol,
-              type:            result.category || "stock",
-              qty:             result.qty ? String(result.qty) : "",
-              avgPrice:        result.price ? String(result.price) : "",
-              date:            result.date || new Date().toISOString().split("T")[0],
-              time:            result.time || "",
-              transactionType: result.transactionType || "BUY",
-            });
-          } else {
-            fileErrors[idx] = `รูป ${idx + 1}: ${result.error || "อ่านไม่ได้"} (ลองใช้ AI)`;
-          }
-
-          tessCompletedCount++;
-          setScanningStatus(prev => ({
-            ...prev,
-            completed: tessCompletedCount
-          }));
-        });
-      } catch (tessErr) {
-        console.warn("Tesseract batch run had errors:", tessErr.message);
-      }
-    }
-
-    // ══════════════════════════════════════════════════════════════════════
-    // API FALLBACK / FAILSAFE (Workers AI /api/ocr or Tesseract fallback if Gemini Vision failed)
-    // ══════════════════════════════════════════════════════════════════════
-    const failedIndices = [];
-    for (let i = 0; i < fileList.length; i++) {
-      if (!succeededIndices.has(i)) {
-        failedIndices.push(i);
-      }
-    }
-
-    if (failedIndices.length > 0) {
-      let userToken = "";
-      try {
-        const savedUser = localStorage.getItem("portfolio_user");
-        if (savedUser) {
-          userToken = JSON.parse(savedUser)?.token || "";
-        }
-      } catch (e) {}
-
-      // Failsafe fallback: If Gemini was primary and failed for some images, try client-side Tesseract.js
-      if (geminiKey) {
-        setScanningStatus(prev => ({ ...prev, stage: "AI ล้มเหลว: กำลังกู้คืนด้วย Tesseract..." }));
-        for (const idx of failedIndices) {
-          const file = fileList[idx];
-          const result = await ocrReceiptFile(file, () => {});
-          file._rawText = result?.rawText || "";
-
-          if (result.success) {
-            succeededIndices.add(idx);
-            newScannedItems.push({
-              id: `${Date.now()}-tess-${idx}`,
-              symbol:          result.symbol,
-              name:            result.name || result.symbol,
-              type:            result.category || "stock",
-              qty:             result.qty ? String(result.qty) : "",
-              avgPrice:        result.price ? String(result.price) : "",
-              date:            result.date || new Date().toISOString().split("T")[0],
-              time:            result.time || "",
-              transactionType: result.transactionType || "BUY",
-            });
-            delete fileErrors[idx];
-          }
-        }
-      }
-
-      // Secondary failsafe fallback: call serverless Cloudflare Workers AI for remaining failures
-      const remainingFailedIndices = failedIndices.filter(i => !succeededIndices.has(i));
-      if (remainingFailedIndices.length > 0) {
-        for (const idx of remainingFailedIndices) {
-          setScanningStatus(prev => ({ ...prev, completed: idx, stage: `Workers AI Fallback: รูปที่ ${idx + 1}...` }));
-          const file = fileList[idx];
-          try {
-            const { base64, mime } = await compressImage(file);
-            let parsedData = null;
-
-            const res = await fetch("/api/ocr", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${userToken}`
-              },
-              body: JSON.stringify({ images: [{ base64, mime }] })
-            });
-            if (res.ok) {
-              const resData = await res.json();
-              if (resData.results && resData.results.length > 0) parsedData = resData.results[0];
-            }
-
-            if (parsedData && parsedData.symbol) {
-              let sym = String(parsedData.symbol).toUpperCase().replace(/[^A-Z0-9.-]/g, "");
-              if (sym === "เบ" || sym === "เน" || sym === "เม" || sym === "เU") sym = "MU";
-              if (sym === "กอ" || sym === "กO") sym = "KO";
-
-              let qtyVal = parseFloat(parsedData.qty) || 1;
-              let priceVal = parseFloat(parsedData.price) || 0;
-              let parsedDate = parsedData.date;
-              if (!parsedDate || !parsedDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                parsedDate = new Date().toISOString().split("T")[0];
+            if (Array.isArray(parsedArray) && parsedArray.length > 0) {
+              const validated = validateParsedReceipt(parsedArray[0], idx);
+              if (validated) {
+                newScannedItems.push({
+                  id: `${Date.now()}-retry-${idx}`,
+                  symbol:          validated.symbol,
+                  name:            validated.name,
+                  type:            validated.category,
+                  qty:             String(validated.qty),
+                  avgPrice:        String(validated.price),
+                  date:            validated.date,
+                  time:            validated.time,
+                  transactionType: validated.transactionType
+                });
+                succeededIndices.add(idx);
+                delete fileErrors[idx];
               }
-
-              newScannedItems.push({
-                id: `${Date.now()}-ai-${idx}`,
-                symbol:          sym,
-                name:            parsedData.name || sym,
-                type:            parsedData.category || "stock",
-                qty:             String(qtyVal),
-                avgPrice:        String(priceVal),
-                date:            parsedDate,
-                time:            parsedData.time || "",
-                transactionType: parsedData.transactionType || "BUY"
-              });
-              succeededIndices.add(idx);
-              delete fileErrors[idx];
-            } else {
-              throw new Error("ไม่สามารถดึงข้อมูลรายการหุ้นได้สำเร็จ");
             }
-          } catch (err) {
-            console.error(`Fallback failed for image ${idx + 1}:`, err.message);
-            fileErrors[idx] = `รูป ${idx + 1} (Workers AI Fallback): ${err.message}`;
           }
+        } catch (retryErr) {
+          console.error(`Retry failed for image ${idx + 1}:`, retryErr.message);
+          fileErrors[idx] = `รูป ${idx + 1}: สแกนไม่สำเร็จ — ${retryErr.message}`;
         }
       }
     }
 
     setScanningStatus(prev => ({ ...prev, completed: fileList.length }));
 
+    // ══════════════════════════════════════════════════════════════════════
+    // Step 5: Deliver results
+    // ══════════════════════════════════════════════════════════════════════
     if (newScannedItems.length > 0) {
       if (newScannedItems.length === 1 && scannedQueue.length === 0) {
         const item = newScannedItems[0];
