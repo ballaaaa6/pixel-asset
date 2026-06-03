@@ -16,6 +16,7 @@ Welcome to the US Stock Tracker project! This repository contains an `.agents/` 
 2. **Clickable File Links**: When communicating in chat or writing walkthroughs, always create clickable file links using the scheme `file:///path/to/file` (e.g. `[Dashboard.jsx](file:///d:/antigravity/us%20stock%20tracker/src/components/Dashboard.jsx)`).
 3. **No Placeholders**: Do not write placeholder assets. If you need demo images, use image generation.
 4. **Preserve Documentation**: Maintain existing codebase documentation, comments, and docstrings.
+5. **Always Push/Upload to Cloud**: Every time you modify, fix, or optimize any code, compile/build it successfully and then commit and push/upload the changes to the remote cloud repository (GitHub/Cloudflare Pages) immediately in the same turn without waiting for the user to ask or prompt.
 
 ## Active Session Flow
 - Check `.agents/active.md` to see the current active task and branch.

@@ -31,8 +31,8 @@ Schema:
 {
   "action": "BUY" or "SELL",
   "symbol": "ticker",
-  "actual_price": "string_or_number",
-  "share_amount": "string_or_number",
+  "actual_price": "string",
+  "share_amount": "string",
   "raw_date": "string",
   "timestamp": "ISO 8601 YYYY-MM-DDTHH:MM:SS"
 }
@@ -51,7 +51,7 @@ RULES FOR EXTRACTION:
 3. RAW DATE & TIMESTAMP:
    - The date and time can be located in two main places:
      A. Top Status Card: Inside parentheses of the "สถานะ" (Status) card (e.g. "สถานะ (ณ 5 ก.ย. 68 - 20:43 น.)" or "สถานะ (ณ 22 ก.ค. 68 - 13:33 น.)").
-     B. Bottom Details Section: Next to "วันที่ส่งคำสั่ง" or "วันที่คำสั่งสำเร็จ" (e.g. "วันที่ส่งคำสั่ง: 5 ก.ย. 68 - 20:43 น.").
+     B. Bottom Details Section: Next to "วันที่ส่งคำสั่ง" or "วันที่ส่งคำสั่งสำเร็จ" (e.g. "วันที่ส่งคำสั่ง: 5 ก.ย. 68 - 20:43 น.").
    - Extract the full raw date-time string as "raw_date" (e.g., "5 ก.ย. 68 - 20:43 น." or "ณ 22 ก.ค. 68 - 13:33 น."). Look at both places and use whichever is visible and most complete.
    - For "timestamp", convert it to ISO 8601 (YYYY-MM-DDTHH:MM:SS) format if possible.
      - Convert Thai Buddhist Era year (YY) to CE Gregorian year: YY + 1957 (e.g. 68 -> 2025, 69 -> 2026).
@@ -59,11 +59,18 @@ RULES FOR EXTRACTION:
 
 4. ACTUAL PRICE (ราคาที่ได้จริง - Price Per Share):
    - Always locate the label "ราคาที่ได้จริง" (Executed/Actual Price).
-   - Extract the value shown directly under or next to it (e.g. "168.55 USD", "183.17 USD", "172.10 USD", "172.18 USD").
-   - Ignore "ราคาที่คุณตั้ง" (Your set price) and total transaction amounts like "ยอดที่ต้องชำระ" / "ยอดที่จะได้รับคืน" / "มูลค่าหุ้น".
+   - The value is the executed price per share (usually followed by "USD", e.g. "130.60 USD" or "183.17 USD" or "172.10 USD" or "172.18 USD").
+   - Extract only the price per share (e.g., "130.60").
+   - CRITICAL WARNING: For US stocks (like NVDA, AAPL, TSLA), the price per share is ALWAYS in USD (e.g., "130.60 USD"). Never extract any value in THB (e.g., "74,999.87 THB", "112.50 THB") as the price per share.
+   - CRITICAL WARNING: Never extract total transaction amounts or fee values, including:
+     - "มูลค่าหุ้น" (Total Stock Value, e.g., "74,999.87 THB")
+     - "ยอดที่ต้องชำระ" / "ยอดที่จะได้รับคืน" (Total Payment / Payout, e.g., "17,296.18 USD")
+     - "จำนวนเงิน (USD)" (Total Payout in USD, e.g., "2,297.79 USD")
+     - "ค่าคอมมิชชัน" (Commission, e.g., "112.50 THB")
+     - "ภาษีมูลค่าเพิ่ม 7% (VAT)" (VAT) or "ค่าธรรมเนียม" (Fees)
 
 5. SHARE AMOUNT (Quantity of shares/units):
-   - You must be extremely careful to extract fractional shares (decimals, e.g. 84.0321676 or 100.5480039). Do not truncate, round, or omit any digits!
+   - You must be extremely careful to extract fractional shares (decimals, e.g. 84.0321676 or 17.5941041 or 100.5480039). Do not truncate, round, or omit any digits!
    - Determine which layout the receipt uses:
      - Layout 1: There is a row in the table labeled "จำนวนหุ้น" (Number of shares) or "จำนวนหน่วย" (e.g. "จำนวนหุ้น: 84.0321676"). Extract this decimal number.
      - Layout 2: There is NO "จำนวนหุ้น" or "จำนวนหน่วย" row in the table. Instead, look at the top section under the ticker header. There is a big bold number followed by "หุ้น" or "หน่วย" (e.g. "1 หุ้น", "60 หุ้น", "100.5480039 หุ้น"). Extract this number.
