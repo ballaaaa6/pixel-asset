@@ -11,6 +11,8 @@ async function hashPassword(password) {
 export async function onRequestPost(context) {
   const { request, env } = context;
   const PORTFOLIOS = env.PORTFOLIOS;
+  const SUPABASE_URL = env.SUPABASE_URL || "https://ajvcadeyfehgazrduvtt.supabase.co";
+  const SUPABASE_SERVICE_KEY = env.SUPABASE_SERVICE_ROLE_KEY || "";
 
   const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -31,12 +33,39 @@ export async function onRequestPost(context) {
 
     const cleanUsername = username.trim().toLowerCase();
 
-    // Check if user exists
-    let userJson = await PORTFOLIOS.get(`user:${cleanUsername}`);
+    let userJson = null;
+    let isFromSupabase = false;
 
-    // Pre-configured Admin Auto-Generation:
-    // If admin doesn't exist yet, we create it dynamically.
-    if (!userJson && cleanUsername === "admin") {
+    // Try Supabase first (for hosted environment)
+    if (SUPABASE_SERVICE_KEY && SUPABASE_URL) {
+      try {
+        const supabaseRes = await fetch(`${SUPABASE_URL}/rest/v1/users?username=eq.${encodeURIComponent(cleanUsername)}`, {
+          headers: {
+            "Authorization": `Bearer ${SUPABASE_SERVICE_KEY}`,
+            "apikey": SUPABASE_SERVICE_KEY,
+            "Content-Type": "application/json"
+          }
+        });
+
+        if (supabaseRes.ok) {
+          const users = await supabaseRes.json();
+          if (users && users.length > 0) {
+            userJson = JSON.stringify(users[0]);
+            isFromSupabase = true;
+          }
+        }
+      } catch (err) {
+        console.warn("Supabase query failed, falling back to KV:", err.message);
+      }
+    }
+
+    // Fallback to Cloudflare KV if Supabase failed or not configured
+    if (!userJson && PORTFOLIOS) {
+      userJson = await PORTFOLIOS.get(`user:${cleanUsername}`);
+    }
+
+    // Pre-configured Admin Auto-Generation (only in KV)
+    if (!userJson && cleanUsername === "admin" && PORTFOLIOS) {
       const adminHash = await hashPassword("123456");
       const adminId = crypto.randomUUID();
       const adminUser = {
@@ -44,7 +73,6 @@ export async function onRequestPost(context) {
         passwordHash: adminHash,
         id: adminId
       };
-      // Save admin to database
       await PORTFOLIOS.put("user:admin", JSON.stringify(adminUser));
       await PORTFOLIOS.put(`portfolio:${adminId}`, JSON.stringify([]));
       userJson = JSON.stringify(adminUser);
@@ -68,7 +96,7 @@ export async function onRequestPost(context) {
       );
     }
 
-    // Login successful - return a session token (we use the random UUID as a secure token)
+    // Login successful - return a session token
     return new Response(
       JSON.stringify({
         message: "เข้าสู่ระบบสำเร็จ!",
