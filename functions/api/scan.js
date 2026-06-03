@@ -163,6 +163,9 @@ async function callWorkersAIVision(ai, base64, mime) {
       image: imageBytes,
       max_tokens: 256,
       temperature: 0.0,
+      response_format: {
+        type: "json_object"
+      }
     });
   } catch (err) {
     // If terms of service code 5016, or license consent is required
@@ -181,12 +184,15 @@ async function callWorkersAIVision(ai, base64, mime) {
         // Wait 1.2 seconds for propagation on Cloudflare global edge
         await new Promise(r => setTimeout(r, 1200));
 
-        // Retry vision generation
+        // Retry vision generation with JSON mode
         response = await ai.run(model, {
           prompt: SYSTEM_PROMPT,
           image: imageBytes,
           max_tokens: 256,
           temperature: 0.0,
+          response_format: {
+            type: "json_object"
+          }
         });
       } catch (retryErr) {
         throw new Error(`Workers AI run failed after license agreement: ${retryErr.message}`);
@@ -196,7 +202,22 @@ async function callWorkersAIVision(ai, base64, mime) {
     }
   }
 
-  const resultText = response?.response || response?.text || "";
+  // Safe resultText string resolution
+  let resultText = "";
+  if (typeof response === "string") {
+    resultText = response;
+  } else if (response && typeof response === "object") {
+    if (typeof response.response === "string") {
+      resultText = response.response;
+    } else if (response.response && typeof response.response === "object") {
+      resultText = response.response.text || JSON.stringify(response.response);
+    } else if (typeof response.text === "string") {
+      resultText = response.text;
+    } else {
+      resultText = JSON.stringify(response);
+    }
+  }
+
   if (!resultText) {
     throw new Error("Empty response from Cloudflare Workers AI");
   }
