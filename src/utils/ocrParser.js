@@ -337,6 +337,177 @@ export function parseDimeReceipt(rawText) {
   };
 }
 
+/**
+ * Crop the uploaded Dime! slip into 3 horizontal bands:
+ * - Band 1 (Top): Buy/Sell and Stock Ticker (y: 10% to 35%)
+ * - Band 2 (Middle): Price, Quantity table (y: 38% to 70%)
+ * - Band 3 (Bottom): Execution Date & Time (y: 70% to 92%)
+ * Uses HTML5 Canvas on client-side for relative percentage coordinates.
+ */
+export function cropReceiptBands(file) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+
+      // Helper to crop a percentage region and return as Blob
+      const getBandBlob = (syPct, shPct) => {
+        const sy = Math.floor(h * syPct);
+        const sh = Math.floor(h * shPct);
+        canvas.width = w;
+        canvas.height = sh;
+        ctx.clearRect(0, 0, w, sh);
+        ctx.drawImage(img, 0, sy, w, sh, 0, 0, w, sh);
+        return new Promise((res) => {
+          canvas.toBlob((blob) => res(blob), "image/jpeg", 0.90);
+        });
+      };
+
+      Promise.all([
+        getBandBlob(0.10, 0.25), // Band 1 (Top): y 10% to 35%
+        getBandBlob(0.38, 0.32), // Band 2 (Middle): y 38% to 70%
+        getBandBlob(0.70, 0.22)  // Band 3 (Bottom): y 70% to 92%
+      ]).then(([b1, b2, b3]) => {
+        resolve({ band1: b1, band2: b2, band3: b3 });
+      }).catch(() => {
+        resolve(null);
+      });
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(null);
+    };
+    img.src = url;
+  });
+}
+
+/**
+ * Parse fields from 3 cropped text bands
+ */
+export function parseDimeReceiptFromBands(text1, text2, text3) {
+  const t1 = normalizeOcrText(text1);
+  const t2 = normalizeOcrText(text2);
+  const t3 = normalizeOcrText(text3);
+
+  // 1. Transaction Type & Symbol from Band 1
+  let transactionType = "BUY";
+  if (/ขาย|ทาย|นาบ|นาก|uo|Sell|SELL/i.test(t1)) {
+    transactionType = "SELL";
+  } else if (/ซื้อ|ชื้อ|ชือ|ซือ|ซื่อ|do|bo|Buy|BUY/i.test(t1)) {
+    transactionType = "BUY";
+  }
+
+  let symbol = null;
+  const txMatch = t1.match(/(?:ซื้อ|ขาย|do|uo|ชื้อ|ชือ|ซือ|ซื่อ|Buy|Sell)\s*(?:สำเร็จ|หุ้น|กองทุน)?\s*([A-Za-z0-9.-]{1,10})/i);
+  if (txMatch) symbol = txMatch[1];
+
+  if (!symbol) {
+    const blacklist = new Set(["BUY", "SELL", "USD", "THB", "DIME", "FAST", "MARKET", "LIMIT", "BATS", "NASDAQ", "NYSE", "SET", "ASX"]);
+    const lines = t1.split(/[\r\n]+/);
+    for (let i = 0; i < Math.min(lines.length, 10); i++) {
+      const words = lines[i].match(/\b[A-Za-z]{2,6}\b/g);
+      if (words) {
+        for (const w of words) {
+          const wUpper = w.toUpperCase();
+          if (!blacklist.has(wUpper)) {
+            symbol = wUpper;
+            break;
+          }
+        }
+      }
+      if (symbol) break;
+    }
+  }
+
+  if (symbol) {
+    const symUpper = symbol.trim().toUpperCase();
+    if (symUpper === "เบ" || symUpper === "เน" || symUpper === "เม" || symUpper === "เU") {
+      symbol = "MU";
+    } else if (symUpper === "กอ" || symUpper === "กO") {
+      symbol = "KO";
+    } else {
+      symbol = symUpper.replace(/[^A-Z0-9.-]/g, "");
+    }
+  }
+
+  // 2. Quantity & Price from Band 2
+  let qty = null;
+  const unitPattern = /(?:หุ้น|หุน|ห[ุูu][้o]?[นn]|[Aa][uu]|[Ii][uu]|[Uu][uu]|[Hh][uu][nN]|[Aa][nN]|[Uu][nN]|[Kk][uu]|[ศสช][ุูu][้o]?[นn]|shares?|หน่วย|หนวย|หน[วว][ยย]|units?|เหรียญ|เหรียณ|coins?)/i;
+  const qtyUnitMatch = t2.match(new RegExp(`(\\d+(?:,\\d{3})*(?:\\.\\d+)?)\\s*${unitPattern.source}`, "i"));
+  if (qtyUnitMatch) {
+    qty = parseFloat(qtyUnitMatch[1].replace(/,/g, ""));
+  } else {
+    const cleanNums = extractCleanNumbers(t2);
+    if (cleanNums.length > 0) {
+      const candidates = cleanNums.filter(n => n < 10000);
+      if (candidates.length > 0) {
+        qty = candidates[candidates.length - 1];
+      }
+    }
+  }
+
+  let price = null;
+  const usdRe = /(?:^|[\s,()\-+*/])(\d+(?:,\d{3})*(?:\.\d+)?)\s*(?:USD|บรอ|บรั|บรต|บธ|บธิ|บธุ|บธ|บร)(?=$|[\s,()\-+*/])/gi;
+  const usdValues = [];
+  let m;
+  while ((m = usdRe.exec(t2)) !== null) {
+    usdValues.push(parseAmt(m[1]));
+  }
+
+  const allNums = extractCleanNumbers(t2);
+  const lines = t2.split(/[\r\n]+/);
+  for (const line of lines) {
+    const lineNums = extractCleanNumbers(line);
+    if (lineNums.length === 2) {
+      if (transactionType === "BUY" && !qty) {
+        price = lineNums[0];
+        qty = lineNums[1];
+      } else {
+        price = lineNums[1];
+      }
+    }
+  }
+
+  if (!price && usdValues.length > 0) {
+    price = usdValues[usdValues.length - 1];
+  }
+
+  if (!price && allNums.length > 0) {
+    const priceCandidates = allNums.filter(n => n !== qty);
+    if (priceCandidates.length > 0) {
+      price = priceCandidates[priceCandidates.length - 1];
+    }
+  }
+
+  // 3. Date & Time from Band 3
+  let date = parseThaiDate(t3);
+  let time = parseThaiTime(t3) || "";
+
+  if (!date) date = new Date().toISOString().split("T")[0];
+
+  const CRYPTO = new Set(["BTC","ETH","SOL","XRP","ADA","DOT","MATIC","AVAX","LINK","UNI","BNB","USDT","DOGE"]);
+  let category = "stock";
+  if (symbol && CRYPTO.has(symbol.toUpperCase())) category = "crypto";
+  if (/Bitkub|Binance|คริปโต/i.test(t2) || /Bitkub|Binance|คริปโต/i.test(t3)) category = "crypto";
+  if (symbol && /ทอง|Gold|XAU/i.test(symbol.toUpperCase())) category = "gold";
+
+  return {
+    symbol: symbol ? symbol.toUpperCase() : null,
+    name: symbol ? symbol.toUpperCase() : null,
+    category,
+    transactionType,
+    qty,
+    price,
+    date,
+    time
+  };
+}
+
 // ─── Tesseract worker (singleton, reused across images) ────────────────────
 let _worker = null;
 
@@ -348,23 +519,49 @@ async function getWorker() {
 }
 
 /**
- * OCR a single image file and parse as Dime! receipt.
+ * OCR a single image file using Tiered OCR Fallback:
+ * Tier 1: Relative Canvas Cropping + Tesseract.js (high accuracy, no cross-talk)
+ * Tier 2: Full image Tesseract.js OCR (fail-safe for cropped/non-standard screenshots)
  */
 export async function ocrReceiptFile(file, onProgress) {
   try {
     const worker = await getWorker();
-    onProgress?.("reading");
-    const { data: { text } } = await worker.recognize(file);
-    onProgress?.("parsing");
+
+    // Tier 1: Band-based OCR
+    onProgress?.("อ่านสลิป (เฉพาะส่วน)...");
+    const bands = await cropReceiptBands(file);
+    let parsed = null;
+    let rawText = "";
+
+    if (bands && bands.band1 && bands.band2 && bands.band3) {
+      const res1 = await worker.recognize(bands.band1);
+      const text1 = res1.data.text;
+
+      const res2 = await worker.recognize(bands.band2);
+      const text2 = res2.data.text;
+
+      const res3 = await worker.recognize(bands.band3);
+      const text3 = res3.data.text;
+
+      rawText = `[BAND 1 - TOP]\n${text1}\n[BAND 2 - MIDDLE]\n${text2}\n[BAND 3 - BOTTOM]\n${text3}`;
+      parsed = parseDimeReceiptFromBands(text1, text2, text3);
+    }
+
+    // Tier 2: Full-image fallback if Tier 1 misses crucial fields
+    if (!parsed || !parsed.symbol || !parsed.qty || !parsed.price) {
+      onProgress?.("อ่านสลิป (เต็มใบ)...");
+      const { data: { text } } = await worker.recognize(file);
+      rawText = text;
+      parsed = parseDimeReceipt(text);
+    }
 
     // Debug: expose raw text in dev
-    if (import.meta.env?.DEV) console.log("[OCR raw]", text);
+    if (import.meta.env?.DEV) console.log("[OCR raw]", rawText);
 
-    const parsed = parseDimeReceipt(text);
     if (!parsed || !parsed.symbol || !parsed.qty || !parsed.price) {
-      return { success: false, error: "ไม่สามารถอ่านข้อมูลหุ้น จำนวน หรือราคาได้ครบถ้วน", rawText: text };
+      return { success: false, error: "ไม่สามารถอ่านข้อมูลหุ้น จำนวน หรือราคาได้ครบถ้วน", rawText };
     }
-    return { success: true, ...parsed, rawText: text };
+    return { success: true, ...parsed, rawText };
   } catch (err) {
     return { success: false, error: err.message };
   }

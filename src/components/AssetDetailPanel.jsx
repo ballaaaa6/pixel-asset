@@ -170,7 +170,7 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
     });
     if (containerRef.current) obs.observe(containerRef.current);
     return () => obs.disconnect();
-  }, []);
+  }, [candles]);
 
   const { W, H, PAD_L, PAD_R, PAD_T, PAD_B } = useMemo(() => ({
     W: dims.w, H: dims.h,

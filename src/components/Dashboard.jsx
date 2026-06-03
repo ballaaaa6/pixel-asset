@@ -235,7 +235,7 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
     });
     if (svgRef.current) obs.observe(svgRef.current);
     return () => obs.disconnect();
-  }, []);
+  }, [history]);
 
   const W = dims.w;
   const H = dims.h;
@@ -738,7 +738,7 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
 
   if (!history || history.length < 2) {
     return (
-      <div>
+      <div ref={svgRef}>
         <div className="chart-card-header">
           <span className="card-section-title" style={{ marginBottom: 0 }}>📈 มูลค่าพอร์ต</span>
           <div className="chart-range-tabs">
@@ -2174,18 +2174,8 @@ export default function Dashboard({ user, onLogout, showToast }) {
       return;
     }
 
-    // Check if dates are intraday (consecutive points are less than 18 hours apart)
-    let isShortTF = false;
-    Object.keys(sparklines).forEach(sym => {
-      const symData = sparklines[sym];
-      if (symData && symData.dates && symData.dates.length > 1) {
-        const d1 = new Date(symData.dates[0]).getTime();
-        const d2 = new Date(symData.dates[1]).getTime();
-        if (d1 && d2 && Math.abs(d2 - d1) < 18 * 3600000) {
-          isShortTF = true;
-        }
-      }
-    });
+    // Check if dates are intraday (1D, 5D, 1W)
+    const isShortTF = chartRange === "1D" || chartRange === "5D" || chartRange === "1W";
 
     // Parse and sort price points for each symbol to allow robust closest-date lookups
     const symbolPriceHistories = {};
@@ -2306,7 +2296,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
     if (earliestDate) {
       const earliestStr = earliestDate.split("T")[0];
       // ONLY clip or prepend the earliest purchase date if the purchase happened AFTER the timeframe started
-      if (!rawStartDateStr || earliestStr > rawStartDateStr) {
+      if (rawStartDateStr && earliestStr > rawStartDateStr) {
         timeline = timeline.filter(d => {
           const dStr = isShortTF ? d.split("T")[0] : d;
           return dStr >= earliestStr;
@@ -2413,7 +2403,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
     }
 
     setPortfolioHistory(history);
-  }, [sparklines, assets, prices, exchangeRate]);
+  }, [sparklines, assets, prices, exchangeRate, chartRange]);
 
   /* ── CHART RANGE CHANGE ── */
   const handleRangeChange = useCallback((r) => {
