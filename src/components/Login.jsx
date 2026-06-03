@@ -6,45 +6,43 @@ export default function Login({ onLoginSuccess, onNavigateToRegister, showToast 
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const autoLoginAttemptedRef = React.useRef(false);
 
   React.useEffect(() => {
+    if (autoLoginAttemptedRef.current) return;
+
     const params = new URLSearchParams(window.location.search);
     const autoUsername = params.get("username");
     const autoPassword = params.get("password");
 
     if (autoUsername && autoPassword) {
-      setUsername(autoUsername);
-      setPassword(autoPassword);
-      // Trigger auto-login
-      setTimeout(() => {
-        handleSubmitAuto(autoUsername, autoPassword);
-      }, 100);
+      autoLoginAttemptedRef.current = true;
+      setLoading(true);
+
+      (async () => {
+        try {
+          const response = await fetch("/api/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username: autoUsername, password: autoPassword }),
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.error || "ล็อกอินไม่สำเร็จ");
+          }
+
+          localStorage.setItem("portfolio_user", JSON.stringify(data));
+          showToast("ยินดีต้อนรับกลับเข้าสู่ระบบ!", "success");
+          onLoginSuccess(data);
+        } catch (err) {
+          showToast(err.message, "error");
+          setLoading(false);
+        }
+      })();
     }
-  }, []);
-
-  const handleSubmitAuto = async (autoUsername, autoPassword) => {
-    setLoading(true);
-    try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: autoUsername, password: autoPassword }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "ล็อกอินไม่สำเร็จ");
-      }
-
-      localStorage.setItem("portfolio_user", JSON.stringify(data));
-      showToast("ยินดีต้อนรับกลับเข้าสู่ระบบ!", "success");
-      onLoginSuccess(data);
-    } catch (err) {
-      showToast(err.message, "error");
-      setLoading(false);
-    }
-  };
+  }, [onLoginSuccess, showToast]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
