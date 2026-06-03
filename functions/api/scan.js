@@ -29,9 +29,9 @@ const CORS = {
   "Content-Type":                 "application/json",
 };
 
-// ─── Gemini endpoint (1.5 Flash — fast, cheap, vision-capable) ───────────────
+// ─── Gemini endpoint (3.5 Flash — fast, cheap, vision-capable) ───────────────
 const GEMINI_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent";
 
 // ─── JSON Schema for Structured Output ──────────────────────────────────────
 // Gemini will be forced to return EXACTLY these 5 fields — nothing more.

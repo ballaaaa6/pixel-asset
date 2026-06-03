@@ -259,9 +259,9 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
   const OLD_KEY = ""; // no old key to migrate
 
   const GEMINI_ENDPOINTS = [
+    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent" },
     { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" },
-    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent" },
-    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent" }
+    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent" }
   ];
 
   const callGemini = async (key, bodyObj, endpointIdx = 0, attempt = 0) => {
