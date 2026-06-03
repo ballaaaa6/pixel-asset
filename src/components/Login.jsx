@@ -7,6 +7,45 @@ export default function Login({ onLoginSuccess, onNavigateToRegister, showToast 
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const autoUsername = params.get("username");
+    const autoPassword = params.get("password");
+
+    if (autoUsername && autoPassword) {
+      setUsername(autoUsername);
+      setPassword(autoPassword);
+      // Trigger auto-login
+      setTimeout(() => {
+        handleSubmitAuto(autoUsername, autoPassword);
+      }, 100);
+    }
+  }, []);
+
+  const handleSubmitAuto = async (autoUsername, autoPassword) => {
+    setLoading(true);
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: autoUsername, password: autoPassword }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "ล็อกอินไม่สำเร็จ");
+      }
+
+      localStorage.setItem("portfolio_user", JSON.stringify(data));
+      showToast("ยินดีต้อนรับกลับเข้าสู่ระบบ!", "success");
+      onLoginSuccess(data);
+    } catch (err) {
+      showToast(err.message, "error");
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!username.trim() || !password.trim()) {
@@ -31,7 +70,7 @@ export default function Login({ onLoginSuccess, onNavigateToRegister, showToast 
       // Save user session in localStorage to enable Auto-Login
       localStorage.setItem("portfolio_user", JSON.stringify(data));
       showToast("ยินดีต้อนรับกลับเข้าสู่ระบบ!", "success");
-      
+
       // Trigger parent handler to display dashboard
       onLoginSuccess(data);
 
@@ -40,16 +79,6 @@ export default function Login({ onLoginSuccess, onNavigateToRegister, showToast 
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleLocalBypass = () => {
-    const mockUser = {
-      username: "local_user",
-      token: "local_mock_token_12345"
-    };
-    localStorage.setItem("portfolio_user", JSON.stringify(mockUser));
-    showToast("เข้าสู่ระบบแบบ Local Mode (ข้อมูลถูกบันทึกในเครื่องนี้เท่านั้น)", "success");
-    onLoginSuccess(mockUser);
   };
 
   return (
@@ -138,25 +167,6 @@ export default function Login({ onLoginSuccess, onNavigateToRegister, showToast 
           <button type="submit" className="btn btn-primary" disabled={loading}>
             {loading ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบทันที"}
             {!loading && <LogIn size={18} />}
-          </button>
-
-          {/* Local Mode Bypass Button */}
-          <button
-            type="button"
-            className="btn btn-secondary"
-            style={{
-              width: "100%",
-              marginTop: "12px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "8px",
-              border: "1px dashed var(--border)"
-            }}
-            onClick={handleLocalBypass}
-            disabled={loading}
-          >
-            ทดลองใช้งาน (Local Mode)
           </button>
         </form>
 

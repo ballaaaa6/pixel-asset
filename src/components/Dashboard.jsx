@@ -2049,19 +2049,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
 
   useEffect(() => {
     const fetchProfileSync = async () => {
-      if (user.username === "local_user") {
-        // Load profile details from localStorage for local_user
-        const cachedName = localStorage.getItem(`portfolio_name_${user.username}`);
-        if (cachedName) setPortfolioName(cachedName);
-        const cachedPic = localStorage.getItem(`profile_pic_${user.username}`);
-        if (cachedPic) setProfilePic(cachedPic);
-        const cachedNick = localStorage.getItem(`profile_nickname_${user.username}`);
-        if (cachedNick) {
-          setNickname(cachedNick);
-          setNewNickname(cachedNick);
-        }
-        return;
-      }
       try {
         const res = await fetch("/api/profile", {
           headers: {
@@ -2191,10 +2178,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
     setAssets(updatedAssets);
     localStorage.setItem(`local_portfolio_${user.username}`, JSON.stringify(updatedAssets));
 
-    if (user.username === "local_user") {
-      return;
-    }
-
     try {
       const res = await fetch("/api/portfolio", {
         method: "POST",
@@ -2213,14 +2196,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
   /* ── FETCH PORTFOLIO ── */
   const fetchPortfolio = async () => {
     try {
-      if (user.username === "local_user") {
-        const localData = JSON.parse(localStorage.getItem(`local_portfolio_${user.username}`) || "[]");
-        setAssets(localData);
-        await fetchPrices(localData);
-        if (localData.length > 0) fetchSparklines(localData, chartRange);
-        return;
-      }
-
       const res = await fetch("/api/portfolio", {
         headers: { Authorization: `Bearer ${user.token}` },
       });
