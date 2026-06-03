@@ -43,11 +43,12 @@ Extract the data into a JSON object with the following fields. Do not translate 
 }
 
 CRITICAL TRANSCRIPTION DIRECTIONS:
-1. DATE ACCURACY: Look extremely closely at the Thai month abbreviation in raw_date.
-   - "ม.ค." = มกราคม (January). Starts with 'ม' directly followed by '.' (no symbol on top).
-   - "มี.ค." = มีนาคม (March). Has a loop/curve vowel symbol 'ี' (ii) on top of 'ม'.
-   - "มิ.ย." = มิถุนายน (June). Has a single curve vowel symbol 'ิ' (i) on top of 'ม' and ends with 'ย'.
-   Make sure you transcribe the correct letters and vowels.
+1. DATE ACCURACY: Look extremely closely at the Thai month abbreviation in raw_date. The loopless modern Thai font (ไม่มีหัว) used by the app makes some letters look highly similar:
+   - "ก.ค." = กรกฎาคม (July). Starts with 'ก' (arch shape, open bottom, no curve inside).
+   - "ม.ค." = มกราคม (January). Starts with 'ม' (has a subtle loop/curve at the bottom left).
+   - "มิ.ย." = มิถุนายน (June). Has 'ม' with a curve vowel symbol 'ิ' on top, and ends with 'ย'.
+   - "มี.ค." = มีนาคม (March). Has 'ม' with a loop vowel symbol 'ี' on top, and ends with 'ค'.
+   Be extremely careful not to confuse "ก.ค." (July) with "ม.ค." (January) or "มิ.ย." (June) with "ม.ค." (January).
 
 2. NO FILLER: Output Raw JSON only. No markdown, no explanation. Start with '{', end with '}'.`;
 
