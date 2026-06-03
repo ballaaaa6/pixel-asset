@@ -30,13 +30,16 @@ Extract the data into a JSON object with the following fields. Do not translate 
 
 {
   "header_text": "The green/red text indicating the action and asset, e.g. 'ซื้อ NVDA' or 'ขาย NVDA'",
+  "header_color": "The color of the header text, which is either 'green' or 'red/pink'",
   "status_text": "The status section text at the top, e.g. 'จับคู่แล้ว', 'สำเร็จ. คุณได้รับเงินค่าขายคืนแล้ว', 'คำสั่งซื้อของคุณ...'",
   "bold_amount": "The large bold amount displayed under the asset name, e.g. '15,400.00 USD' or '100.5480039 หุ้น'",
   "symbol": "The uppercase stock ticker symbol, e.g. 'NVDA'",
   "actual_price": "The executed price per share next to 'ราคาที่ได้จริง', e.g. '183.12 USD' or '172.10 USD'",
   "stock_value": "The total stock value next to 'มูลค่าหุ้น', e.g. '15,400.00 USD' or '17,304.81 USD'",
   "qty_table": "The quantity of shares next to 'จำนวนหุ้น' or 'จำนวนหน่วย' in the details table if it exists (e.g. '84.0939307'), otherwise 'N/A'",
-  "raw_date": "The date-time string next to 'วันที่ส่งคำสั่ง', 'วันที่สำเร็จ', or inside the top card (e.g. '22 ก.ค. 68 - 13:33 น.')"
+  "raw_date": "The date-time string next to 'วันที่ส่งคำสั่ง', 'วันที่สำเร็จ', or inside the top card (e.g. '22 ก.ค. 68 - 13:33 น.')",
+  "has_received_cash_back_label": true or false, indicating if the label 'ยอดที่จะได้รับคืน' or phrase 'เงินค่าขายคืน' appears anywhere on the receipt,
+  "has_payment_amount_label": true or false, indicating if the label 'ยอดที่ต้องชำระ' appears anywhere on the receipt
 }
 
 OUTPUT: Raw JSON only. No markdown, no explanation. Start with '{', end with '}'.`;
@@ -144,16 +147,38 @@ function validateSlipData(raw) {
   const header = String(raw.header_text || "").toLowerCase();
   const status = String(raw.status_text || "").toLowerCase();
   const bold = String(raw.bold_amount || "").toLowerCase();
+  const color = String(raw.header_color || "").toLowerCase();
   const allText = JSON.stringify(raw).toLowerCase();
 
-  // Rule 1.1: Check header_text
-  if (header.includes("ซื้อ")) {
-    action = "BUY";
-  } else if (header.includes("ขาย")) {
+  // Heuristic 1.1: Check the explicit boolean labels from receipt contents (highly reliable)
+  const hasCashBack = raw.has_received_cash_back_label === true || raw.has_received_cash_back_label === "true";
+  const hasPayment = raw.has_payment_amount_label === true || raw.has_payment_amount_label === "true";
+
+  if (hasCashBack && !hasPayment) {
     action = "SELL";
+  } else if (hasPayment && !hasCashBack) {
+    action = "BUY";
   }
 
-  // Rule 1.2: Check status_text
+  // Heuristic 1.2: Check header_color (very reliable indicator of green vs red/pink)
+  if (!action) {
+    if (color.includes("red") || color.includes("pink")) {
+      action = "SELL";
+    } else if (color.includes("green")) {
+      action = "BUY";
+    }
+  }
+
+  // Heuristic 1.3: Check header_text
+  if (!action) {
+    if (header.includes("ซื้อ")) {
+      action = "BUY";
+    } else if (header.includes("ขาย")) {
+      action = "SELL";
+    }
+  }
+
+  // Heuristic 1.4: Check status_text
   if (!action) {
     if (status.includes("ขายคืน") || status.includes("รับเงินค่าขาย")) {
       action = "SELL";
@@ -162,7 +187,7 @@ function validateSlipData(raw) {
     }
   }
 
-  // Rule 1.3: Check bold_amount format
+  // Heuristic 1.5: Check bold_amount format
   if (!action) {
     if (bold.includes("หุ้น") || bold.includes("หน่วย")) {
       action = "SELL";
@@ -171,11 +196,11 @@ function validateSlipData(raw) {
     }
   }
 
-  // Rule 1.4: Check general text fallback
+  // Heuristic 1.6: Check general text fallback
   if (!action) {
-    if (allText.includes("ขายคืน") || allText.includes("ขาย")) {
+    if (allText.includes("ขายคืน") || allText.includes("ขาย") || allText.includes("ยอดที่จะได้รับคืน")) {
       action = "SELL";
-    } else if (allText.includes("ซื้อ") || allText.includes("จับคู่")) {
+    } else if (allText.includes("ซื้อ") || allText.includes("จับคู่") || allText.includes("ยอดที่ต้องชำระ")) {
       action = "BUY";
     } else {
       action = "BUY"; // Default
