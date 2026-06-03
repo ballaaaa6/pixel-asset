@@ -387,7 +387,7 @@ async function callWorkersAIVision(ai, base64, mime) {
         { role: "user", content: "Extract the transaction data from this receipt image. Your response MUST be ONLY a raw JSON object matching the schema, with no conversational filler or markdown blocks. Start directly with '{'." }
       ],
       image: imageBytes,
-      max_tokens: 256,
+      max_tokens: 512,
       temperature: 0.0,
       response_format: {
         type: "json_object"
@@ -417,7 +417,7 @@ async function callWorkersAIVision(ai, base64, mime) {
             { role: "user", content: "Extract the transaction data from this receipt image. Your response MUST be ONLY a raw JSON object matching the schema, with no conversational filler or markdown blocks. Start directly with '{'." }
           ],
           image: imageBytes,
-          max_tokens: 256,
+          max_tokens: 512,
           temperature: 0.0,
           response_format: {
             type: "json_object"
