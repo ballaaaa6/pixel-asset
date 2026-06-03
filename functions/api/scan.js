@@ -77,7 +77,9 @@ RULES FOR EXTRACTION:
      - Layout 2: There is NO "จำนวนหุ้น" or "จำนวนหน่วย" row in the table. Instead, look at the top section under the ticker header. There is a big bold number followed by "หุ้น" or "หน่วย" (e.g. "1 หุ้น", "60 หุ้น", "100.5480039 หุ้น"). Extract this number.
    - CRITICAL WARNING: Never confuse "จำนวนหุ้น" (Quantity of shares, e.g. 66.9618521) with "มูลค่าหุ้น" (Total stock value in currency, e.g. "10,475.44 USD").
    - CRITICAL WARNING: The share amount NEVER ends with a currency symbol/name (e.g. "USD", "THB"). If a value ends with "USD" or "THB", it is a monetary amount, NOT the share amount! Discard it and look for the raw number (e.g. "66.9618521") or a number ending with "หุ้น" (e.g. "17.5941041 หุ้น").
-   - WARNING: Never confuse "share_amount" with "actual_price" or total values.`;
+   - WARNING: Never confuse "share_amount" with "actual_price" or total values.
+
+CRITICAL FORMAT REQUIREMENT: You MUST output ONLY a raw JSON object. Do NOT include any conversational filler, explanations, markdown code blocks, or introduction (e.g., do NOT say "Sure, let's..." or "Here is..."). Your response must start directly with the '{' character and end with the '}' character.`;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -262,7 +264,7 @@ async function callWorkersAIVision(ai, base64, mime) {
     response = await ai.run(model, {
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: "Extract the transaction data from this receipt image." }
+        { role: "user", content: "Extract the transaction data from this receipt image. Your response MUST be ONLY a raw JSON object matching the schema, with no conversational filler or markdown blocks. Start directly with '{'." }
       ],
       image: imageBytes,
       max_tokens: 256,
@@ -292,7 +294,7 @@ async function callWorkersAIVision(ai, base64, mime) {
         response = await ai.run(model, {
           messages: [
             { role: "system", content: SYSTEM_PROMPT },
-            { role: "user", content: "Extract the transaction data from this receipt image." }
+            { role: "user", content: "Extract the transaction data from this receipt image. Your response MUST be ONLY a raw JSON object matching the schema, with no conversational filler or markdown blocks. Start directly with '{'." }
           ],
           image: imageBytes,
           max_tokens: 256,
