@@ -242,7 +242,7 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
 
   const isMobile = W < 500;
   const PAD_L = isMobile ? 30 : 42;
-  const PAD_R = isMobile ? 4 : 6;
+  const PAD_R = isMobile ? 12 : 24;
   const PAD_T = isMobile ? 4 : 6;
   const PAD_B = isMobile ? 18 : 24;
 
@@ -256,6 +256,13 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
     if (!zoomRange) return history;
     return history.slice(zoomRange.start, zoomRange.end + 1);
   }, [history, zoomRange]);
+
+  const hasMultipleYears = useMemo(() => {
+    if (!displayedData || displayedData.length < 2) return false;
+    const firstYear = new Date(displayedData[0].date).getFullYear();
+    const lastYear = new Date(displayedData[displayedData.length - 1].date).getFullYear();
+    return firstYear !== lastYear;
+  }, [displayedData]);
 
   // Group transaction lots by history index
   const transactionsByIdx = useMemo(() => {
@@ -336,7 +343,7 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
     const rangeVal = dataMax - dataMin || dataMin * 0.02 || 1;
 
     // Adaptive padding (shows movement clearly)
-    const pad = rangeVal * 0.12;
+    const pad = rangeVal * 0.05;
     const yMin = Math.max(0, dataMin - pad);
     const yMax = dataMax + pad;
     const yRange = yMax - yMin;
@@ -1027,7 +1034,6 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
             </text>
           ))}
 
-          {/* X-axis Labels */}
           {dateLabels.map(({ x, date }, i) => (
             <text key={i} x={x} y={H - PAD_B + 18} textAnchor="middle" fontSize="11"
               fill="var(--text-muted)" fontFamily="var(--font-family)" fontWeight="700">
@@ -1035,7 +1041,7 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
                 const d = new Date(date);
                 if (range === "1D") return d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
                 if (range === "5D" || range === "1W") return d.toLocaleDateString("th-TH", { day: "numeric", month: "short" }) + " " + d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
-                return d.toLocaleDateString("th-TH", { day: "numeric", month: "short" });
+                return d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: hasMultipleYears ? "2-digit" : undefined });
               })()}
             </text>
           ))}

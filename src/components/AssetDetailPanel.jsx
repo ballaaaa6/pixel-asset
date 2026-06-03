@@ -7,11 +7,11 @@ import { X, TrendingUp, TrendingDown, RefreshCw, ShoppingCart, Calendar, History
 const fmtUSD  = (n) => n == null ? "—" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: n != null && Math.abs(n) < 1 ? 4 : 2 }).format(n);
 const fmtPct  = (n) => n == null ? "—" : (n >= 0 ? "+" : "") + n.toFixed(2) + "%";
 const fmtQty  = (n) => n == null ? "—" : new Intl.NumberFormat("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 6 }).format(n);
-const fmtDate = (iso, tf) => {
+const fmtDate = (iso, tf, hasMultipleYears = false) => {
   const d = new Date(iso);
   if (tf === "1D") return d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
   if (tf === "5D" || tf === "1W") return d.toLocaleDateString("th-TH", { day: "numeric", month: "short" }) + " " + d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
-  return d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: tf === "5Y" ? "2-digit" : undefined });
+  return d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: (tf === "5Y" || tf === "MAX" || hasMultipleYears) ? "2-digit" : undefined });
 };
 const fmtDateShort = (iso) => new Date(iso).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
 
@@ -172,10 +172,13 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
     return () => obs.disconnect();
   }, [candles]);
 
-  const { W, H, PAD_L, PAD_R, PAD_T, PAD_B } = useMemo(() => ({
-    W: dims.w, H: dims.h,
-    PAD_L: 58, PAD_R: 16, PAD_T: 24, PAD_B: 40,
-  }), [dims]);
+  const { W, H, PAD_L, PAD_R, PAD_T, PAD_B } = useMemo(() => {
+    const isMobile = dims.w < 500;
+    return {
+      W: dims.w, H: dims.h,
+      PAD_L: isMobile ? 40 : 58, PAD_R: isMobile ? 12 : 24, PAD_T: 24, PAD_B: 40,
+    };
+  }, [dims]);
 
   const iW = W - PAD_L - PAD_R;
   const iH = H - PAD_T - PAD_B;
@@ -185,6 +188,13 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
     if (!zoomRange) return candles;
     return candles.slice(zoomRange.start, zoomRange.end + 1);
   }, [candles, zoomRange]);
+
+  const hasMultipleYears = useMemo(() => {
+    if (!displayedCandles || displayedCandles.length < 2) return false;
+    const firstYear = new Date(displayedCandles[0].date).getFullYear();
+    const lastYear = new Date(displayedCandles[displayedCandles.length - 1].date).getFullYear();
+    return firstYear !== lastYear;
+  }, [displayedCandles]);
 
   /* ── Compute Y range: adaptive tight scale with dynamic cost curve ── */
   const { pts, costPts, yMin, yMax, isUp } = useMemo(() => {
@@ -269,8 +279,8 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
     const dataMax = isShortTF ? Math.max(...valuesUSD) : Math.max(...valuesUSD, ...costsUSD);
     const range   = dataMax - dataMin || dataMin * 0.02 || 1;
 
-    // Tight padding: 12% of range each side (shows movement clearly)
-    const pad = range * 0.12;
+    // Tight padding: 5% of range each side (shows movement clearly)
+    const pad = range * 0.05;
     const yMin = Math.max(0, dataMin - pad);
     const yMax = dataMax + pad;
     const yRange = yMax - yMin;
@@ -1001,7 +1011,7 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
         {xTicks.map(({ x, date }, i) => (
           <text key={i} x={x} y={H - PAD_B + 16} textAnchor="middle" fontSize="10"
             fill="#94A3B8" fontFamily="Outfit,sans-serif" fontWeight="600">
-            {fmtDate(date, tf)}
+            {fmtDate(date, tf, hasMultipleYears)}
           </text>
         ))}
 
@@ -1021,7 +1031,7 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
                 fill="#1E293B" opacity="0.95" />
               <text x={tipX + tipW / 2} y={tipY + 15} textAnchor="middle"
                 fontSize="10" fill="#94A3B8" fontFamily="Outfit,sans-serif">
-                {fmtDate(hovered.date, tf)}
+                {fmtDate(hovered.date, tf, hasMultipleYears)}
               </text>
               <text x={tipX + tipW / 2} y={tipY + 31} textAnchor="middle"
                 fontSize="12" fill="white" fontWeight="800" fontFamily="Outfit,sans-serif">
