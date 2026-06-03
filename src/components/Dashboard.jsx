@@ -227,7 +227,7 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
         const isMobile = e.contentRect.width < 500;
         setDims({
           w: e.contentRect.width,
-          h: isMobile 
+          h: isMobile
             ? Math.min(500, Math.max(320, e.contentRect.width * 0.88))
             : Math.min(550, Math.max(420, e.contentRect.width * 0.70))
         });
@@ -239,7 +239,7 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
 
   const W = dims.w;
   const H = dims.h;
-  
+
   const isMobile = W < 500;
   const PAD_L = isMobile ? 30 : 42;
   const PAD_R = isMobile ? 4 : 6;
@@ -268,16 +268,16 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
       (asset.lots || []).forEach(lot => {
         if (!lot || !lot.date) return;
         const lotDateStr = lot.date;
-        
+
         // Strict boundary check: transaction must be within history bounds
         if (lotDateStr < startStr || lotDateStr > endStr) return;
 
         // Find closest date in history
         let bestIdx = -1, bestDiff = Infinity;
-        
+
         // Exact string match on date first
         bestIdx = history.findIndex(h => h.date.split("T")[0] === lotDateStr);
-        
+
         if (bestIdx === -1) {
           const targetTime = new Date(lotDateStr + "T00:00:00.000Z").getTime();
           history.forEach((h, i) => {
@@ -309,12 +309,12 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
     if (!displayedData || displayedData.length < 2) return [];
     const startIdx = zoomRange ? zoomRange.start : 0;
     const endIdx = zoomRange ? zoomRange.end : history.length - 1;
-    
+
     return Object.keys(transactionsByIdx)
       .map(idxStr => {
         const idx = parseInt(idxStr, 10);
         if (idx < startIdx || idx > endIdx) return null;
-        
+
         const displayIdx = idx - startIdx;
         const txs = transactionsByIdx[idx];
         const primarySymbol = txs[0]?.symbol || "";
@@ -326,7 +326,7 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
 
   const { pts, costPts, yMin, yMax, isUp, color } = useMemo(() => {
     if (!displayedData || displayedData.length < 2) return { pts: [], costPts: [], yMin: 0, yMax: 1, isUp: true, color: "var(--gain)" };
-    
+
     const vals = displayedData.map(h => h.value);
     const costs = displayedData.map(h => h.cost || 0);
 
@@ -422,7 +422,7 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
         const relX = (mouseX - PAD_L) / iW;
         const idx = Math.max(0, Math.min(Math.round(relX * (displayedData.length - 1)), displayedData.length - 1));
         const originalIdx = (zoomRange ? zoomRange.start : 0) + idx;
-        
+
         setIsDiffActive(true);
         updateDiffStartIdx(originalIdx);
         updateDiffEndIdx(originalIdx);
@@ -536,7 +536,7 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
         if (rangeSize <= 2) return;
         const cropSize = Math.max(1, Math.floor(rangeSize * 0.12));
         const newRangeSize = Math.max(2, rangeSize - cropSize * 2);
-        
+
         let newStart = Math.round(centerIdx - relX * newRangeSize);
         let newEnd = newStart + newRangeSize;
 
@@ -658,18 +658,18 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
         const t1 = e.touches[0];
         const t2 = e.touches[1];
         const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
-        
+
         const ratio = ref.startDist / dist;
         const len = history.length;
         const startZoom = ref.startZoom;
         const initialRangeSize = startZoom.end - startZoom.start;
-        
+
         let newRangeSize = Math.round(initialRangeSize * ratio);
         newRangeSize = Math.max(2, Math.min(len - 1, newRangeSize));
 
         const rect = el.getBoundingClientRect();
         const relativeX = ((ref.centerX - rect.left) / rect.width);
-        
+
         let newStart = Math.round((startZoom.start + initialRangeSize * relativeX) - relativeX * newRangeSize);
         let newEnd = newStart + newRangeSize;
 
@@ -733,7 +733,7 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
       el.removeEventListener("touchmove", handleTouchMove);
       el.removeEventListener("touchend", handleTouchEnd);
     };
-  }, []);
+  }, [history]);
 
 
   if (!history || history.length < 2) {
@@ -823,8 +823,8 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
-        style={{ 
-          cursor: zoomRange ? (dragStart && dragStart.type === "pan" ? "grabbing" : "grab") : "crosshair", 
+        style={{
+          cursor: zoomRange ? (dragStart && dragStart.type === "pan" ? "grabbing" : "grab") : "crosshair",
           position: "relative",
           width: "100%",
           touchAction: "pan-y"
@@ -887,14 +887,14 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
             const currentStart = zoomRange ? zoomRange.start : 0;
             const dispStartIdx = diffStartIdx - currentStart;
             const dispEndIdx = diffEndIdx - currentStart;
-            
+
             if (dispStartIdx >= 0 && dispStartIdx < displayedData.length &&
                 dispEndIdx >= 0 && dispEndIdx < displayedData.length && pts[dispStartIdx] && pts[dispEndIdx]) {
               const xA = pts[dispStartIdx].x;
               const xB = pts[dispEndIdx].x;
               const yA = pts[dispStartIdx].y;
               const yB = pts[dispEndIdx].y;
-              
+
               return (
                 <g style={{ pointerEvents: "none" }}>
                   <line x1={xA} y1={PAD_T} x2={xA} y2={H - PAD_B} stroke="var(--primary)" strokeWidth="1.5" strokeDasharray="3 3" opacity="0.6" />
@@ -1134,18 +1134,18 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
           const currentStart = zoomRange ? zoomRange.start : 0;
           const dispStartIdx = diffStartIdx - currentStart;
           const dispEndIdx = diffEndIdx - currentStart;
-          
+
           if (dispStartIdx >= 0 && dispStartIdx < displayedData.length &&
               dispEndIdx >= 0 && dispEndIdx < displayedData.length && pts[dispStartIdx] && pts[dispEndIdx]) {
             const pA = history[diffStartIdx];
             const pB = history[diffEndIdx];
             if (!pA || !pB) return null;
-            
+
             const valA = pA.value;
             const valB = pB.value;
             const diffVal = valB - valA;
             const diffPct = valA > 0 ? (diffVal / valA) * 100 : 0;
-            
+
             const dateA = new Date(pA.date);
             const dateB = new Date(pB.date);
             const diffDays = Math.round(Math.abs(dateB - dateA) / (1000 * 60 * 60 * 24));
@@ -1155,22 +1155,22 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
             } else if (diffDays >= 30) {
               timeStr = `${(diffDays / 30.4).toFixed(1)} เดือน`;
             }
-            
+
             const xA = pts[dispStartIdx].x;
             const xB = pts[dispEndIdx].x;
             const centerPct = ((xA + xB) / 2 / W) * 100;
             const yA = pts[dispStartIdx].y;
             const yB = pts[dispEndIdx].y;
             const topPos = Math.min(yA, yB) - 50;
-            
+
             const localFmtDate = (dateStr) => {
               const d = new Date(dateStr);
               return d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
             };
-            
+
             return (
-              <div 
-                className="chart-tooltip-box" 
+              <div
+                className="chart-tooltip-box"
                 style={{
                   position: "absolute",
                   top: "10px",
@@ -1197,7 +1197,7 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
                 <div style={{ fontSize: 10, color: "#CBD5E1" }}>
                   {localFmtDate(pA.date)} ➔ {localFmtDate(pB.date)} ({timeStr})
                 </div>
-                
+
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 2 }}>
                   <span style={{ color: "#94A3B8" }}>เริ่ม:</span>
                   <span style={{ color: "white", fontWeight: 700 }}>{fmt.usd(valA)}</span>
@@ -1206,19 +1206,19 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
                   <span style={{ color: "#94A3B8" }}>สิ้นสุด:</span>
                   <span style={{ color: "white", fontWeight: 700 }}>{fmt.usd(valB)}</span>
                 </div>
-                
-                <div style={{ 
-                  display: "flex", 
-                  justifyContent: "space-between", 
-                  fontSize: 11, 
-                  borderTop: "1px dashed rgba(255,255,255,0.15)", 
-                  paddingTop: 4, 
-                  marginTop: 2 
+
+                <div style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  fontSize: 11,
+                  borderTop: "1px dashed rgba(255,255,255,0.15)",
+                  paddingTop: 4,
+                  marginTop: 2
                 }}>
                   <span style={{ color: "#94A3B8" }}>ส่วนต่าง:</span>
-                  <span style={{ 
-                    fontWeight: 900, 
-                    color: diffVal >= 0 ? "#10B981" : "#EF4444" 
+                  <span style={{
+                    fontWeight: 900,
+                    color: diffVal >= 0 ? "#10B981" : "#EF4444"
                   }}>
                     {diffVal >= 0 ? "+" : ""}{fmt.usd(diffVal)} ({diffVal >= 0 ? "+" : ""}{diffPct.toFixed(2)}%)
                   </span>
@@ -1393,8 +1393,8 @@ function DonutChart({ segments, activeAssets, hasAssets }) {
       )}
 
       <div className="chart-container">
-        <div 
-          className="donut-wrapper" 
+        <div
+          className="donut-wrapper"
           onMouseMove={handleMouseMove}
           onMouseLeave={() => setHoveredSlice(null)}
         >
@@ -1419,9 +1419,9 @@ function DonutChart({ segments, activeAssets, hasAssets }) {
                     setHoveredSlice(null);
                   }
                 }}
-                style={{ 
+                style={{
                   cursor: !drillCategory ? "pointer" : "default",
-                  transition: "stroke-width 0.2s ease, stroke-dasharray 0.8s cubic-bezier(0.4,0,0.2,1), stroke-dashoffset 0.8s cubic-bezier(0.4,0,0.2,1)" 
+                  transition: "stroke-width 0.2s ease, stroke-dasharray 0.8s cubic-bezier(0.4,0,0.2,1), stroke-dashoffset 0.8s cubic-bezier(0.4,0,0.2,1)"
                 }}
               />
             ))}
@@ -1480,8 +1480,8 @@ function DonutChart({ segments, activeAssets, hasAssets }) {
 
         <div className="legend-list">
           {slices.map((s, i) => (
-            <div 
-              key={i} 
+            <div
+              key={i}
               className="legend-item"
               onMouseEnter={() => setHoveredSlice(s)}
               onMouseLeave={() => setHoveredSlice(null)}
@@ -1572,7 +1572,7 @@ function PnLDetailsModal({
   const computeAssetMetrics = (asset) => {
     const isThai = asset.symbol.toUpperCase().endsWith(".BK");
     const isCashAsset = asset.type === "fiat" || asset.category === "fiat";
-    
+
     let priceUSD = 0;
     if (isCashAsset) {
       const ticker = getCurrencyTicker(asset.symbol);
@@ -1587,7 +1587,7 @@ function PnLDetailsModal({
     const avgCost = asset.avgCost ?? asset.avgPrice ?? 0;
     const costUSD = isCashAsset ? avgCost * asset.qty : (avgCost * asset.qty / (isThai ? exchangeRate : 1));
     const unrealized = asset.qty > 0 ? (valueUSD - costUSD) : 0;
-    
+
     // Realized
     const realized = getRealizedPnL(asset.lots || [], isThai, exchangeRate);
 
@@ -1629,8 +1629,8 @@ function PnLDetailsModal({
   const filtered = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
     if (!q) return breakdown;
-    return breakdown.filter(b => 
-      b.symbol.toLowerCase().includes(q) || 
+    return breakdown.filter(b =>
+      b.symbol.toLowerCase().includes(q) ||
       b.name.toLowerCase().includes(q)
     );
   }, [breakdown, searchTerm]);
@@ -2204,7 +2204,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
 
     const getPriceOnDate = (sym, targetDateStr) => {
       const points = symbolPriceHistories[sym.toUpperCase()];
-      
+
       // If we are looking for today's price (or a future date), use the live price if available
       const todayStr = new Date().toISOString().split("T")[0];
       if (targetDateStr.startsWith(todayStr)) {
@@ -2288,20 +2288,37 @@ export default function Dashboard({ user, onLogout, showToast }) {
       });
     });
 
+    // Find the raw start date of the fetched timeframe (from sparklines)
+    let rawStartDateStr = null;
+    Object.keys(sparklines).forEach(sym => {
+      const symData = sparklines[sym];
+      if (symData && symData.dates && symData.dates.length > 0) {
+        const firstDate = symData.dates[0];
+        if (firstDate) {
+          const dStr = firstDate.split("T")[0];
+          if (!rawStartDateStr || dStr < rawStartDateStr) {
+            rawStartDateStr = dStr;
+          }
+        }
+      }
+    });
+
     if (earliestDate) {
       const earliestStr = earliestDate.split("T")[0];
-      // Filter out timeline dates that are strictly before earliestStr date
-      timeline = timeline.filter(d => {
-        const dStr = isShortTF ? d.split("T")[0] : d;
-        return dStr >= earliestStr;
-      });
+      // ONLY clip or prepend the earliest purchase date if the purchase happened AFTER the timeframe started
+      if (!rawStartDateStr || earliestStr > rawStartDateStr) {
+        timeline = timeline.filter(d => {
+          const dStr = isShortTF ? d.split("T")[0] : d;
+          return dStr >= earliestStr;
+        });
 
-      // Prepend exact first purchase date if the timeline starts after it
-      const firstTimelineDate = timeline[0] ? (isShortTF ? timeline[0].split("T")[0] : timeline[0]) : "";
-      if (timeline.length > 0 && firstTimelineDate > earliestStr) {
-        timeline.unshift(isShortTF ? earliestStr + "T00:00:00.000Z" : earliestStr);
-      } else if (timeline.length === 0) {
-        timeline.push(isShortTF ? earliestStr + "T00:00:00.000Z" : earliestStr);
+        // Prepend exact first purchase date if the timeline starts after it
+        const firstTimelineDate = timeline[0] ? (isShortTF ? timeline[0].split("T")[0] : timeline[0]) : "";
+        if (timeline.length > 0 && firstTimelineDate > earliestStr) {
+          timeline.unshift(isShortTF ? earliestStr + "T00:00:00.000Z" : earliestStr);
+        } else if (timeline.length === 0) {
+          timeline.push(isShortTF ? earliestStr + "T00:00:00.000Z" : earliestStr);
+        }
       }
     }
 
@@ -2434,12 +2451,12 @@ export default function Dashboard({ user, onLogout, showToast }) {
       const priceUSD = getCurrencyPriceUSD(asset.symbol, prices, exchangeRate);
       const valueUSD = priceUSD * asset.qty;
       const valueTHB = valueUSD * exchangeRate;
-      
+
       const avgCost = asset.avgCost ?? asset.avgPrice ?? priceUSD;
       const costUSD = avgCost * asset.qty;
       const gainUSD = valueUSD - costUSD;
       const gainPct = costUSD > 0 ? (gainUSD / costUSD) * 100 : 0;
-      
+
       // Calculate day changes based on Yahoo Finance ticker previousClose if available
       let todayChg = 0;
       let todayPct = 0;
@@ -2479,15 +2496,15 @@ export default function Dashboard({ user, onLogout, showToast }) {
 
     const pData = prices[asset.symbol];
     const regPrice = pData?.price ?? 0;
-    
+
     // Check for active pre-market or after-market pricing
     const isPre = pData?.marketState === "PRE" || pData?.marketState === "PREPRE";
     const isPost = pData?.marketState === "POST" || pData?.marketState === "POSTPOST";
-    
+
     let extPrice = null;
     let extChangePct = null;
     let extType = null;
-    
+
     if (isPre && pData.prePrice != null && pData.prePrice > 0) {
       extPrice = pData.prePrice;
       extChangePct = regPrice > 0 ? ((pData.prePrice - regPrice) / regPrice) * 100 : 0;
@@ -2504,13 +2521,13 @@ export default function Dashboard({ user, onLogout, showToast }) {
     const priceUSD = isThai ? price / exchangeRate : price;
     const valueUSD = priceUSD * asset.qty;
     const valueTHB = valueUSD * exchangeRate;
-    
+
     // Robustly handle avgCost vs avgPrice for legacy database support
     const avgCost  = asset.avgCost ?? asset.avgPrice ?? 0;
     const costUSD  = avgCost * asset.qty;
     const gainUSD  = valueUSD - costUSD;
     const gainPct  = costUSD > 0 ? (gainUSD / costUSD) * 100 : 0;
-    
+
     const activePrice = price;
     const prevClose = pData?.previousClose ?? activePrice;
     const todayChg = ((activePrice - prevClose) * asset.qty);
@@ -2542,15 +2559,15 @@ export default function Dashboard({ user, onLogout, showToast }) {
       extTodayPct = extChangePct ?? 0;
     }
 
-    return { 
-      price, 
-      priceUSD, 
-      valueUSD, 
-      valueTHB, 
-      costUSD, 
-      gainUSD, 
-      gainPct, 
-      todayChg, 
+    return {
+      price,
+      priceUSD,
+      valueUSD,
+      valueTHB,
+      costUSD,
+      gainUSD,
+      gainPct,
+      todayChg,
       todayPct,
       extPrice,
       extChangePct,
@@ -2588,7 +2605,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
       totVal   += c.valueUSD;
       totCost  += c.costUSD;
       totToday += c.todayChg;
-      
+
       const isThai = a.symbol.toUpperCase().endsWith(".BK");
       const realized = getRealizedPnL(a.lots || [], isThai, exchangeRate);
       totRealized += realized;
@@ -2601,9 +2618,9 @@ export default function Dashboard({ user, onLogout, showToast }) {
         totalPnL: realized + (a.qty > 0 ? (c.valueUSD - c.costUSD) : 0)
       };
 
-      if (c.gainPct > bestPct && a.qty > 0 && (a.avgCost > 0 || a.avgPrice > 0)) { 
-        bestPct = c.gainPct; 
-        bestSym = a; 
+      if (c.gainPct > bestPct && a.qty > 0 && (a.avgCost > 0 || a.avgPrice > 0)) {
+        bestPct = c.gainPct;
+        bestSym = a;
       }
       return assetWithPnL;
     });
@@ -2773,7 +2790,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
             qty:     totalQty,
             avgCost: avgCost,
           };
-          
+
           if (!isBatch) {
             const isCash = category === "fiat";
             showToast(
@@ -3380,7 +3397,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                                         {fmt.usd(asset.regPriceUSD)}
                                       </div>
                                       <div className="price-thb">{fmt.thb(asset.regPriceUSD * exchangeRate)}</div>
-                                      
+
                                       {/* Line 2: Extended Hours Price */}
                                       {asset.extPrice != null && (
                                         <div style={{ fontSize: 10, fontWeight: 700, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 2 }}>
@@ -3655,7 +3672,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                 <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)", borderBottom: "1.5px solid var(--primary-light)", paddingBottom: 6, display: "block" }}>
                   👤 ข้อมูลส่วนตัว (Profile Info)
                 </span>
-                
+
                 {/* Avatar Upload */}
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
                   <div style={{ position: "relative" }}>
@@ -3806,7 +3823,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                 <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)", borderBottom: "1.5px solid var(--primary-light)", paddingBottom: 6, display: "block" }}>
                   🤖 ตั้งค่า AI OCR (Gemini API Key)
                 </span>
-                
+
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label" style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     Google Gemini API Key

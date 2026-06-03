@@ -258,45 +258,34 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
   const NEW_KEY = ""; // no hardcoded key — user must enter via Settings
   const OLD_KEY = ""; // no old key to migrate
 
-  /* ─── Gemini fetch — tries models + API versions until one works ─── */
   const GEMINI_ENDPOINTS = [
-    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent" },
-    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent" },
+    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" },
     { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent" },
-    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent" },
-    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent" },
+    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent" }
   ];
 
   const callGemini = async (key, bodyObj, endpointIdx = 0, attempt = 0) => {
     if (endpointIdx >= GEMINI_ENDPOINTS.length) {
-      throw new Error("Gemini: ทุก model/endpoint ใช้งานไม่ได้ — กรุณาตรวจสอบ API Key ใน Settings");
+      throw new Error("Gemini: \u0e17\u0e38\u0e01 model/endpoint \u0e43\u0e0a\u0e49\u0e07\u0e32\u0e19\u0e44\u0e21\u0e48\u0e44\u0e14\u0e49 \u2014 \u0e01\u0e23\u0e38\u0e13\u0e32\u0e15\u0e23\u0e27\u0e0a\u0e2a\u0e2d\u0e1a API Key \u0e43\u0e19 Settings");
     }
     const { url } = GEMINI_ENDPOINTS[endpointIdx];
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify(bodyObj)
-    });
-    // Quota, not found, or forbidden → try next endpoint
-    if (res.status === 429 || res.status === 404) {
-      if (res.status === 429) {
-        await new Promise(r => setTimeout(r, 3000));
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+        body: JSON.stringify(bodyObj)
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+      if (res.status === 429 && attempt === 0) {
+        await new Promise(r => setTimeout(r, 2000));
+        return callGemini(key, bodyObj, endpointIdx, 1);
       }
       return callGemini(key, bodyObj, endpointIdx + 1, 0);
-    }
-    if (res.status === 403) {
-      // Could be quota or auth — wait then retry next
-      if (attempt === 0) {
-        await new Promise(r => setTimeout(r, 5000));
-        return callGemini(key, bodyObj, endpointIdx + 1, 0);
-      }
+    } catch (err) {
       return callGemini(key, bodyObj, endpointIdx + 1, 0);
     }
-    if (!res.ok) {
-      const errBody = await res.json().catch(() => ({}));
-      throw new Error(errBody?.error?.message || `HTTP ${res.status}`);
-    }
-    return res.json();
   };
 
   const processReceiptImages = async (files) => {
@@ -330,10 +319,10 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
     // PRIMARY: Parallel Tesseract.js OCR + regex parser (concurrency = 4)
     // ══════════════════════════════════════════════════════════════════════
     setScanningStatus(prev => ({ ...prev, stage: "Tesseract OCR: กำลังสแกนตัวอักษรขนานกัน..." }));
-    
+
     let tessCompletedCount = 0;
     const tesseractItems = fileList.map((file, idx) => ({ file, idx }));
-    
+
     try {
       await limitConcurrency(tesseractItems, 4, async ({ file, idx }) => {
         const result = await ocrReceiptFile(file, (stage) => {
@@ -512,7 +501,7 @@ Respond with ONLY a valid JSON array matching this schema (no markdown wrapping,
         if (geminiKey) {
           // Gemini Vision Batch Fallback: compress images, chunk into groups of 3
           setScanningStatus(prev => ({ ...prev, stage: "AI Vision Batch: กำลังประมวลผล..." }));
-          
+
           const remainingImages = [];
           for (const idx of remainingFailedIndices) {
             try {
@@ -737,12 +726,12 @@ Format the response strictly as a JSON array matching this schema:
       return [...pinned, ...others];
     }
 
-    const filteredPinned = pinned.filter(c => 
-      c.code.toLowerCase().includes(q) || 
+    const filteredPinned = pinned.filter(c =>
+      c.code.toLowerCase().includes(q) ||
       c.name.toLowerCase().includes(q)
     );
-    const filteredOthers = others.filter(c => 
-      c.code.toLowerCase().includes(q) || 
+    const filteredOthers = others.filter(c =>
+      c.code.toLowerCase().includes(q) ||
       c.name.toLowerCase().includes(q)
     );
 
@@ -961,7 +950,7 @@ Format the response strictly as a JSON array matching this schema:
         <div className="modal-header">
           <h2 className="modal-title">
             {editingAsset
-              ? (txType === "SELL" 
+              ? (txType === "SELL"
                   ? (type === "fiat" ? `📤 ถอนเงินสด ${editingAsset.symbol}` : `🔴 ขายสินทรัพย์ ${editingAsset.symbol}`)
                   : (type === "fiat" ? `📥 ฝากเงินสด ${editingAsset.symbol}` : `🟢 ซื้อสินทรัพย์ ${editingAsset.symbol}`)
                 )
@@ -1002,7 +991,7 @@ Format the response strictly as a JSON array matching this schema:
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
                   <div className="spinner" style={{ width: 24, height: 24, borderColor: "var(--primary) transparent var(--primary) transparent" }} />
                   <span style={{ fontSize: 13, fontWeight: 700, color: "var(--primary)", animation: "pulse 1.5s infinite" }}>
-                    {scanningStatus.active 
+                    {scanningStatus.active
                       ? `🤖 AI กำลังวิเคราะห์ใบเสร็จ (${scanningStatus.completed}/${scanningStatus.total})...`
                       : "🤖 AI กำลังวิเคราะห์รูปภาพ..."}
                   </span>
@@ -1211,7 +1200,7 @@ Format the response strictly as a JSON array matching this schema:
                     disabled={editingAsset}
                   />
                 </div>
-                
+
                 {/* Selected currency indicator */}
                 {symbol && (
                   <div style={{
@@ -1580,7 +1569,7 @@ Format the response strictly as a JSON array matching this schema:
               style={{ height: 48, flex: 1 }}
               disabled={scannedQueue.length === 0 && !symbol}>
               <Save size={16} />
-              {editingAsset 
+              {editingAsset
                 ? (txType === "SELL"
                     ? (type === "fiat" ? `ถอนเงินสด -${qty ? fmtQty(parseFloat(qty) || 0) : "?"} THB` : `ขายออก -${qty ? fmtQty(parseFloat(qty) || 0) : "?"} หน่วย`)
                     : (type === "fiat" ? `ฝากเงินสด +${qty ? fmtQty(parseFloat(qty) || 0) : "?"} THB` : `ซื้อเพิ่ม +${qty ? fmtQty(parseFloat(qty) || 0) : "?"} หน่วย`)

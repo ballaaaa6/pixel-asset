@@ -216,7 +216,7 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
     // Calculate unit price and unit average cost for each candle
     const rawData = displayedCandles.map((c) => {
       const targetDateOnly = c.date.split("T")[0];
-      
+
       let priceUSD = 0;
       if (isCashAsset) {
         if (asset.symbol === "USD") {
@@ -234,14 +234,14 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
 
       // Check if this candle is on or after the first purchase date
       const hasPurchased = targetDateOnly >= firstPurchaseDate;
-      
+
       if (!hasPurchased) {
         // Return unit price as valueUSD, but null/0 costUSD for days before purchase
         return { date: c.date, valueUSD: priceUSD, costUSD: null, hasPurchased: false };
       }
 
       const stats = getStatsOnDate(c.date);
-      
+
       // Use unit average cost basis instead of cumulative total cost
       let costUSD = 0;
       if (stats.qty > 0) {
@@ -381,15 +381,15 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
     lots.forEach((lot, i) => {
       if (!lot || !lot.date) return;
       const lotDateStr = lot.date;
-      
+
       // Strict boundary check: transaction must be within history bounds
       if (lotDateStr < startStr || lotDateStr > endStr) return;
 
       let bestIdx = -1, bestDiff = Infinity;
-      
+
       // Try to find exact string match first in original candles
       bestIdx = candles.findIndex(c => c.date.split("T")[0] === lotDateStr);
-      
+
       if (bestIdx === -1) {
         const targetTime = new Date(lotDateStr + "T00:00:00.000Z").getTime();
         candles.forEach((c, idx) => {
@@ -400,7 +400,7 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
       } else {
         bestDiff = 0;
       }
-      
+
       if (bestIdx >= startIdx && bestIdx <= endIdx && (bestDiff < 7 * 86400000 || bestDiff === 0)) {
         const displayIdx = bestIdx - startIdx;
         const x = PAD_L + (displayIdx / (displayedCandles.length - 1)) * iW;
@@ -442,7 +442,7 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
         const relX = (mouseX - PAD_L) / iW;
         const idx = Math.max(0, Math.min(Math.round(relX * (displayedCandles.length - 1)), displayedCandles.length - 1));
         const originalIdx = (zoomRange ? zoomRange.start : 0) + idx;
-        
+
         setIsDiffActive(true);
         updateDiffStartIdx(originalIdx);
         updateDiffEndIdx(originalIdx);
@@ -558,7 +558,7 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
         if (rangeSize <= 2) return;
         const cropSize = Math.max(1, Math.floor(rangeSize * 0.12));
         const newRangeSize = Math.max(2, rangeSize - cropSize * 2);
-        
+
         let newStart = Math.round(centerIdx - relX * newRangeSize);
         let newEnd = newStart + newRangeSize;
 
@@ -680,18 +680,18 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
         const t1 = e.touches[0];
         const t2 = e.touches[1];
         const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
-        
+
         const ratio = ref.startDist / dist;
         const len = candles.length;
         const startZoom = ref.startZoom;
         const initialRangeSize = startZoom.end - startZoom.start;
-        
+
         let newRangeSize = Math.round(initialRangeSize * ratio);
         newRangeSize = Math.max(2, Math.min(len - 1, newRangeSize));
 
         const rect = el.getBoundingClientRect();
         const relativeX = ((ref.centerX - rect.left) / rect.width);
-        
+
         let newStart = Math.round((startZoom.start + initialRangeSize * relativeX) - relativeX * newRangeSize);
         let newEnd = newStart + newRangeSize;
 
@@ -755,7 +755,7 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
       el.removeEventListener("touchmove", handleTouchMove);
       el.removeEventListener("touchend", handleTouchEnd);
     };
-  }, []);
+  }, [candles]);
 
 
   const hasCostLine = activeCostPts.length > 0 && (avgCost > 0 || (lots && lots.length > 0));
@@ -846,14 +846,14 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
           const currentStart = zoomRange ? zoomRange.start : 0;
           const dispStartIdx = diffStartIdx - currentStart;
           const dispEndIdx = diffEndIdx - currentStart;
-          
+
           if (dispStartIdx >= 0 && dispStartIdx < displayedCandles.length &&
               dispEndIdx >= 0 && dispEndIdx < displayedCandles.length && pts[dispStartIdx] && pts[dispEndIdx]) {
             const xA = pts[dispStartIdx].x;
             const xB = pts[dispEndIdx].x;
             const yA = pts[dispStartIdx].y;
             const yB = pts[dispEndIdx].y;
-            
+
             return (
               <g style={{ pointerEvents: "none" }}>
                 <line x1={xA} y1={PAD_T} x2={xA} y2={H - PAD_B} stroke="var(--primary)" strokeWidth="1.5" strokeDasharray="3 3" opacity="0.6" />
@@ -1012,7 +1012,7 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
             ? Math.min(hovered.x + 15, W - PAD_R - tipW)
             : Math.max(PAD_L + 15, hovered.x - tipW - 15);
           const tipY = Math.max(PAD_T + 10, Math.min(H - PAD_B - tipH - 10, hovered.y - tipH / 2));
-          
+
           const diff = hovered.cost != null ? hovered.value - hovered.cost : 0;
           const diffPct = hovered.cost != null && hovered.cost > 0 ? (diff / hovered.cost) * 100 : 0;
           return (
@@ -1043,19 +1043,19 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
         const currentStart = zoomRange ? zoomRange.start : 0;
         const dispStartIdx = diffStartIdx - currentStart;
         const dispEndIdx = diffEndIdx - currentStart;
-        
+
         if (dispStartIdx >= 0 && dispStartIdx < displayedCandles.length &&
             dispEndIdx >= 0 && dispEndIdx < displayedCandles.length && pts[dispStartIdx] && pts[dispEndIdx]) {
           const pA = candles[diffStartIdx];
           const pB = candles[diffEndIdx];
           if (!pA || !pB) return null;
-          
+
           const isThai = asset?.symbol?.endsWith(".BK");
           const valA = isThai ? pA.close / exchangeRate : pA.close;
           const valB = isThai ? pB.close / exchangeRate : pB.close;
           const diffVal = valB - valA;
           const diffPct = valA > 0 ? (diffVal / valA) * 100 : 0;
-          
+
           const dateA = new Date(pA.date);
           const dateB = new Date(pB.date);
           const diffDays = Math.round(Math.abs(dateB - dateA) / (1000 * 60 * 60 * 24));
@@ -1065,16 +1065,16 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
           } else if (diffDays >= 30) {
             timeStr = `${(diffDays / 30.4).toFixed(1)} เดือน`;
           }
-          
+
           const xA = pts[dispStartIdx].x;
           const xB = pts[dispEndIdx].x;
           const centerPct = ((xA + xB) / 2 / W) * 100;
           const yA = pts[dispStartIdx].y;
           const yB = pts[dispEndIdx].y;
           const topPos = Math.min(yA, yB) - 50;
-          
+
           return (
-            <div 
+            <div
               style={{
                 position: "absolute",
                 top: "10px",
@@ -1103,7 +1103,7 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
               <div style={{ fontSize: 10, color: "#CBD5E1" }}>
                 {fmtDateShort(pA.date)} ➔ {fmtDateShort(pB.date)} ({timeStr})
               </div>
-              
+
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 2 }}>
                 <span style={{ color: "#94A3B8" }}>เริ่ม:</span>
                 <span style={{ color: "white", fontWeight: 700 }}>
@@ -1116,19 +1116,19 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
                   {fmtUSD(valB)} {isThai && <span style={{ fontSize: 9, color: "#94A3B8" }}>(฿{(valB * exchangeRate).toFixed(2)})</span>}
                 </span>
               </div>
-              
-              <div style={{ 
-                display: "flex", 
-                justifyContent: "space-between", 
-                fontSize: 11, 
-                borderTop: "1px dashed rgba(255,255,255,0.15)", 
-                paddingTop: 4, 
-                marginTop: 2 
+
+              <div style={{
+                display: "flex",
+                justifyContent: "space-between",
+                fontSize: 11,
+                borderTop: "1px dashed rgba(255,255,255,0.15)",
+                paddingTop: 4,
+                marginTop: 2
               }}>
                 <span style={{ color: "#94A3B8" }}>ส่วนต่าง:</span>
-                <span style={{ 
-                  fontWeight: 900, 
-                  color: diffVal >= 0 ? "#10B981" : "#EF4444" 
+                <span style={{
+                  fontWeight: 900,
+                  color: diffVal >= 0 ? "#10B981" : "#EF4444"
                 }}>
                   {diffVal >= 0 ? "+" : ""}{fmtUSD(diffVal)} ({diffVal >= 0 ? "+" : ""}{diffPct.toFixed(2)}%)
                 </span>
@@ -1195,7 +1195,7 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
       const now = new Date();
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      
+
       const mockData = {
         symbol: asset.symbol,
         tf: tf,
@@ -1246,7 +1246,7 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
   if (!asset) return null;
 
   const pData = price || {};
-  
+
   let priceUSD = isThai ? (pData.price || 0) / exchangeRate : (pData.price || 0);
   if (isCashAsset) {
     priceUSD = getCurrencyPriceUSD(asset.symbol, pData.price, exchangeRate);
@@ -1275,7 +1275,7 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
 
   // Robustly handle avgCost vs avgPrice for backward compatibility
   const avgCost = asset.avgCost ?? asset.avgPrice ?? 0;
-  
+
   const costUSD = isCashAsset ? avgCost * asset.qty : (avgCost * asset.qty / (isThai ? exchangeRate : 1));
 
   const gainUSD     = valueUSD - costUSD;
@@ -1288,17 +1288,17 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
     const sorted = [...lots].sort((a, b) => new Date(a.date) - new Date(b.date));
     let runningQty = 0;
     let runningAvgCost = 0;
-    
+
     return sorted.map((lot, idx) => {
       const lotQty = lot.qty;
       const isThai = asset?.symbol?.toUpperCase().endsWith(".BK");
       const lotPriceUSD = isThai ? (lot.price || 0) / exchangeRate : (lot.price || 0);
-      
+
       let type = "BUY";
       let transactionValueUSD = lotQty * lotPriceUSD;
       let pnl = 0;
       let pnlPct = 0;
-      
+
       if (lotQty > 0) {
         type = "BUY";
         const oldCost = runningQty * runningAvgCost;
@@ -1314,7 +1314,7 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
         pnlPct = runningAvgCost > 0 ? (pnl / (sellQty * runningAvgCost)) * 100 : 0;
         runningQty = Math.max(0, runningQty - sellQty);
       }
-      
+
       return {
         ...lot,
         type,
@@ -1509,7 +1509,7 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
         {/* ── Purchase History Table ── */}
         {lots.length > 0 && (
           <div className="asset-detail-lots" style={{ paddingBottom: 24 }}>
-            <div 
+            <div
               onClick={() => setHistoryExpanded(!historyExpanded)}
               style={{
                 fontSize: 13,
@@ -1528,18 +1528,18 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                {isCashAsset ? <History size={14} /> : <ShoppingCart size={14} />} 
+                {isCashAsset ? <History size={14} /> : <ShoppingCart size={14} />}
                 {isCashAsset ? "ประวัติการฝาก/ถอนเงินสด" : "ประวัติธุรกรรมซื้อ/ขาย"} ({lots.length} รายการ)
               </div>
               {historyExpanded ? <ChevronUp size={16} style={{ color: "var(--text-muted)" }} /> : <ChevronDown size={16} style={{ color: "var(--text-muted)" }} />}
             </div>
 
             {historyExpanded && (
-              <div style={{ 
-                border: "1px solid var(--border)", 
-                borderRadius: 14, 
-                overflowY: "auto", 
-                maxHeight: "220px" 
+              <div style={{
+                border: "1px solid var(--border)",
+                borderRadius: 14,
+                overflowY: "auto",
+                maxHeight: "220px"
               }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                   <thead>
