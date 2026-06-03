@@ -39,46 +39,49 @@ Schema:
 RULES FOR EXTRACTION:
 
 1. ACTION (BUY/SELL):
-   - Look at the top left header:
-     - If it shows "ซื้อ" (in Green), the action is "BUY".
-     - If it shows "ขาย" (in Red), the action is "SELL".
-   - You must be extremely careful. In this slip, "ขาย NVDA" means SELL.
+   - Look at the text header of the main box (e.g. "ซื้อ NVDA" or "ขาย NVDA"):
+     - "ซื้อ" means BUY.
+     - "ขาย" means SELL.
 
 2. SYMBOL:
-   - The stock ticker is the uppercase English letters at the top header right after "ซื้อ" or "ขาย".
-   - Example: "ขาย NVDA" -> symbol is "NVDA".
+   - The stock ticker is the uppercase English letters right after "ซื้อ" or "ขาย".
+   - Example: "ซื้อ NVDA" -> symbol is "NVDA".
 
-3. SHARE AMOUNT (Quantity of shares/units):
-   - Look at the BIG BOLD number at the top of the white box (under "ซื้อ/ขาย [Symbol]").
-   - It is always followed by the word "หุ้น" (e.g. "100.5480039 หุ้น").
-   - Extract this exact number as the quantity. For example, "100.5480039 หุ้น" -> share_amount is 100.5480039.
-   - NEVER use the total stock value ("มูลค่าหุ้น" e.g., 17,304.81 USD) or total payout ("ยอดที่จะได้รับคืน" / "ยอดชำระสุทธิ") as share_amount.
-   - NEVER shift decimal places of total stock value. Only use the big number at the top followed by "หุ้น".
-
-4. ACTUAL PRICE (ราคาที่ได้จริง / Executed Price per share):
-   - Under "ราคา" (Price), look for the column labeled "ราคาที่ได้จริง" (Executed Price).
-   - Use the price per share shown directly under "ราคาที่ได้จริง" (e.g. "172.10 USD").
-   - Ignore "ราคาที่คุณตั้ง" (Limit price / set price).
-   - Ignore commission ("ค่าคอมมิชชัน"), VAT ("ภาษีมูลค่าเพิ่ม"), and fees ("ค่าธรรมเนียม").
-
-5. TIMESTAMP:
-   - Look for the row "วันที่ส่งคำสั่ง" (Order Date) or "วันที่ส่งคำสั่งสำเร็จ" at the bottom.
-   - Format: "DD เดือนย่อ YY - HH:MM น." (e.g. "21 ก.ค. 68 - 23:37 น.").
-   - Convert Thai year to Gregorian year: YY + 1957 (e.g. 68 -> 2025, 69 -> 2026).
-   - Map Thai months correctly (do not confuse similar-looking letters):
+3. TIMESTAMP (Transaction Date and Time):
+   - Look at the VERY TOP of the slip, inside the first header box labeled "สถานะ" (Status).
+   - Locate the text: "สถานะ (ณ DD เดือนย่อ YY - HH:MM น.)"
+     - Examples:
+       - "สถานะ (ณ 5 ก.ย. 68 - 23:21 น.)" -> Date is 5 Sep 2025, Time is 23:21
+       - "สถานะ (ณ 30 มิ.ย. 68 - 20:58 น.)" -> Date is 30 Jun 2025, Time is 20:58
+       - "สถานะ (ณ 21 ก.ค. 68 - 13:31 น.)" -> Date is 21 Jul 2025, Time is 13:31
+   - Convert Thai Buddhist Era year (YY) to CE Gregorian year: YY + 1957 (e.g. 68 -> 2025, 69 -> 2026).
+   - Convert Thai month abbreviations correctly:
      - ม.ค. = 01 (Jan)
      - ก.พ. = 02 (Feb)
      - มี.ค. = 03 (Mar)
      - เม.ย. = 04 (Apr)
      - พ.ค. = 05 (May)
      - มิ.ย. = 06 (Jun)
-     - ก.ค. = 07 (Jul - July. In this slip, "ก.ค." means July -> 07)
+     - ก.ค. = 07 (Jul)
      - ส.ค. = 08 (Aug)
      - ก.ย. = 09 (Sep)
      - ต.ค. = 10 (Oct)
      - พ.ย. = 11 (Nov)
      - ธ.ค. = 12 (Dec)
-   - Example: "21 ก.ค. 68 - 23:37 น." -> "2025-07-21T23:37:00".`;
+   - Combine into ISO 8601 string: YYYY-MM-DDTHH:MM:SS.
+
+4. ACTUAL PRICE (ราคาที่ได้จริง - Price Per Share):
+   - Locate the label "ราคาที่ได้จริง" (Executed/Actual Price).
+   - The value is the number directly below it (followed by currency like USD or THB).
+   - Ignore "ราคาที่คุณตั้ง" (Your set price) and total transaction amounts like "ยอดที่ต้องชำระ" / "ยอดที่จะได้รับคืน".
+
+5. SHARE AMOUNT (Quantity of shares/units):
+   - There are two layouts depending on order type:
+     A. If there is a line labeled "จำนวนหุ้น" (Number of shares) or "จำนวนหน่วย" in the table below the main header:
+        - Extract the value from this line (e.g., "จำนวนหุ้น 66.9618521" -> share_amount is 66.9618521).
+     B. If there is NO "จำนวนหุ้น" or "จำนวนหน่วย" line in the table below:
+        - Look at the top of the box. Extract the big bold number followed by "หุ้น" or "หน่วย" (e.g., "10 หุ้น" or "60 หุ้น" -> share_amount is 10 or 60).
+   - NEVER use cash values (e.g. "10,475.45 USD" or total stock value "มูลค่าหุ้น" 10,475.44 USD) as share_amount.`;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
