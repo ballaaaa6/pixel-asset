@@ -2028,6 +2028,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
   const [showPnLDetailsModal, setShowPnLDetailsModal] = useState(false);
 
   const syncProfileToServer = async (name, pic, nick) => {
+    if (user.username === "local_user") return;
     try {
       await fetch("/api/profile", {
         method: "POST",
@@ -2048,6 +2049,19 @@ export default function Dashboard({ user, onLogout, showToast }) {
 
   useEffect(() => {
     const fetchProfileSync = async () => {
+      if (user.username === "local_user") {
+        // Load profile details from localStorage for local_user
+        const cachedName = localStorage.getItem(`portfolio_name_${user.username}`);
+        if (cachedName) setPortfolioName(cachedName);
+        const cachedPic = localStorage.getItem(`profile_pic_${user.username}`);
+        if (cachedPic) setProfilePic(cachedPic);
+        const cachedNick = localStorage.getItem(`profile_nickname_${user.username}`);
+        if (cachedNick) {
+          setNickname(cachedNick);
+          setNewNickname(cachedNick);
+        }
+        return;
+      }
       try {
         const res = await fetch("/api/profile", {
           headers: {
@@ -2173,20 +2187,60 @@ export default function Dashboard({ user, onLogout, showToast }) {
   const assetsRef = useRef([]);
   assetsRef.current = assets;
 
+  const savePortfolio = async (updatedAssets) => {
+    setAssets(updatedAssets);
+    localStorage.setItem(`local_portfolio_${user.username}`, JSON.stringify(updatedAssets));
+
+    if (user.username === "local_user") {
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/portfolio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
+        body: JSON.stringify(updatedAssets),
+      });
+      if (!res.ok) {
+        throw new Error("HTTP error " + res.status);
+      }
+    } catch (err) {
+      console.warn("ไม่สามารถเซฟข้อมูลลง Cloudflare ได้ ใช้ Local Storage แทน:", err.message);
+      showToast("บันทึกข้อมูลในอุปกรณ์เครื่องนี้แล้ว (เซิร์ฟเวอร์ออฟไลน์)", "warning");
+    }
+  };
+
   /* ── FETCH PORTFOLIO ── */
   const fetchPortfolio = async () => {
     try {
+      if (user.username === "local_user") {
+        const localData = JSON.parse(localStorage.getItem(`local_portfolio_${user.username}`) || "[]");
+        setAssets(localData);
+        await fetchPrices(localData);
+        if (localData.length > 0) fetchSparklines(localData, chartRange);
+        return;
+      }
+
       const res = await fetch("/api/portfolio", {
         headers: { Authorization: `Bearer ${user.token}` },
       });
       if (res.ok) {
         const data = await res.json();
         setAssets(data);
+        // Backup to local storage in case server goes offline later
+        localStorage.setItem(`local_portfolio_${user.username}`, JSON.stringify(data));
         await fetchPrices(data);
         if (data.length > 0) fetchSparklines(data, chartRange);
+      } else {
+        throw new Error("HTTP error " + res.status);
       }
     } catch (err) {
-      showToast("โหลดพอร์ตไม่สำเร็จ: " + err.message, "error");
+      console.warn("โหลดพอร์ตจากเซิร์ฟเวอร์ไม่สำเร็จ ใช้ข้อมูล Local แทน:", err.message);
+      const localData = JSON.parse(localStorage.getItem(`local_portfolio_${user.username}`) || "[]");
+      setAssets(localData);
+      await fetchPrices(localData);
+      if (localData.length > 0) fetchSparklines(localData, chartRange);
+      showToast("ใช้ข้อมูลพอร์ตที่บันทึกในเครื่องชั่วคราว", "info");
     } finally {
       setLoading(false);
     }
@@ -2207,8 +2261,23 @@ export default function Dashboard({ user, onLogout, showToast }) {
         })
         .filter(Boolean)
         .join(",");
-      const res = await fetch(`/api/prices?symbols=${encodeURIComponent(symbols)}`);
-      if (res.ok) {
+
+      if (user.username === "local_user" && !symbols) {
+        setPrices({});
+        setRefreshing(false);
+        return;
+      }
+
+      let res = null;
+      if (user.username !== "local_user") {
+        try {
+          res = await fetch(`/api/prices?symbols=${encodeURIComponent(symbols)}`);
+        } catch (apiErr) {
+          console.warn("fetchPrices API network error, falling back to mock:", apiErr.message);
+        }
+      }
+
+      if (res && res.ok) {
         const data = await res.json();
         const newPrices = data.quotes || {};
 
@@ -2229,6 +2298,70 @@ export default function Dashboard({ user, onLogout, showToast }) {
         prevPricesRef.current = newPrices;
         setPrices(newPrices);
         if (data.exchangeRate) setExchangeRate(data.exchangeRate);
+      } else {
+        // Fallback or local user mode: generate mock quotes for symbols
+        const newPrices = { ...prevPricesRef.current };
+        const symList = symbols ? symbols.split(",") : [];
+
+        symList.forEach(s => {
+          const cleanSym = s.toUpperCase();
+          let basePrice = 100.0;
+
+          // Find a reasonable basePrice from avgCost in assets
+          const matchAsset = portfolioAssets.find(a => a.symbol.toUpperCase() === cleanSym || getCurrencyTicker(a.symbol).toUpperCase() === cleanSym);
+          if (matchAsset) {
+            basePrice = matchAsset.avgCost || matchAsset.avgPrice || 100.0;
+          }
+
+          // Add a small random-walk variation
+          const changePercent = (Math.random() - 0.5) * 0.02; // -1% to +1%
+          const lastPrice = prevPricesRef.current[cleanSym]?.price || basePrice;
+          const currPrice = lastPrice * (1 + changePercent);
+
+          newPrices[cleanSym] = {
+            price: currPrice,
+            change: changePercent * 100,
+            changesPercentage: changePercent * 100,
+            marketState: "REGULAR",
+            displayName: cleanSym
+          };
+        });
+
+        // Add a mock exchange rate for THB/USD
+        const mockExchangeRate = 35.0 + (Math.random() - 0.5) * 0.2; // roughly 35 THB/USD
+        setExchangeRate(mockExchangeRate);
+
+        // Also mock THB=X ticker specifically if cash assets need it
+        newPrices["THB=X"] = {
+          price: mockExchangeRate,
+          change: 0.0,
+          changesPercentage: 0.0,
+          marketState: "REGULAR",
+          displayName: "THB"
+        };
+        newPrices["USD"] = {
+          price: 1.0,
+          change: 0,
+          changesPercentage: 0,
+          marketState: "REGULAR"
+        };
+
+        // Detect price changes for flash animation in mock mode too
+        const flash = {};
+        Object.keys(newPrices).forEach(sym => {
+          const prev = prevPricesRef.current[sym]?.price;
+          const curr = newPrices[sym]?.price;
+          if (prev != null && curr != null && curr !== prev) {
+            flash[sym] = curr > prev ? "up" : "down";
+          }
+        });
+        if (Object.keys(flash).length > 0) {
+          setPriceFlash(flash);
+          setTimeout(() => setPriceFlash({}), 1600);
+        }
+
+        prevPricesRef.current = newPrices;
+        setPrices(newPrices);
       }
     } catch (err) {
       console.error("Price fetch error:", err);
@@ -2297,10 +2430,98 @@ export default function Dashboard({ user, onLogout, showToast }) {
         }
       }
 
-      const res = await fetch(`/api/prices?sparkline=${encodeURIComponent(syms.join(","))}&tf=${optimalRange}`);
-      if (res.ok) {
+      let res = null;
+      if (user.username !== "local_user") {
+        try {
+          res = await fetch(`/api/prices?sparkline=${encodeURIComponent(syms.join(","))}&tf=${optimalRange}`);
+        } catch (apiErr) {
+          console.warn("fetchSparklines API network error, falling back to mock:", apiErr.message);
+        }
+      }
+
+      if (res && res.ok) {
         const data = await res.json();
         setSparklines(data);
+      } else {
+        // Fallback or local user mode: generate mock sparkline date series for the requested tf/range
+        const mockSparklines = {};
+
+        // Generate history series based on timeframe
+        const days = {
+          "1D": 24, // 24 hourly points
+          "1W": 7,  // 7 daily points
+          "1M": 30,
+          "3M": 90,
+          "6M": 180,
+          "YTD": 150,
+          "1Y": 252, // trading days
+          "5Y": 252 * 5,
+          "MAX": 252 * 5
+        }[optimalRange] || 30;
+
+        const nowTime = Date.now();
+        const dateInterval = {
+          "1D": 3600 * 1000, // 1 hour
+          "1W": 24 * 3600 * 1000,
+          "1M": 24 * 3600 * 1000,
+          "3M": 24 * 3600 * 1000,
+          "6M": 24 * 3600 * 1000,
+          "YTD": 24 * 3600 * 1000,
+          "1Y": 24 * 3600 * 1000,
+          "5Y": 7 * 24 * 3600 * 1000,
+          "MAX": 7 * 24 * 3600 * 1000
+        }[optimalRange] || 24 * 3600 * 1000;
+
+        syms.forEach(sym => {
+          const cleanSym = sym.toUpperCase();
+          const dates = [];
+          const closes = [];
+
+          let basePrice = 100.0;
+          const matchAsset = portfolioAssets.find(a => a.symbol.toUpperCase() === cleanSym || getCurrencyTicker(a.symbol).toUpperCase() === cleanSym);
+          if (matchAsset) {
+            basePrice = matchAsset.avgCost || matchAsset.avgPrice || 100.0;
+          }
+
+          let currentVal = basePrice * 0.9; // start slightly lower
+
+          for (let i = days; i >= 0; i--) {
+            const timeAt = nowTime - i * dateInterval;
+            const dateStr = new Date(timeAt).toISOString();
+
+            // Random-walk drift
+            const drift = (Math.random() - 0.48) * 0.03; // slightly upwards bias
+            currentVal = currentVal * (1 + drift);
+            if (currentVal < 0.01) currentVal = 0.01;
+
+            dates.push(dateStr);
+            closes.push(currentVal);
+          }
+
+          mockSparklines[cleanSym] = {
+            dates,
+            closes
+          };
+        });
+
+        // Include historical conversion rates for exchangeRate (THB=X) if needed
+        const thbCloses = [];
+        const thbDates = [];
+        let currThb = 35.0;
+        for (let i = days; i >= 0; i--) {
+          const timeAt = nowTime - i * dateInterval;
+          const dateStr = new Date(timeAt).toISOString();
+          const drift = (Math.random() - 0.5) * 0.005;
+          currThb = currThb * (1 + drift);
+          thbDates.push(dateStr);
+          thbCloses.push(currThb);
+        }
+        mockSparklines["THB=X"] = {
+          dates: thbDates,
+          closes: thbCloses
+        };
+
+        setSparklines(mockSparklines);
       }
     } catch (err) {
       console.error("Sparkline fetch error:", err);
@@ -2557,27 +2778,46 @@ export default function Dashboard({ user, onLogout, showToast }) {
 
   useEffect(() => {
     const fetchHistoricalRates = async () => {
-      try {
-        const res = await fetch("/api/prices?history=THB=X&tf=MAX");
-        if (res.ok) {
-          const data = await res.json();
-          const rates = {};
-          if (data.candles) {
-            data.candles.forEach(c => {
-              if (c.date && c.close) {
-                const dateKey = c.date.split("T")[0];
-                rates[dateKey] = c.close;
-              }
-            });
-          }
-          setHistoricalRates(rates);
+      let res = null;
+      if (user.username !== "local_user") {
+        try {
+          res = await fetch("/api/prices?history=THB=X&tf=MAX");
+        } catch (apiErr) {
+          console.warn("fetchHistoricalRates API network error, falling back to mock:", apiErr.message);
         }
-      } catch (err) {
-        console.error("Failed to fetch historical exchange rates:", err);
+      }
+
+      if (res && res.ok) {
+        const data = await res.json();
+        const rates = {};
+        if (data.candles) {
+          data.candles.forEach(c => {
+            if (c.date && c.close) {
+              const dateKey = c.date.split("T")[0];
+              rates[dateKey] = c.close;
+            }
+          });
+        }
+        setHistoricalRates(rates);
+      } else {
+        // Mock historical THB exchange rates going back ~10 years
+        const rates = {};
+        const now = Date.now();
+        let currentThb = 35.0;
+        for (let i = 0; i < 3650; i++) {
+          const timeAt = now - i * 24 * 3600 * 1000;
+          const dateKey = new Date(timeAt).toISOString().split("T")[0];
+          const drift = (Math.random() - 0.5) * 0.002;
+          currentThb = currentThb * (1 + drift);
+          if (currentThb < 28) currentThb = 28;
+          if (currentThb > 40) currentThb = 40;
+          rates[dateKey] = currentThb;
+        }
+        setHistoricalRates(rates);
       }
     };
     fetchHistoricalRates();
-  }, []);
+  }, [user.username]);
 
   useEffect(() => {
     if (!autoRefresh) return;
@@ -2978,12 +3218,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
         }
       }
 
-      setAssets(updatedAssets);
-      await fetch("/api/portfolio", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
-        body: JSON.stringify(updatedAssets),
-      });
+      await savePortfolio(updatedAssets);
 
       setModalOpen(false);
       setEditingAsset(null);
@@ -3002,12 +3237,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
   const handleClearPortfolio = async () => {
     if (!confirm("⚠️ คุณต้องการล้างข้อมูลหุ้นและธุรกรรมทั้งหมดในพอร์ตใช่หรือไม่? (ชื่อเล่นและรูปโปรไฟล์ของคุณจะไม่ถูกลบ)")) return;
     try {
-      setAssets([]);
-      await fetch("/api/portfolio", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
-        body: JSON.stringify([]),
-      });
+      await savePortfolio([]);
       showToast("🗑️ ล้างข้อมูลพอร์ตหุ้นเรียบร้อยแล้ว!", "success");
       setProfileModalOpen(false);
     } catch (err) {
@@ -3019,12 +3249,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
   const handleClearAllData = async () => {
     if (!confirm("⚠️ คำเตือน: คุณต้องการล้างข้อมูลทุกอย่างทั้งหมด (ทั้งข้อมูลหุ้น, ชื่อเล่น, และรูปโปรไฟล์) กลับเป็นค่าเริ่มต้นใช่หรือไม่?")) return;
     try {
-      setAssets([]);
-      await fetch("/api/portfolio", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
-        body: JSON.stringify([]),
-      });
+      await savePortfolio([]);
 
       setProfilePic("");
       setNickname("");
@@ -3046,13 +3271,8 @@ export default function Dashboard({ user, onLogout, showToast }) {
   const handleDeleteAsset = async (assetToDelete) => {
     if (!confirm(`ลบ ${assetToDelete.symbol} ออกจากพอร์ตใช่ไหม?`)) return;
     const updated = assets.filter(a => a.id !== assetToDelete.id);
-    setAssets(updated);
     try {
-      await fetch("/api/portfolio", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
-        body: JSON.stringify(updated),
-      });
+      await savePortfolio(updated);
       showToast(`🗑️ ลบ ${assetToDelete.symbol} เรียบร้อย`, "success");
       fetchSparklines(updated, chartRange);
     } catch (err) {
@@ -3081,12 +3301,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
         const parsed = JSON.parse(ev.target.result);
         const imported = parsed.assets || parsed;
         if (!Array.isArray(imported)) { showToast("ไฟล์ไม่ถูกต้อง", "error"); return; }
-        setAssets(imported);
-        await fetch("/api/portfolio", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
-          body: JSON.stringify(imported),
-        });
+        await savePortfolio(imported);
         showToast(`✅ นำเข้า ${imported.length} รายการสำเร็จ`, "success");
         fetchPrices(imported);
         fetchSparklines(imported, chartRange);

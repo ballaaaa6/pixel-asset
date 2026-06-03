@@ -321,7 +321,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
       // ══════════════════════════════════════════════════════════════════════
       // PRIMARY: Google Gemini Vision API Batch OCR (High Accuracy & Speed)
       // ══════════════════════════════════════════════════════════════════════
-      setScanningStatus(prev => ({ ...prev, stage: "AI Vision: กำลังประมวลผลไฟล์ภาพ..." }));
+      setScanningStatus(prev => ({ ...prev, stage: "AI Vision Batch: กำลังประมวลผลไฟล์ภาพ..." }));
 
       const imagesToProcess = [];
       for (let idx = 0; idx < fileList.length; idx++) {
@@ -333,18 +333,23 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
         }
       }
 
-      setScanningStatus(prev => ({ ...prev, stage: "AI Vision: เริ่มการสแกน..." }));
-      let aiCompletedCount = 0;
+      const visionChunks = [];
+      for (let i = 0; i < imagesToProcess.length; i += 3) {
+        visionChunks.push(imagesToProcess.slice(i, i + 3));
+      }
 
-      await limitConcurrency(imagesToProcess, 3, async (img) => {
+      for (let c = 0; c < visionChunks.length; c++) {
+        const chunk = visionChunks[c];
         setScanningStatus(prev => ({
           ...prev,
-          stage: `AI Vision: กำลังสแกนรูปที่ ${img.index + 1}/${fileList.length}...`
+          stage: `AI Vision: กำลังสแกนรูปกลุ่มที่ ${c + 1}/${visionChunks.length}...`
         }));
+
         try {
-          const prompt = `This is a stock trading receipt image from the Dime! app (Thai broker).
-Please analyze the image and extract the transaction details in JSON format.
-Extract:
+          const prompt = `These are stock trading receipt images from the Dime! app (Thai broker).
+Please analyze each image and extract the transaction details in a JSON array.
+For each item, specify:
+- index: The index number corresponding to the image (e.g. the SLIP INDEX number shown below)
 - transactionType: "BUY" or "SELL" (look for "ซื้อ" / "ชื้อ" for BUY, "ขาย" for SELL)
 - symbol: Stock ticker in uppercase (e.g. NVDA, AAPL, MU, SCB-GOLD, K-USA)
 - name: Stock name or symbol
@@ -354,22 +359,26 @@ Extract:
 - date: Transaction date in YYYY-MM-DD format (Buddhist Era year conversion: "68" -> 2568 BE -> 2025 CE, "69" -> 2569 BE -> 2026 CE. Months: ม.ค.=01, ก.พ.=02, มี.ค.=03, เม.ย.=04, พ.ค.=05, มิ.ย.=06, ก.ค.=07, ส.ค.=08, ก.ย.=09, ต.ค.=10, พ.ย.=11, ธ.ค.=12)
 - time: Transaction time in HH:MM format (e.g. "15:40" or "02:22")
 
-Format the response strictly as a single JSON object matching this schema:
-{
-  "transactionType": "BUY" | "SELL",
-  "symbol": "STRING",
-  "name": "STRING",
-  "category": "stock" | "crypto" | "gold" | "fiat",
-  "qty": number,
-  "price": number,
-  "date": "YYYY-MM-DD",
-  "time": "HH:MM"
-}`;
+Format the response strictly as a JSON array matching this schema:
+[
+  {
+    "index": number,
+    "transactionType": "BUY" | "SELL",
+    "symbol": "STRING",
+    "name": "STRING",
+    "category": "stock" | "crypto" | "gold" | "fiat",
+    "qty": number,
+    "price": number,
+    "date": "YYYY-MM-DD",
+    "time": "HH:MM"
+  }
+]`;
 
-          const parts = [
-            { text: prompt },
-            { inlineData: { mimeType: img.mime, data: img.base64 } }
-          ];
+          const parts = [{ text: prompt }];
+          chunk.forEach(img => {
+            parts.push({ text: `\n--- SLIP INDEX: ${img.index} ---` });
+            parts.push({ inlineData: { mimeType: img.mime, data: img.base64 } });
+          });
 
           const bodyObj = {
             contents: [{ parts }],
@@ -378,47 +387,60 @@ Format the response strictly as a single JSON object matching this schema:
 
           const response = await callGemini(geminiKey, bodyObj);
           const candidateText = response?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-          const jsonMatch = candidateText.match(/\{[\s\S]*\}/);
+          const jsonMatch = candidateText.match(/\[[\s\S]*\]/);
           if (jsonMatch) {
-            const parsedData = JSON.parse(jsonMatch[0]);
-            let sym = String(parsedData.symbol).toUpperCase().replace(/[^A-Z0-9.-]/g, "");
-            if (sym === "เบ" || sym === "เน" || sym === "เม" || sym === "เU") sym = "MU";
-            if (sym === "กอ" || sym === "กO") sym = "KO";
+            const parsedArray = JSON.parse(jsonMatch[0]);
+            if (Array.isArray(parsedArray)) {
+              parsedArray.forEach((parsedData, arrayIdx) => {
+                let idx = parsedData.index;
+                let matchedImg = chunk.find(item => item.index === idx);
+                if (!matchedImg && arrayIdx < chunk.length) {
+                  matchedImg = chunk[arrayIdx];
+                  idx = matchedImg.index;
+                }
+                if (idx != null && matchedImg) {
+                  let sym = String(parsedData.symbol).toUpperCase().replace(/[^A-Z0-9.-]/g, "");
+                  if (sym === "เบ" || sym === "เน" || sym === "เม" || sym === "เU") sym = "MU";
+                  if (sym === "กอ" || sym === "กO") sym = "KO";
 
-            let qtyVal = parseFloat(parsedData.qty) || 1;
-            let priceVal = parseFloat(parsedData.price) || 0;
-            let parsedDate = parsedData.date;
-            if (!parsedDate || !parsedDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-              parsedDate = new Date().toISOString().split("T")[0];
+                  let qtyVal = parseFloat(parsedData.qty) || 1;
+                  let priceVal = parseFloat(parsedData.price) || 0;
+                  let parsedDate = parsedData.date;
+                  if (!parsedDate || !parsedDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                    parsedDate = new Date().toISOString().split("T")[0];
+                  }
+
+                  newScannedItems.push({
+                    id: `${Date.now()}-ai-${idx}`,
+                    symbol:          sym,
+                    name:            parsedData.name || sym,
+                    type:            parsedData.category || "stock",
+                    qty:             String(qtyVal),
+                    avgPrice:        String(priceVal),
+                    date:            parsedDate,
+                    time:            parsedData.time || "",
+                    transactionType: parsedData.transactionType || "BUY"
+                  });
+                  succeededIndices.add(idx);
+                  delete fileErrors[idx];
+                }
+              });
             }
-
-            newScannedItems.push({
-              id: `${Date.now()}-ai-${img.index}-${Math.random().toString(36).substr(2, 5)}`,
-              symbol:          sym,
-              name:            parsedData.name || sym,
-              type:            parsedData.category || "stock",
-              qty:             String(qtyVal),
-              avgPrice:        String(priceVal),
-              date:            parsedDate,
-              time:            parsedData.time || "",
-              transactionType: parsedData.transactionType || "BUY"
-            });
-            succeededIndices.add(img.index);
-            delete fileErrors[img.index];
-          } else {
-            fileErrors[img.index] = `รูป ${img.index + 1} (AI Vision): ดึง JSON ไม่สำเร็จ`;
           }
         } catch (visionErr) {
-          console.error(`AI Vision for img ${img.index} failed:`, visionErr.message);
-          fileErrors[img.index] = `รูป ${img.index + 1} (AI Vision): ${visionErr.message}`;
-        } finally {
-          aiCompletedCount++;
-          setScanningStatus(prev => ({
-            ...prev,
-            completed: aiCompletedCount
-          }));
+          console.error(`AI Vision Batch chunk ${c+1} failed:`, visionErr.message);
+          chunk.forEach(img => {
+            if (!succeededIndices.has(img.index)) {
+              fileErrors[img.index] = `รูป ${img.index + 1} (AI Vision): ${visionErr.message}`;
+            }
+          });
         }
-      });
+
+        setScanningStatus(prev => ({
+          ...prev,
+          completed: Math.min(fileList.length, (c + 1) * 3)
+        }));
+      }
     } else {
       // ══════════════════════════════════════════════════════════════════════
       // PRIMARY: Parallel Tesseract.js OCR + regex parser (if no Gemini API Key)

@@ -42,6 +42,16 @@ export default function Login({ onLoginSuccess, onNavigateToRegister, showToast 
     }
   };
 
+  const handleLocalBypass = () => {
+    const mockUser = {
+      username: "local_user",
+      token: "local_mock_token_12345"
+    };
+    localStorage.setItem("portfolio_user", JSON.stringify(mockUser));
+    showToast("เข้าสู่ระบบแบบ Local Mode (ข้อมูลถูกบันทึกในเครื่องนี้เท่านั้น)", "success");
+    onLoginSuccess(mockUser);
+  };
+
   return (
     <div className="auth-wrapper fade-in">
       <div className="auth-card">
@@ -128,6 +138,25 @@ export default function Login({ onLoginSuccess, onNavigateToRegister, showToast 
           <button type="submit" className="btn btn-primary" disabled={loading}>
             {loading ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบทันที"}
             {!loading && <LogIn size={18} />}
+          </button>
+
+          {/* Local Mode Bypass Button */}
+          <button
+            type="button"
+            className="btn btn-secondary"
+            style={{
+              width: "100%",
+              marginTop: "12px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px",
+              border: "1px dashed var(--border)"
+            }}
+            onClick={handleLocalBypass}
+            disabled={loading}
+          >
+            ทดลองใช้งาน (Local Mode)
           </button>
         </form>
 
