@@ -261,11 +261,11 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
     .filter(Boolean);
 
   const GEMINI_ENDPOINTS = [
-    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent" },
-    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent" },
+    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent" },
     { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" },
-    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent" },
-    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent" }
+    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite-preview-06-17:generateContent" },
+    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent" },
+    { url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent" }
   ];
 
   const callGemini = async (keyInput, bodyObj, keyIdx = 0, endpointIdx = 0, attempt = 0) => {
@@ -403,42 +403,53 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
 
         const response = await callGemini(geminiKey, bodyObj);
         const candidateText = response?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-        const jsonMatch = candidateText.match(/\[[\s\S]*\]/);
 
-        if (jsonMatch) {
-          const parsedArray = JSON.parse(jsonMatch[0]);
-          if (Array.isArray(parsedArray)) {
-            parsedArray.forEach((parsedData, arrayIdx) => {
-              let idx = parsedData.index;
-              let matchedImg = chunk.find(item => item.index === idx);
-              if (!matchedImg && arrayIdx < chunk.length) {
-                matchedImg = chunk[arrayIdx];
-                idx = matchedImg.index;
-              }
-              if (idx != null && matchedImg) {
-                const validated = validateParsedReceipt(parsedData, idx);
-                if (validated) {
-                  newScannedItems.push({
-                    id: `${Date.now()}-ai-${idx}`,
-                    symbol:          validated.symbol,
-                    name:            validated.name,
-                    type:            validated.category,
-                    qty:             String(validated.qty),
-                    avgPrice:        String(validated.price),
-                    date:            validated.date,
-                    time:            validated.time,
-                    transactionType: validated.transactionType
-                  });
-                  succeededIndices.add(idx);
-                  delete fileErrors[idx];
-                } else {
-                  fileErrors[idx] = `รูป ${idx + 1}: AI อ่านได้แต่ข้อมูลไม่ครบหรือไม่ถูกต้อง`;
-                }
-              }
-            });
+        // Parse JSON: try direct parse first (structured output), then regex fallback
+        let parsedArray = null;
+        try {
+          const direct = JSON.parse(candidateText);
+          parsedArray = Array.isArray(direct) ? direct : (direct ? [direct] : null);
+        } catch (_) {
+          const jsonMatch = candidateText.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
+          if (jsonMatch) {
+            try {
+              const parsed = JSON.parse(jsonMatch[0]);
+              parsedArray = Array.isArray(parsed) ? parsed : [parsed];
+            } catch (_2) { /* ignore */ }
           }
+        }
+
+        if (parsedArray && parsedArray.length > 0) {
+          parsedArray.forEach((parsedData, arrayIdx) => {
+            let idx = parsedData.index;
+            let matchedImg = chunk.find(item => item.index === idx);
+            if (!matchedImg && arrayIdx < chunk.length) {
+              matchedImg = chunk[arrayIdx];
+              idx = matchedImg.index;
+            }
+            if (idx != null && matchedImg) {
+              const validated = validateParsedReceipt(parsedData, idx);
+              if (validated) {
+                newScannedItems.push({
+                  id: `${Date.now()}-ai-${idx}`,
+                  symbol:          validated.symbol,
+                  name:            validated.name,
+                  type:            validated.category,
+                  qty:             String(validated.qty),
+                  avgPrice:        String(validated.price),
+                  date:            validated.date,
+                  time:            validated.time,
+                  transactionType: validated.transactionType
+                });
+                succeededIndices.add(idx);
+                delete fileErrors[idx];
+              } else {
+                fileErrors[idx] = `รูป ${idx + 1}: AI อ่านได้แต่ข้อมูลไม่ครบหรือไม่ถูกต้อง`;
+              }
+            }
+          });
         } else {
-          throw new Error("AI ไม่ส่งข้อมูล JSON กลับมา");
+          throw new Error(`AI ไม่ส่งข้อมูล JSON กลับมา (raw: ${candidateText.slice(0, 120)})`);
         }
       } catch (visionErr) {
         console.error(`AI Vision Batch chunk ${chunkIdx + 1} failed:`, visionErr.message);
@@ -497,27 +508,38 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
 
           const response = await callGemini(geminiKey, bodyObj);
           const candidateText = response?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-          const jsonMatch = candidateText.match(/\[[\s\S]*\]/);
 
-          if (jsonMatch) {
-            const parsedArray = JSON.parse(jsonMatch[0]);
-            if (Array.isArray(parsedArray) && parsedArray.length > 0) {
-              const validated = validateParsedReceipt(parsedArray[0], idx);
-              if (validated) {
-                newScannedItems.push({
-                  id: `${Date.now()}-retry-${idx}`,
-                  symbol:          validated.symbol,
-                  name:            validated.name,
-                  type:            validated.category,
-                  qty:             String(validated.qty),
-                  avgPrice:        String(validated.price),
-                  date:            validated.date,
-                  time:            validated.time,
-                  transactionType: validated.transactionType
-                });
-                succeededIndices.add(idx);
-                delete fileErrors[idx];
-              }
+          // Parse JSON: try direct parse first (structured output), then regex fallback
+          let retryParsed = null;
+          try {
+            const direct = JSON.parse(candidateText);
+            retryParsed = Array.isArray(direct) ? direct[0] : direct;
+          } catch (_) {
+            const jsonMatch = candidateText.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
+            if (jsonMatch) {
+              try {
+                const parsed = JSON.parse(jsonMatch[0]);
+                retryParsed = Array.isArray(parsed) ? parsed[0] : parsed;
+              } catch (_2) { /* ignore */ }
+            }
+          }
+
+          if (retryParsed) {
+            const validated = validateParsedReceipt(retryParsed, idx);
+            if (validated) {
+              newScannedItems.push({
+                id: `${Date.now()}-retry-${idx}`,
+                symbol:          validated.symbol,
+                name:            validated.name,
+                type:            validated.category,
+                qty:             String(validated.qty),
+                avgPrice:        String(validated.price),
+                date:            validated.date,
+                time:            validated.time,
+                transactionType: validated.transactionType
+              });
+              succeededIndices.add(idx);
+              delete fileErrors[idx];
             }
           }
         } catch (retryErr) {
