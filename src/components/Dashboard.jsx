@@ -2262,19 +2262,17 @@ export default function Dashboard({ user, onLogout, showToast }) {
         .filter(Boolean)
         .join(",");
 
-      if (user.username === "local_user" && !symbols) {
+      if (!symbols) {
         setPrices({});
         setRefreshing(false);
         return;
       }
 
       let res = null;
-      if (user.username !== "local_user") {
-        try {
-          res = await fetch(`/api/prices?symbols=${encodeURIComponent(symbols)}`);
-        } catch (apiErr) {
-          console.warn("fetchPrices API network error, falling back to mock:", apiErr.message);
-        }
+      try {
+        res = await fetch(`/api/prices?symbols=${encodeURIComponent(symbols)}`);
+      } catch (apiErr) {
+        console.warn("fetchPrices API network error, falling back to mock:", apiErr.message);
       }
 
       if (res && res.ok) {
@@ -2431,12 +2429,10 @@ export default function Dashboard({ user, onLogout, showToast }) {
       }
 
       let res = null;
-      if (user.username !== "local_user") {
-        try {
-          res = await fetch(`/api/prices?sparkline=${encodeURIComponent(syms.join(","))}&tf=${optimalRange}`);
-        } catch (apiErr) {
-          console.warn("fetchSparklines API network error, falling back to mock:", apiErr.message);
-        }
+      try {
+        res = await fetch(`/api/prices?sparkline=${encodeURIComponent(syms.join(","))}&tf=${optimalRange}`);
+      } catch (apiErr) {
+        console.warn("fetchSparklines API network error, falling back to mock:", apiErr.message);
       }
 
       if (res && res.ok) {
@@ -2779,12 +2775,10 @@ export default function Dashboard({ user, onLogout, showToast }) {
   useEffect(() => {
     const fetchHistoricalRates = async () => {
       let res = null;
-      if (user.username !== "local_user") {
-        try {
-          res = await fetch("/api/prices?history=THB=X&tf=MAX");
-        } catch (apiErr) {
-          console.warn("fetchHistoricalRates API network error, falling back to mock:", apiErr.message);
-        }
+      try {
+        res = await fetch("/api/prices?history=THB=X&tf=MAX");
+      } catch (apiErr) {
+        console.warn("fetchHistoricalRates API network error, falling back to mock:", apiErr.message);
       }
 
       if (res && res.ok) {
