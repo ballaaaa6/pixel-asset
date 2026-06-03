@@ -222,18 +222,15 @@ async function callWorkersAIVision(ai, base64, mime) {
     throw new Error("Empty response from Cloudflare Workers AI");
   }
 
+  const jsonMatch = resultText.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error(`Cloudflare AI did not return a valid JSON object block: ${resultText.slice(0, 150)}`);
+  }
+
   try {
-    return JSON.parse(resultText.trim());
-  } catch (_) {
-    const jsonMatch = resultText.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      try {
-        return JSON.parse(jsonMatch[0]);
-      } catch (_2) {
-        throw new Error(`Failed to parse extracted JSON from text: ${resultText.slice(0, 150)}`);
-      }
-    }
-    throw new Error(`Cloudflare AI did not return a valid JSON object: ${resultText.slice(0, 150)}`);
+    return JSON.parse(jsonMatch[0]);
+  } catch (parseErr) {
+    throw new Error(`Failed to parse extracted JSON from text: ${parseErr.message} (raw match: ${jsonMatch[0].slice(0, 120)})`);
   }
 }
 
