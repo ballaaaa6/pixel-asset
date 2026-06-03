@@ -1547,6 +1547,7 @@ function PnLDetailsModal({
   assets,
   prices,
   exchangeRate,
+  historicalRates,
   totalUSD,
   totalCostUSD,
   totalRealizedUSD,
@@ -1575,6 +1576,54 @@ function PnLDetailsModal({
     return `${symbol}USD=X`;
   };
 
+  const getHistoricalRate = (dateStr) => {
+    if (!dateStr) return exchangeRate;
+    const targetDate = dateStr.split("T")[0];
+    if (historicalRates && historicalRates[targetDate]) {
+      return historicalRates[targetDate];
+    }
+    const dates = Object.keys(historicalRates || {}).sort();
+    if (dates.length === 0) return exchangeRate;
+    let bestRate = exchangeRate;
+    for (const d of dates) {
+      if (d <= targetDate) {
+        bestRate = historicalRates[d];
+      } else {
+        break;
+      }
+    }
+    return bestRate;
+  };
+
+  const getRealizedPnLInTHB = (lots, isThai) => {
+    if (!lots || !lots.length) return 0;
+    const sortedLots = [...lots].sort((a, b) => new Date(a.date) - new Date(b.date));
+    let realizedTHB = 0;
+    let currentQty = 0;
+    let currentAvgCostUSD = 0;
+    for (const lot of sortedLots) {
+      const lotQty = lot.qty;
+      let lotPriceUSD = lot.price || 0;
+      const txRate = getHistoricalRate(lot.date);
+      if (isThai && txRate) {
+        lotPriceUSD = lotPriceUSD / txRate;
+      }
+      if (lotQty > 0) {
+        const newQty = currentQty + lotQty;
+        const newCost = (currentQty * currentAvgCostUSD) + (lotQty * lotPriceUSD);
+        currentAvgCostUSD = newQty > 0 ? newCost / newQty : 0;
+        currentQty = newQty;
+      } else if (lotQty < 0) {
+        const sellQty = Math.abs(lotQty);
+        const gainUSD = (lotPriceUSD - currentAvgCostUSD) * sellQty;
+        const gainTHB = gainUSD * txRate;
+        realizedTHB += gainTHB;
+        currentQty = Math.max(0, currentQty - sellQty);
+      }
+    }
+    return realizedTHB;
+  };
+
   const computeAssetMetrics = (asset) => {
     const isThai = asset.symbol.toUpperCase().endsWith(".BK");
     const isCashAsset = asset.type === "fiat" || asset.category === "fiat";
@@ -1596,6 +1645,7 @@ function PnLDetailsModal({
 
     // Realized
     const realized = getRealizedPnL(asset.lots || [], isThai, exchangeRate);
+    const realizedTHB = getRealizedPnLInTHB(asset.lots || [], isThai);
 
     // Initial Capital (cumulative buys)
     let totalInvested = 0;
@@ -1616,6 +1666,7 @@ function PnLDetailsModal({
       valueUSD,
       totalInvested,
       realized,
+      realizedTHB,
       unrealized,
       totalPnL,
       totalPnLPct
@@ -1631,6 +1682,22 @@ function PnLDetailsModal({
       };
     });
   }, [assets, prices, exchangeRate]);
+
+  // Sum up THB values realistically
+  const { totalRealizedTHB_Modal, totalUnrealizedTHB_Modal } = useMemo(() => {
+    let relTHB = 0;
+    let unrelTHB = 0;
+    breakdown.forEach(b => {
+      relTHB += b.realizedTHB || 0;
+      unrelTHB += (b.unrealized || 0) * exchangeRate;
+    });
+    return {
+      totalRealizedTHB_Modal: relTHB,
+      totalUnrealizedTHB_Modal: unrelTHB
+    };
+  }, [breakdown, exchangeRate]);
+
+  const totalGainTHB_Modal = totalRealizedTHB_Modal + totalUnrealizedTHB_Modal;
 
   const filtered = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
@@ -1680,22 +1747,27 @@ function PnLDetailsModal({
             <div style={{ fontSize: 15, fontWeight: 800, color: totalRealizedUSD >= 0 ? "var(--gain)" : "var(--loss)" }}>
               {totalRealizedUSD >= 0 ? "+" : ""}{fmt.usd(totalRealizedUSD)}
             </div>
-            <div style={{ fontSize: 11, color: "var(--text-faint)" }}>{totalRealizedUSD >= 0 ? "+" : ""}{fmt.thb(totalRealizedUSD * exchangeRate)}</div>
+            <div style={{ fontSize: 11, color: "var(--text-faint)" }}>
+              {totalRealizedTHB_Modal >= 0 ? "+" : ""}{fmt.thb(totalRealizedTHB_Modal)}
+            </div>
           </div>
           <div>
             <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", marginBottom: 4 }}>ยังไม่รับรู้ (Unrealized)</div>
             <div style={{ fontSize: 15, fontWeight: 800, color: totalUnrealizedUSD >= 0 ? "var(--gain)" : "var(--loss)" }}>
               {totalUnrealizedUSD >= 0 ? "+" : ""}{fmt.usd(totalUnrealizedUSD)}
             </div>
-            <div style={{ fontSize: 11, color: "var(--text-faint)" }}>{totalUnrealizedUSD >= 0 ? "+" : ""}{fmt.thb(totalUnrealizedUSD * exchangeRate)}</div>
+            <div style={{ fontSize: 11, color: "var(--text-faint)" }}>
+              {totalUnrealizedTHB_Modal >= 0 ? "+" : ""}{fmt.thb(totalUnrealizedTHB_Modal)}
+            </div>
           </div>
           <div>
             <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", marginBottom: 4 }}>ผลตอบแทนสะสมสุทธิ</div>
             <div style={{ fontSize: 15, fontWeight: 800, color: totalGainUSD >= 0 ? "var(--gain)" : "var(--loss)" }}>
               {totalGainUSD >= 0 ? "+" : ""}{fmt.usd(totalGainUSD)}
             </div>
-            <div style={{ fontSize: 11, color: totalGainUSD >= 0 ? "var(--gain)" : "var(--loss)", fontWeight: 700 }}>
-              ({totalGainUSD >= 0 ? "▲" : "▼"} {fmt.pct(totalGainPct)})
+            <div style={{ fontSize: 11, color: totalGainTHB_Modal >= 0 ? "var(--gain)" : "var(--loss)", fontWeight: 700, display: "flex", flexDirection: "column", gap: 2 }}>
+              <div>{totalGainTHB_Modal >= 0 ? "+" : ""}{fmt.thb(totalGainTHB_Modal)}</div>
+              <div style={{ opacity: 0.8, fontSize: 10 }}>({totalGainUSD >= 0 ? "▲" : "▼"} {fmt.pct(totalGainPct)})</div>
             </div>
           </div>
         </div>
@@ -1737,6 +1809,7 @@ function PnLDetailsModal({
                 filtered.map((item, idx) => {
                   const isSoldOut = item.qty <= 0.00001;
                   const isCash = item.type === "fiat" || item.category === "fiat";
+                  const totalPnLTHB = (item.realizedTHB || 0) + (item.unrealized || 0) * exchangeRate;
                   return (
                     <tr key={item.id || item.symbol} style={{ borderTop: "1px solid var(--border)", background: idx % 2 === 0 ? "#FFFFFF" : "#F8FAFC" }}>
                       <td style={{ padding: "10px 12px", fontWeight: 700 }}>
@@ -1759,17 +1832,33 @@ function PnLDetailsModal({
                         {isCash ? "—" : fmt.qty(item.qty)}
                       </td>
                       <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 600 }}>
-                        {fmt.usd(item.totalInvested)}
+                        <div>{fmt.usd(item.totalInvested)}</div>
+                        <div style={{ fontSize: 10, color: "var(--text-faint)", fontWeight: "normal" }}>
+                          ({fmt.thb(item.totalInvested * exchangeRate)})
+                        </div>
                       </td>
                       <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700, color: item.realized >= 0 ? "var(--gain)" : "var(--loss)" }}>
-                        {item.realized !== 0 ? (item.realized >= 0 ? "+" : "") + fmt.usd(item.realized) : "—"}
+                        <div>{item.realized !== 0 ? (item.realized >= 0 ? "+" : "") + fmt.usd(item.realized) : "—"}</div>
+                        {item.realized !== 0 && (
+                          <div style={{ fontSize: 10, color: item.realizedTHB >= 0 ? "var(--gain)" : "var(--loss)", fontWeight: "normal" }}>
+                            ({item.realizedTHB >= 0 ? "+" : ""}{fmt.thb(item.realizedTHB)})
+                          </div>
+                        )}
                       </td>
                       <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700, color: item.unrealized >= 0 ? "var(--gain)" : "var(--loss)" }}>
-                        {item.unrealized !== 0 && !isSoldOut ? (item.unrealized >= 0 ? "+" : "") + fmt.usd(item.unrealized) : "—"}
+                        <div>{item.unrealized !== 0 && !isSoldOut ? (item.unrealized >= 0 ? "+" : "") + fmt.usd(item.unrealized) : "—"}</div>
+                        {item.unrealized !== 0 && !isSoldOut && (
+                          <div style={{ fontSize: 10, color: item.unrealized >= 0 ? "var(--gain)" : "var(--loss)", fontWeight: "normal" }}>
+                            ({item.unrealized >= 0 ? "+" : ""}{fmt.thb(item.unrealized * exchangeRate)})
+                          </div>
+                        )}
                       </td>
                       <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 800, color: item.totalPnL >= 0 ? "var(--gain)" : "var(--loss)" }}>
                         <div>{item.totalPnL >= 0 ? "+" : ""}{fmt.usd(item.totalPnL)}</div>
-                        <div style={{ fontSize: 10, fontWeight: 700 }}>({item.totalPnL >= 0 ? "▲" : "▼"}{fmt.pct(item.totalPnLPct)})</div>
+                        <div style={{ fontSize: 10, color: totalPnLTHB >= 0 ? "var(--gain)" : "var(--loss)", fontWeight: "bold" }}>
+                          ({totalPnLTHB >= 0 ? "+" : ""}{fmt.thb(totalPnLTHB)})
+                        </div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)" }}>({item.totalPnL >= 0 ? "▲" : "▼"}{fmt.pct(item.totalPnLPct)})</div>
                       </td>
                     </tr>
                   );
@@ -1873,6 +1962,56 @@ export default function Dashboard({ user, onLogout, showToast }) {
   const [sparklines, setSparklines]       = useState({});   // { SYM: { dates, closes } }
   const [portfolioHistory, setPortfolioHistory] = useState([]); // [{date, value}]
   const [exchangeRate, setExchangeRate]   = useState(35.0);
+  const [historicalRates, setHistoricalRates] = useState({});
+
+  const getHistoricalRate = useCallback((dateStr) => {
+    if (!dateStr) return exchangeRate;
+    const targetDate = dateStr.split("T")[0];
+    if (historicalRates[targetDate]) {
+      return historicalRates[targetDate];
+    }
+    const dates = Object.keys(historicalRates).sort();
+    if (dates.length === 0) return exchangeRate;
+    let bestRate = exchangeRate;
+    for (const d of dates) {
+      if (d <= targetDate) {
+        bestRate = historicalRates[d];
+      } else {
+        break;
+      }
+    }
+    return bestRate;
+  }, [historicalRates, exchangeRate]);
+
+  const getRealizedPnLInTHB = useCallback((lots, isThai) => {
+    if (!lots || !lots.length) return 0;
+    const sortedLots = [...lots].sort((a, b) => new Date(a.date) - new Date(b.date));
+    let realizedTHB = 0;
+    let currentQty = 0;
+    let currentAvgCostUSD = 0;
+    for (const lot of sortedLots) {
+      const lotQty = lot.qty;
+      let lotPriceUSD = lot.price || 0;
+      const txRate = getHistoricalRate(lot.date);
+      if (isThai && txRate) {
+        lotPriceUSD = lotPriceUSD / txRate;
+      }
+      if (lotQty > 0) {
+        const newQty = currentQty + lotQty;
+        const newCost = (currentQty * currentAvgCostUSD) + (lotQty * lotPriceUSD);
+        currentAvgCostUSD = newQty > 0 ? newCost / newQty : 0;
+        currentQty = newQty;
+      } else if (lotQty < 0) {
+        const sellQty = Math.abs(lotQty);
+        const gainUSD = (lotPriceUSD - currentAvgCostUSD) * sellQty;
+        const gainTHB = gainUSD * txRate;
+        realizedTHB += gainTHB;
+        currentQty = Math.max(0, currentQty - sellQty);
+      }
+    }
+    return realizedTHB;
+  }, [getHistoricalRate]);
+
   const [loading, setLoading]             = useState(true);
   const [refreshing, setRefreshing]       = useState(false);
   const [sparklineLoading, setSparklineLoading] = useState(false);
@@ -2417,6 +2556,30 @@ export default function Dashboard({ user, onLogout, showToast }) {
   }, []);
 
   useEffect(() => {
+    const fetchHistoricalRates = async () => {
+      try {
+        const res = await fetch("/api/prices?history=THB=X&tf=MAX");
+        if (res.ok) {
+          const data = await res.json();
+          const rates = {};
+          if (data.candles) {
+            data.candles.forEach(c => {
+              if (c.date && c.close) {
+                const dateKey = c.date.split("T")[0];
+                rates[dateKey] = c.close;
+              }
+            });
+          }
+          setHistoricalRates(rates);
+        }
+      } catch (err) {
+        console.error("Failed to fetch historical exchange rates:", err);
+      }
+    };
+    fetchHistoricalRates();
+  }, []);
+
+  useEffect(() => {
     if (!autoRefresh) return;
     const iv = setInterval(() => fetchPrices(assetsRef.current), 30000);
     return () => clearInterval(iv);
@@ -2583,11 +2746,12 @@ export default function Dashboard({ user, onLogout, showToast }) {
 
 
   /* ── COMPUTED PORTFOLIO TOTALS ── */
-  const { totalUSD, totalCostUSD, todayChangeUSD, totalRealizedUSD, bestAsset, sortedAssets, donutSegments } = useMemo(() => {
-    if (!assets.length) return { totalUSD: 0, totalCostUSD: 0, todayChangeUSD: 0, totalRealizedUSD: 0, bestAsset: null, sortedAssets: [], donutSegments: [] };
+  const { totalUSD, totalCostUSD, todayChangeUSD, totalRealizedUSD, totalRealizedTHB, bestAsset, sortedAssets, donutSegments } = useMemo(() => {
+    if (!assets.length) return { totalUSD: 0, totalCostUSD: 0, todayChangeUSD: 0, totalRealizedUSD: 0, totalRealizedTHB: 0, bestAsset: null, sortedAssets: [], donutSegments: [] };
 
     let totVal = 0, totCost = 0, totToday = 0;
     let totRealized = 0;
+    let totRealizedTHB = 0;
     let bestSym = null, bestPct = -Infinity;
 
     const computed = assets.map(a => {
@@ -2600,10 +2764,14 @@ export default function Dashboard({ user, onLogout, showToast }) {
       const realized = getRealizedPnL(a.lots || [], isThai, exchangeRate);
       totRealized += realized;
 
+      const realizedTHB = getRealizedPnLInTHB(a.lots || [], isThai);
+      totRealizedTHB += realizedTHB;
+
       const assetWithPnL = {
         ...a,
         ...c,
         realizedPnL: realized,
+        realizedPnLTHB: realizedTHB,
         unrealizedPnL: a.qty > 0 ? (c.valueUSD - c.costUSD) : 0,
         totalPnL: realized + (a.qty > 0 ? (c.valueUSD - c.costUSD) : 0)
       };
@@ -2648,11 +2816,12 @@ export default function Dashboard({ user, onLogout, showToast }) {
       totalCostUSD: totCost,
       todayChangeUSD: totToday,
       totalRealizedUSD: totRealized,
+      totalRealizedTHB: totRealizedTHB,
       bestAsset: bestSym ? { symbol: bestSym.symbol, pct: bestPct } : null,
       sortedAssets: sorted,
       donutSegments: donut,
     };
-  }, [assets, prices, exchangeRate, sortConfig, computeAsset]);
+  }, [assets, prices, exchangeRate, sortConfig, computeAsset, getRealizedPnLInTHB]);
 
   const initialCapitalUSD = useMemo(() => {
     let sumBuys = 0;
@@ -2675,6 +2844,8 @@ export default function Dashboard({ user, onLogout, showToast }) {
   }, [assets, exchangeRate, totalCostUSD]);
 
   const totalUnrealizedUSD = totalUSD - totalCostUSD;
+  const totalUnrealizedTHB = totalUnrealizedUSD * exchangeRate;
+  const totalGainTHB = totalUnrealizedTHB + totalRealizedTHB;
   const totalGainUSD = totalUnrealizedUSD + totalRealizedUSD;
   const totalGainPct = initialCapitalUSD > 0 ? (totalGainUSD / initialCapitalUSD) * 100 : 0;
   const todayChangePct = totalCostUSD > 0 ? (todayChangeUSD / (totalUSD - todayChangeUSD)) * 100 : 0;
@@ -3099,11 +3270,12 @@ export default function Dashboard({ user, onLogout, showToast }) {
         <KPIRow
           totalUSD={hasPrices ? totalUSD : null}
           totalTHB={hasPrices ? totalUSD * exchangeRate : null}
+          totalCostUSD={totalCostUSD}
           todayChange={hasPrices ? todayChangeUSD : 0}
           todayChangeTHB={hasPrices ? todayChangeUSD * exchangeRate : 0}
           todayChangePct={hasPrices ? todayChangePct : 0}
           totalGain={hasPrices ? totalGainUSD : 0}
-          totalGainTHB={hasPrices ? totalGainUSD * exchangeRate : 0}
+          totalGainTHB={hasPrices ? totalGainTHB : 0}
           totalGainPct={hasPrices ? totalGainPct : 0}
           bestAsset={hasPrices ? bestAsset : null}
           loading={!hasPrices && assets.length > 0}
@@ -3156,10 +3328,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                       <span style={{ opacity: 0.8, fontSize: 12 }}>({fmt.pct(totalGainPct)})</span>
                       <span style={{ opacity: 0.5 }}>|</span>
                       <span>
-                        {totalGainUSD >= 0 ? "▲" : "▼"} {"฿" + new Intl.NumberFormat("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.abs(totalGainUSD * exchangeRate))}
-                      </span>
-                      <span style={{ fontSize: 10, background: "rgba(255,255,255,0.25)", padding: "2px 6px", borderRadius: 6, marginLeft: 4, fontWeight: "bold" }}>
-                        🔍 รายละเอียดรายตัว
+                        {totalGainTHB >= 0 ? "▲" : "▼"} {"฿" + new Intl.NumberFormat("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.abs(totalGainTHB))}
                       </span>
                     </div>
                   )}
@@ -3613,6 +3782,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
           assets={assets}
           prices={prices}
           exchangeRate={exchangeRate}
+          historicalRates={historicalRates}
           totalUSD={totalUSD}
           totalCostUSD={totalCostUSD}
           totalRealizedUSD={totalRealizedUSD}
@@ -3633,6 +3803,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
               : prices[selectedAsset.symbol]
           }
           exchangeRate={exchangeRate}
+          historicalRates={historicalRates}
           onClose={() => setSelectedAsset(null)}
         />
       )}

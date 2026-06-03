@@ -5,6 +5,7 @@ import { X, TrendingUp, TrendingDown, RefreshCw, ShoppingCart, Calendar, History
    FORMATTERS
 ══════════════════════════════════════════════════════ */
 const fmtUSD  = (n) => n == null ? "—" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: n != null && Math.abs(n) < 1 ? 4 : 2 }).format(n);
+const fmtTHB  = (n) => n == null ? "—" : new Intl.NumberFormat("th-TH", { style: "currency", currency: "THB", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 const fmtPct  = (n) => n == null ? "—" : (n >= 0 ? "+" : "") + n.toFixed(2) + "%";
 const fmtQty  = (n) => n == null ? "—" : new Intl.NumberFormat("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 6 }).format(n);
 const fmtDate = (iso, tf, hasMultipleYears = false) => {
@@ -1114,43 +1115,50 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
                 {fmtDateShort(pA.date)} ➔ {fmtDateShort(pB.date)} ({timeStr})
               </div>
 
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 2 }}>
-                <span style={{ color: "#94A3B8" }}>เริ่ม:</span>
-                <span style={{ color: "white", fontWeight: 700 }}>
-                  {fmtUSD(valA)} {isThai && <span style={{ fontSize: 9, color: "#94A3B8" }}>(฿{(valA * exchangeRate).toFixed(2)})</span>}
-                </span>
+              <div style={{ display: "flex", flexDirection: "column", fontSize: 11, marginTop: 2 }}>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ color: "#94A3B8" }}>เริ่ม:</span>
+                  <span style={{ color: "white", fontWeight: 700 }}>{fmtUSD(valA)}</span>
+                </div>
+                <div style={{ textAlign: "right", fontSize: 10, color: "#94A3B8" }}>
+                  ({fmtTHB(valA * getHistoricalRate(pA.date))})
+                </div>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
-                <span style={{ color: "#94A3B8" }}>สิ้นสุด:</span>
-                <span style={{ color: "white", fontWeight: 700 }}>
-                  {fmtUSD(valB)} {isThai && <span style={{ fontSize: 9, color: "#94A3B8" }}>(฿{(valB * exchangeRate).toFixed(2)})</span>}
-                </span>
+              <div style={{ display: "flex", flexDirection: "column", fontSize: 11 }}>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ color: "#94A3B8" }}>สิ้นสุด:</span>
+                  <span style={{ color: "white", fontWeight: 700 }}>{fmtUSD(valB)}</span>
+                </div>
+                <div style={{ textAlign: "right", fontSize: 10, color: "#94A3B8" }}>
+                  ({fmtTHB(valB * getHistoricalRate(pB.date))})
+                </div>
               </div>
 
               <div style={{
                 display: "flex",
-                justifyContent: "space-between",
-                fontSize: 11,
+                flexDirection: "column",
                 borderTop: "1px dashed rgba(255,255,255,0.15)",
                 paddingTop: 4,
                 marginTop: 2
               }}>
-                <span style={{ color: "#94A3B8" }}>ส่วนต่าง:</span>
-                <span style={{
-                  fontWeight: 900,
-                  color: diffVal >= 0 ? "#10B981" : "#EF4444"
-                }}>
-                  {diffVal >= 0 ? "+" : ""}{fmtUSD(diffVal)} ({diffVal >= 0 ? "+" : ""}{diffPct.toFixed(2)}%)
-                </span>
-              </div>
-              {isThai && (
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10 }}>
-                  <span style={{ color: "#94A3B8" }}>ส่วนต่าง (บาท):</span>
-                  <span style={{ fontWeight: 700, color: diffVal >= 0 ? "#10B981" : "#EF4444" }}>
-                    ฿{diffVal * exchangeRate >= 0 ? "+" : ""}{(diffVal * exchangeRate).toFixed(2)}
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
+                  <span style={{ color: "#94A3B8" }}>ส่วนต่าง:</span>
+                  <span style={{
+                    fontWeight: 900,
+                    color: diffVal >= 0 ? "#10B981" : "#EF4444"
+                  }}>
+                    {diffVal >= 0 ? "+" : ""}{fmtUSD(diffVal)} ({diffVal >= 0 ? "+" : ""}{diffPct.toFixed(2)}%)
                   </span>
                 </div>
-              )}
+                <div style={{
+                  textAlign: "right",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: diffVal >= 0 ? "#10B981" : "#EF4444"
+                }}>
+                  ({diffVal >= 0 ? "+" : ""}{fmtTHB(diffVal * getHistoricalRate(pB.date))})
+                </div>
+              </div>
               <div style={{ fontSize: 9, color: "#94A3B8", textAlign: "center", marginTop: 4, fontStyle: "italic" }}>
                 คลิก 1 ครั้งบนกราฟเพื่อล้างข้อมูลเปรียบเทียบ
               </div>
@@ -1168,12 +1176,60 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
 ══════════════════════════════════════════════════════ */
 const TF_OPTIONS = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "5Y", "ตั้งแต่ซื้อ"];
 
-export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }) {
+export default function AssetDetailPanel({ asset, price, exchangeRate, historicalRates, onClose }) {
   const [tf, setTf]         = useState("1M");
   const [chartData, setChartData] = useState(null);
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState(null);
   const [historyExpanded, setHistoryExpanded] = useState(false);
+
+  const getHistoricalRate = useCallback((dateStr) => {
+    if (!dateStr) return exchangeRate;
+    const targetDate = dateStr.split("T")[0];
+    if (historicalRates && historicalRates[targetDate]) {
+      return historicalRates[targetDate];
+    }
+    const dates = Object.keys(historicalRates || {}).sort();
+    if (dates.length === 0) return exchangeRate;
+    let bestRate = exchangeRate;
+    for (const d of dates) {
+      if (d <= targetDate) {
+        bestRate = historicalRates[d];
+      } else {
+        break;
+      }
+    }
+    return bestRate;
+  }, [historicalRates, exchangeRate]);
+
+  const getRealizedPnLInTHB = useCallback((lots, isThai) => {
+    if (!lots || !lots.length) return 0;
+    const sortedLots = [...lots].sort((a, b) => new Date(a.date) - new Date(b.date));
+    let realizedTHB = 0;
+    let currentQty = 0;
+    let currentAvgCostUSD = 0;
+    for (const lot of sortedLots) {
+      const lotQty = lot.qty;
+      let lotPriceUSD = lot.price || 0;
+      const txRate = getHistoricalRate(lot.date);
+      if (isThai && txRate) {
+        lotPriceUSD = lotPriceUSD / txRate;
+      }
+      if (lotQty > 0) {
+        const newQty = currentQty + lotQty;
+        const newCost = (currentQty * currentAvgCostUSD) + (lotQty * lotPriceUSD);
+        currentAvgCostUSD = newQty > 0 ? newCost / newQty : 0;
+        currentQty = newQty;
+      } else if (lotQty < 0) {
+        const sellQty = Math.abs(lotQty);
+        const gainUSD = (lotPriceUSD - currentAvgCostUSD) * sellQty;
+        const gainTHB = gainUSD * txRate;
+        realizedTHB += gainTHB;
+        currentQty = Math.max(0, currentQty - sellQty);
+      }
+    }
+    return realizedTHB;
+  }, [getHistoricalRate]);
 
   const isThai = asset?.symbol?.endsWith(".BK");
   const isCashAsset = asset?.type === "fiat" || asset?.category === "fiat";
@@ -1340,10 +1396,55 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
   }, [lots, priceUSD, exchangeRate, asset?.symbol]);
 
   // Recompute properly
+  const getRealizedPnL = (lots, isThai, currentExchangeRate) => {
+    if (!lots || !lots.length) return 0;
+    const sortedLots = [...lots].sort((a, b) => new Date(a.date) - new Date(b.date));
+    let realized = 0;
+    let currentQty = 0;
+    let currentAvgCost = 0;
+    for (const lot of sortedLots) {
+      const lotQty = lot.qty;
+      let lotPrice = lot.price || 0;
+      if (isThai && currentExchangeRate) {
+        lotPrice = lotPrice / currentExchangeRate;
+      }
+      if (lotQty > 0) {
+        const newQty = currentQty + lotQty;
+        const newCost = (currentQty * currentAvgCost) + (lotQty * lotPrice);
+        currentAvgCost = newQty > 0 ? newCost / newQty : 0;
+        currentQty = newQty;
+      } else if (lotQty < 0) {
+        const sellQty = Math.abs(lotQty);
+        const gain = (lotPrice - currentAvgCost) * sellQty;
+        realized += gain;
+        currentQty = Math.max(0, currentQty - sellQty);
+      }
+    }
+    return realized;
+  };
+
   const avgCostUSD = isCashAsset ? avgCost : (isThai ? avgCost / exchangeRate : avgCost);
   const totalCostUSD = avgCostUSD * asset.qty;
-  const totalGainUSD = valueUSD - totalCostUSD;
-  const totalGainPct = totalCostUSD > 0 ? (totalGainUSD / totalCostUSD) * 100 : 0;
+
+  const realizedUSD = getRealizedPnL(lots, isThai, exchangeRate);
+  const realizedTHB = getRealizedPnLInTHB(lots, isThai);
+  const unrealizedUSD = asset.qty > 0 ? (valueUSD - totalCostUSD) : 0;
+  const unrealizedTHB = unrealizedUSD * exchangeRate;
+
+  const totalGainUSD = realizedUSD + unrealizedUSD;
+  const totalGainTHB = realizedTHB + unrealizedTHB;
+
+  let totalInvested = 0;
+  lots.forEach(l => {
+    if (l.qty > 0) {
+      const pUSD = isThai ? l.price / exchangeRate : l.price;
+      totalInvested += l.qty * pUSD;
+    }
+  });
+  if (totalInvested === 0 && asset.qty > 0) {
+    totalInvested = totalCostUSD;
+  }
+  const totalGainPct = totalInvested > 0 ? (totalGainUSD / totalInvested) * 100 : 0;
 
   const isUp = changePct >= 0;
   const gainUp = totalGainUSD >= 0;
@@ -1379,6 +1480,9 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
               <div style={{ fontSize: 13, color: "var(--text-faint)", marginTop: 4 }}>
                 ≈ {fmtUSD(valueUSD)}
               </div>
+              <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 2 }}>
+                ({fmtTHB(valueUSD * exchangeRate)})
+              </div>
             </div>
           ) : (
             <>
@@ -1387,7 +1491,7 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
                   {fmtUSD(priceUSD)}
                 </div>
                 <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 2 }}>
-                  ฿{Math.round(priceUSD * exchangeRate).toLocaleString("th-TH")}
+                  ({fmtTHB(priceUSD * exchangeRate)})
                 </div>
               </div>
               <div style={{ textAlign: "right" }}>
@@ -1410,18 +1514,27 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
             <div className="asset-detail-kpi">
               <div className="asset-detail-kpi-label">ราคาทุนเฉลี่ย</div>
               <div className="asset-detail-kpi-val">{fmtUSD(avgCostUSD)}</div>
+              <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 2 }}>
+                ({fmtTHB(avgCostUSD * exchangeRate)})
+              </div>
             </div>
           )}
           <div className="asset-detail-kpi">
             <div className="asset-detail-kpi-label">มูลค่าปัจจุบัน</div>
             <div className="asset-detail-kpi-val">{fmtUSD(valueUSD)}</div>
+            <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 2 }}>
+              ({fmtTHB(valueUSD * exchangeRate)})
+            </div>
           </div>
           {!isCashAsset && (
             <div className={`asset-detail-kpi ${gainUp ? "gain-kpi" : "loss-kpi"}`}>
               <div className="asset-detail-kpi-label">กำไร/ขาดทุนรวม</div>
               <div className="asset-detail-kpi-val" style={{ color: gainUp ? "var(--gain)" : "var(--loss)", fontWeight: 900 }}>
-                {gainUp ? "+" : ""}{fmtUSD(totalGainUSD)}
+                {totalGainUSD >= 0 ? "+" : ""}{fmtUSD(totalGainUSD)}
                 <span style={{ fontSize: 11, marginLeft: 4 }}>({fmtPct(totalGainPct)})</span>
+              </div>
+              <div style={{ fontSize: 11, color: totalGainUSD >= 0 ? "var(--gain)" : "var(--loss)", opacity: 0.8, marginTop: 2 }}>
+                ({totalGainTHB >= 0 ? "+" : ""}{fmtTHB(totalGainTHB)})
               </div>
             </div>
           )}
@@ -1445,9 +1558,12 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
               </div>
             </div>
             {lots.length > 0 && (
-              <div style={{ display: "flex", alignItems: "center", gap: 5, background: "#EEECFF", border: "1px solid #C3C7FA", borderRadius: 8, padding: "3px 8px", fontSize: 11 }}>
-                <div style={{ width: 14, height: 2, background: "#5236FF", borderTop: "2px dashed #5236FF" }} />
-                <span style={{ fontWeight: 700, color: "#5236FF" }}>ราคาทุนเฉลี่ย {fmtUSD(avgCostUSD)}</span>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", background: "#EEECFF", border: "1px solid #C3C7FA", borderRadius: 8, padding: "4px 8px", fontSize: 11 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <div style={{ width: 14, height: 2, background: "#5236FF", borderTop: "2px dashed #5236FF" }} />
+                  <span style={{ fontWeight: 700, color: "#5236FF" }}>ราคาทุนเฉลี่ย {fmtUSD(avgCostUSD)}</span>
+                </div>
+                <span style={{ fontSize: 10, color: "var(--text-faint)", marginLeft: 19 }}>({fmtTHB(avgCostUSD * exchangeRate)})</span>
               </div>
             )}
           </div>
@@ -1566,6 +1682,7 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
                   <tbody>
                     {[...processedLots].reverse().map((lot, i) => {
                       const isBuy = lot.type === "BUY";
+                      const rowRate = isBuy ? exchangeRate : (lot.txRate || exchangeRate);
                       return (
                         <tr key={lot.id || i} style={{ borderTop: "1px solid var(--border)" }}>
                           <td style={{ padding: "9px 12px" }}>
@@ -1591,15 +1708,24 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
                             {isBuy ? "+" : "-"}{fmtQty(Math.abs(lot.lotQty))} {isCashAsset ? asset.symbol : ""}
                           </td>
                           <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 600 }}>
-                            {fmtUSD(lot.lotPriceUSD)}
+                            <div>{fmtUSD(lot.lotPriceUSD)}</div>
+                            <div style={{ fontSize: 10, color: "var(--text-faint)", fontWeight: "normal" }}>
+                              ({fmtTHB(lot.lotPriceUSD * rowRate)})
+                            </div>
                           </td>
                           <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 700 }}>
-                            {fmtUSD(Math.abs(lot.transactionValueUSD))}
+                            <div>{fmtUSD(Math.abs(lot.transactionValueUSD))}</div>
+                            <div style={{ fontSize: 10, color: "var(--text-faint)", fontWeight: "normal" }}>
+                              ({fmtTHB(Math.abs(lot.transactionValueUSD) * rowRate)})
+                            </div>
                           </td>
                           {!isCashAsset && (
                             <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 800, color: lot.pnl >= 0 ? "var(--gain)" : "var(--loss)" }}>
                               <div>
                                 {lot.pnl >= 0 ? "+" : ""}{fmtUSD(lot.pnl)}
+                              </div>
+                              <div style={{ fontSize: 10, color: lot.pnl >= 0 ? "var(--gain)" : "var(--loss)", opacity: 0.8, fontWeight: "normal" }}>
+                                ({lot.pnl >= 0 ? "+" : ""}{fmtTHB(lot.pnl * rowRate)})
                               </div>
                               <div style={{ fontSize: 10, opacity: 0.85 }}>
                                 ({lot.pnl >= 0 ? "▲" : "▼"}{fmtPct(lot.pnlPct)})
@@ -1618,12 +1744,27 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, onClose }
                       <td colSpan={isCashAsset ? 2 : 3} style={{ padding: "9px 12px", fontWeight: 800, color: "var(--primary)" }}>ถือครองปัจจุบัน</td>
                       <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 800, color: "var(--primary)" }}>{fmtQty(asset.qty)} {isCashAsset ? asset.symbol : ""}</td>
                       <td style={{ padding: "9px 12px", textAlign: "right", fontSize: 11, color: "var(--text-muted)" }}>
-                        {isCashAsset ? "—" : `avg ${fmtUSD(avgCostUSD)}`}
+                        {isCashAsset ? "—" : (
+                          <>
+                            <div>avg {fmtUSD(avgCostUSD)}</div>
+                            <div style={{ fontSize: 10, color: "var(--text-faint)" }}>
+                              ({fmtTHB(avgCostUSD * exchangeRate)})
+                            </div>
+                          </>
+                        )}
                       </td>
-                      <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 800, color: "var(--primary)" }}>{fmtUSD(totalCostUSD)}</td>
+                      <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 800, color: "var(--primary)" }}>
+                        <div>{fmtUSD(totalCostUSD)}</div>
+                        <div style={{ fontSize: 10, color: "var(--text-faint)", fontWeight: "normal" }}>
+                          ({fmtTHB(totalCostUSD * exchangeRate)})
+                        </div>
+                      </td>
                       {!isCashAsset && (
                         <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 900, color: gainUp ? "var(--gain)" : "var(--loss)" }}>
-                          {gainUp ? "+" : ""}{fmtUSD(totalGainUSD)}
+                          <div>{totalGainUSD >= 0 ? "+" : ""}{fmtUSD(totalGainUSD)}</div>
+                          <div style={{ fontSize: 10, color: totalGainUSD >= 0 ? "var(--gain)" : "var(--loss)", opacity: 0.8, fontWeight: "normal" }}>
+                            ({totalGainTHB >= 0 ? "+" : ""}{fmtTHB(totalGainTHB)})
+                          </div>
                           <div style={{ fontSize: 10 }}>{fmtPct(totalGainPct)}</div>
                         </td>
                       )}
