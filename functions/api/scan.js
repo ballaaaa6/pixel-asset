@@ -259,18 +259,45 @@ function validateSlipData(raw) {
   const stockValue = parseNumeric(raw.stock_value);
   const qtyTable = parseNumeric(raw.qty_table);
   const boldNum = parseNumeric(raw.bold_amount);
+  const boldText = String(raw.bold_amount || "").toLowerCase();
+
+  // Resolve exchange rate if available
+  let exchangeRate = 0;
+  if (raw.exchange_rate && raw.exchange_rate !== "N/A") {
+    const rateMatch = String(raw.exchange_rate).match(/(\d{2,3}(?:\.\d+)?)/);
+    if (rateMatch) {
+      exchangeRate = parseFloat(rateMatch[1]);
+    }
+  }
+
+  // Check currency in bold_amount and stock_value
+  const boldStr = String(raw.bold_amount || "").toLowerCase();
+  const valueStr = String(raw.stock_value || "").toLowerCase();
+  const allText = JSON.stringify(raw).toLowerCase();
+  const hasTHBUnit = boldStr.includes("บาท") || boldStr.includes("thb") || boldStr.includes("฿") || allText.includes("บาท") || allText.includes("thb");
 
   if (price <= 0) return null;
 
   // 4. Resolve Quantity (share_amount) with cross-validation
   let share_amount = 0;
 
-  // Rule 4.1: If quantity is explicitly in the details table, use it as the highest priority
-  if (qtyTable > 0) {
+  // Detect and flag when AI hallucinates and puts THB total amount directly into qtyTable
+  let isQtyHallucinated = false;
+  if (qtyTable > 0 && price > 0) {
+    const product = qtyTable * price;
+    // If USD stock but the total value exceeds $10,000 USD and we have a THB slip, it is likely hallucinated
+    if (product > 10000 && hasTHBUnit) {
+      isQtyHallucinated = true;
+    } else if (boldNum > 0 && Math.abs(qtyTable - boldNum) < 0.1 && hasTHBUnit) {
+      isQtyHallucinated = true;
+    }
+  }
+
+  if (qtyTable > 0 && !isQtyHallucinated) {
     share_amount = qtyTable;
   }
   // Rule 4.2: If the bold amount at the top is explicitly labeled as shares/units (common in Limit orders and SELLs)
-  else if (boldNum > 0 && (bold.includes("หุ้น") || bold.includes("หน่วย") || bold.includes("share") || bold.includes("unit"))) {
+  else if (boldNum > 0 && (boldText.includes("หุ้น") || boldText.includes("หน่วย") || boldText.includes("share") || boldText.includes("unit"))) {
     share_amount = boldNum;
   }
   // Rule 4.3: If it's a SELL and we have a total stock value, divide it by the price
@@ -283,13 +310,30 @@ function validateSlipData(raw) {
   }
   // Rule 4.4: If it's a BUY and the bold amount is a monetary value, divide by price
   else {
-    const total = stockValue > 0 ? stockValue : boldNum;
+    let total = stockValue > 0 ? stockValue : boldNum;
+    
+    // If it's in THB, convert to USD before dividing by share price
+    if (hasTHBUnit && total > 0) {
+      const rate = exchangeRate > 0 ? exchangeRate : 35.0;
+      total = total / rate;
+    }
+    
     if (total > 0) {
       share_amount = total / price;
     }
   }
 
-  // Cross-validation: Detect obvious mix-ups between total value and share count
+  // Cross-validation fallback if share_amount is 0 or was marked hallucinated (holding raw THB amount)
+  if ((share_amount <= 0 || isQtyHallucinated) && price > 0) {
+    const totalThb = boldNum > 0 ? boldNum : qtyTable;
+    if (totalThb > 0) {
+      const rate = exchangeRate > 0 ? exchangeRate : 35.0;
+      const totalUsd = totalThb / rate;
+      share_amount = totalUsd / price;
+    }
+  }
+
+  // Final double-check: Detect obvious mix-ups between total value and share count
   if (share_amount > 0 && price > 0) {
     const product = share_amount * price;
     // If the product of quantity and price is > 500k USD, it's almost certainly a total cost value misclassified as quantity
