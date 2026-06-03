@@ -24,23 +24,46 @@ const CORS = {
 };
 
 // ─── Prompt & Schema Context ──────────────────────────────────────────────────
-const SYSTEM_PROMPT = `You are an expert OCR transcription tool for Dime! (by SCB) trading receipts.
-Your task is to transcribe specific text fields from the receipt image.
-Extract the data into a JSON object with the following fields. Do not translate the text, just transcribe exactly what is visible on the image:
-
+const SYSTEM_PROMPT = `You are an expert financial receipt parser for Dime! (by SCB) trade receipts.
+Extract transaction details into a JSON object with this schema:
 {
-  "header_text": "The green/red text indicating the action and asset, e.g. 'ซื้อ NVDA' or 'ขาย NVDA'",
-  "header_color": "The color of the header text, which is either 'green' or 'red/pink'",
-  "status_text": "The status section text at the top, e.g. 'จับคู่แล้ว', 'สำเร็จ. คุณได้รับเงินค่าขายคืนแล้ว', 'คำสั่งซื้อของคุณ...'",
-  "bold_amount": "The large bold amount displayed under the asset name, e.g. '15,400.00 USD' or '100.5480039 หุ้น'",
-  "symbol": "The uppercase stock ticker symbol, e.g. 'NVDA'",
-  "actual_price": "The executed price per share next to 'ราคาที่ได้จริง', e.g. '183.12 USD' or '172.10 USD'",
-  "stock_value": "The total stock value next to 'มูลค่าหุ้น', e.g. '15,400.00 USD' or '17,304.81 USD'",
-  "qty_table": "The quantity of shares next to 'จำนวนหุ้น' or 'จำนวนหน่วย' in the details table if it exists (e.g. '84.0939307'), otherwise 'N/A'",
-  "raw_date": "The date-time string next to 'วันที่ส่งคำสั่ง', 'วันที่สำเร็จ', or inside the top card (e.g. '22 ก.ค. 68 - 13:33 น.')",
-  "has_received_cash_back_label": true or false, indicating if the label 'ยอดที่จะได้รับคืน' or phrase 'เงินค่าขายคืน' appears anywhere on the receipt,
-  "has_payment_amount_label": true or false, indicating if the label 'ยอดที่ต้องชำระ' appears anywhere on the receipt
+  "action": "BUY" or "SELL",
+  "symbol": "ticker",
+  "actual_price": "string",
+  "share_amount": "string",
+  "raw_date": "string",
+  "timestamp": "ISO 8601 YYYY-MM-DDTHH:MM:SS"
 }
+
+EXTRACTION RULES:
+
+1. ACTION:
+   - Identify if this is a Buy or Sell order.
+   - Look at the top left of the receipt: if it says "ซื้อ" (Buy) or status card shows "จับคู่แล้ว", output "BUY".
+   - If it says "ขาย" (Sell) or status card shows "สำเร็จ. คุณได้รับเงินค่าขายคืนแล้ว", output "SELL".
+   - If the receipt has "ยอดที่จะได้รับคืน" (proceeds to be returned), the action is "SELL".
+   - If the receipt has "ยอดที่ต้องชำระ" (amount to pay), the action is "BUY".
+
+2. SYMBOL: Uppercase English ticker after "ซื้อ" or "ขาย".
+
+3. DATE & TIME:
+   - Read the ACTUAL date and time from the uploaded image. DO NOT invent or guess any date.
+   - Source A (preferred): "วันที่ส่งคำสั่ง" or "วันที่คำสั่งสำเร็จ" row in the bottom details.
+   - Source B (fallback): "สถานะ (ณ ...)" in the top status card.
+   - Copy the full Thai date-time string exactly as shown into "raw_date" (e.g., "ณ 22 ก.ค. 68 - 13:33 น." but use the actual text from the image).
+   - Convert to ISO 8601 for "timestamp": Thai BE year YY → CE year = YY + 1957. Month abbrevs: ม.ค.=01, ก.พ.=02, มี.ค.=03, เม.ย.=04, พ.ค.=05, มิ.ย.=06, ก.ค.=07, ส.ค.=08, ก.ย.=09, ต.ค.=10, พ.ย.=11, ธ.ค.=12.
+
+4. ACTUAL PRICE (ราคาที่ได้จริง):
+   - Find the label "ราคาที่ได้จริง" and extract the USD numeric value next to it.
+   - This is the price PER SHARE, not a total. It is always in USD for US stocks.
+   - NEVER use "มูลค่าหุ้น", "ยอดที่ต้องชำระ", "ค่าคอมมิชชัน", or any fee/total value.
+
+5. SHARE AMOUNT (จำนวนหุ้น):
+   - If there is a row labeled "จำนวนหุ้น" or "จำนวนหน่วย" in the table, extract that number. This is the MOST RELIABLE source.
+   - If no such row exists, use the bold number under the ticker that ends with "หุ้น" or "หน่วย".
+   - Include ALL decimal digits without rounding or truncation.
+   - NEVER use any value that ends with "USD" or "THB" as share_amount — those are monetary amounts.
+   - The big bold green number at the top that ends with "USD" or "THB" is the TOTAL COST, NOT the share count.
 
 OUTPUT: Raw JSON only. No markdown, no explanation. Start with '{', end with '}'.`;
 
@@ -178,146 +201,41 @@ function parseThaiDateToISO(rawStr) {
 function validateSlipData(raw) {
   if (!raw || typeof raw !== "object") return null;
 
-  // 1. Determine Action (BUY or SELL) using a voting/heuristic system
-  let action = "";
-  const header = String(raw.header_text || "").toLowerCase();
-  const status = String(raw.status_text || "").toLowerCase();
-  const bold = String(raw.bold_amount || "").toLowerCase();
-  const color = String(raw.header_color || "").toLowerCase();
+  let action = String(raw.action || "").toUpperCase().trim();
+
+  // ── Fallback action detection from raw text ─────────────────────────────
+  // If Llama hallucinated action or got it wrong, let's check unique labels in raw fields
   const allText = JSON.stringify(raw).toLowerCase();
-
-  // Heuristic 1.1: Check the explicit boolean labels from receipt contents (highly reliable)
-  const hasCashBack = raw.has_received_cash_back_label === true || raw.has_received_cash_back_label === "true";
-  const hasPayment = raw.has_payment_amount_label === true || raw.has_payment_amount_label === "true";
-
-  if (hasCashBack && !hasPayment) {
+  if (allText.includes("ยอดที่จะได้รับคืน") || allText.includes("ค่าขายคืน") || allText.includes("ขายคืน") || allText.includes("ขาย nvda") || allText.includes("ขายnvda")) {
     action = "SELL";
-  } else if (hasPayment && !hasCashBack) {
+  } else if (allText.includes("ยอดที่ต้องชำระ") || allText.includes("ซื้อ nvda") || allText.includes("ซื้อnvda") || allText.includes("รับหุ้น")) {
     action = "BUY";
   }
 
-  // Heuristic 1.2: Check header_color (very reliable indicator of green vs red/pink)
-  if (!action) {
-    if (color.includes("red") || color.includes("pink")) {
-      action = "SELL";
-    } else if (color.includes("green")) {
+  if (action !== "BUY" && action !== "SELL") {
+    const rawAction = String(raw.action || "").trim();
+    if (/ซื้อ|buy/i.test(rawAction)) {
       action = "BUY";
-    }
-  }
-
-  // Heuristic 1.3: Check header_text
-  if (!action) {
-    if (header.includes("ซื้อ")) {
-      action = "BUY";
-    } else if (header.includes("ขาย")) {
+    } else if (/ขาย|sell/i.test(rawAction)) {
       action = "SELL";
-    }
-  }
-
-  // Heuristic 1.4: Check status_text
-  if (!action) {
-    if (status.includes("ขายคืน") || status.includes("รับเงินค่าขาย")) {
-      action = "SELL";
-    } else if (status.includes("ซื้อ") || status.includes("รับหุ้น") || status.includes("จับคู่")) {
-      action = "BUY";
-    }
-  }
-
-  // Heuristic 1.5: Check bold_amount format
-  if (!action) {
-    if (bold.includes("หุ้น") || bold.includes("หน่วย")) {
-      action = "SELL";
-    } else if (bold.includes("usd") || bold.includes("฿") || bold.includes("thb")) {
-      action = "BUY";
-    }
-  }
-
-  // Heuristic 1.6: Check general text fallback
-  if (!action) {
-    if (allText.includes("ขายคืน") || allText.includes("ขาย") || allText.includes("ยอดที่จะได้รับคืน")) {
-      action = "SELL";
-    } else if (allText.includes("ซื้อ") || allText.includes("จับคู่") || allText.includes("ยอดที่ต้องชำระ")) {
-      action = "BUY";
     } else {
-      action = "BUY"; // Default
+      return null;
     }
   }
 
-  // 2. Parse Symbol
-  let symbol = String(raw.symbol || "").trim().toUpperCase();
-  if (!symbol && header) {
-    const match = header.match(/(?:ซื้อ|ขาย)\s*([A-Z0-9.\-]+)/i);
-    if (match) {
-      symbol = match[1].toUpperCase();
-    }
-  }
-  symbol = symbol.replace(/[^A-Z0-9.\-]/g, "");
+  // Symbol: uppercase alphanumeric + dots/dashes, 1–15 chars
+  let symbol = String(raw.symbol || "").trim().toUpperCase().replace(/[^A-Z0-9.\-]/g, "");
   if (!symbol || /^\d+$/.test(symbol)) return null;
 
-  // 3. Clean and parse numbers
-  const price = parseNumeric(raw.actual_price);
-  const stockValue = parseNumeric(raw.stock_value);
-  const qtyTable = parseNumeric(raw.qty_table);
-  const boldNum = parseNumeric(raw.bold_amount);
+  const actual_price  = parseNumeric(raw.actual_price);
+  let   share_amount  = parseNumeric(raw.share_amount);
+  if (actual_price <= 0 || share_amount <= 0) return null;
 
-  if (price <= 0) return null;
+  // ── Deterministic cross-validation ──────────────────────────────────────
+  // ตรวจสอบว่า AI เอายอดรวม USD/THB มาใส่แทนจำนวนหุ้นหรือเปล่า
+  share_amount = crossValidateShareAmount(share_amount, actual_price);
 
-  // 4. Resolve Quantity (share_amount) with cross-validation
-  let share_amount = 0;
-
-  if (action === "BUY") {
-    // For BUY: qty is usually in the table (qtyTable)
-    if (qtyTable > 0) {
-      share_amount = qtyTable;
-    } else {
-      const total = stockValue > 0 ? stockValue : boldNum;
-      if (total > 0) {
-        share_amount = total / price;
-      }
-    }
-
-    // Cross-validation: If qty * price is off by > 5% compared to total value, recalculate
-    const totalVal = stockValue > 0 ? stockValue : boldNum;
-    if (totalVal > 0 && share_amount > 0) {
-      const computedTotal = share_amount * price;
-      const diff = Math.abs(computedTotal - totalVal) / totalVal;
-      if (diff > 0.05) {
-        share_amount = totalVal / price;
-      }
-    }
-  } else {
-    // For SELL: qty is usually in boldNum (e.g. "100.5480039 หุ้น")
-    if (boldNum > 0 && bold.includes("หุ้น")) {
-      share_amount = boldNum;
-    } else if (qtyTable > 0) {
-      share_amount = qtyTable;
-    } else {
-      if (stockValue > 0) {
-        share_amount = stockValue / price;
-      }
-    }
-
-    // Cross-validation: Verify with stockValue
-    if (stockValue > 0 && share_amount > 0) {
-      const computedTotal = share_amount * price;
-      const diff = Math.abs(computedTotal - stockValue) / stockValue;
-      if (diff > 0.05) {
-        if (boldNum > 0 && boldNum !== stockValue) {
-          share_amount = boldNum;
-        } else {
-          share_amount = stockValue / price;
-        }
-      }
-    }
-  }
-
-  if (share_amount > 0) {
-    share_amount = parseFloat(share_amount.toFixed(8));
-  }
-
-  if (share_amount <= 0) return null;
-
-  // 5. Parse Date / Timestamp
+  // Timestamp parsing with regex helper fallback
   let timestamp = "";
   if (raw.raw_date) {
     timestamp = parseThaiDateToISO(raw.raw_date);
@@ -329,7 +247,7 @@ function validateSlipData(raw) {
     timestamp = "";
   }
 
-  return { action, symbol, actual_price: price, share_amount, timestamp };
+  return { action, symbol, actual_price, share_amount, timestamp };
 }
 
 /**
