@@ -42,7 +42,14 @@ Extract the data into a JSON object with the following fields. Do not translate 
   "has_payment_amount_label": true or false, indicating if the label 'ยอดที่ต้องชำระ' appears anywhere on the receipt
 }
 
-OUTPUT: Raw JSON only. No markdown, no explanation. Start with '{', end with '}'.`;
+CRITICAL TRANSCRIPTION DIRECTIONS:
+1. DATE ACCURACY: Look extremely closely at the Thai month abbreviation in raw_date.
+   - "ม.ค." = มกราคม (January). Starts with 'ม' directly followed by '.' (no symbol on top).
+   - "มี.ค." = มีนาคม (March). Has a loop/curve vowel symbol 'ี' (ii) on top of 'ม'.
+   - "มิ.ย." = มิถุนายน (June). Has a single curve vowel symbol 'ิ' (i) on top of 'ม' and ends with 'ย'.
+   Make sure you transcribe the correct letters and vowels.
+
+2. NO FILLER: Output Raw JSON only. No markdown, no explanation. Start with '{', end with '}'.`;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -281,15 +288,19 @@ function validateSlipData(raw) {
   // 4. Resolve Quantity (share_amount) with cross-validation
   let share_amount = 0;
 
-  // Detect and flag when AI hallucinates and puts THB total amount directly into qtyTable
+  // Detect and flag when AI hallucinates and puts total transaction amount (THB or USD) directly into qtyTable
   let isQtyHallucinated = false;
   if (qtyTable > 0 && price > 0) {
     const product = qtyTable * price;
     // If USD stock but the total value exceeds $10,000 USD and we have a THB slip, it is likely hallucinated
     if (product > 10000 && hasTHBUnit) {
       isQtyHallucinated = true;
-    } else if (boldNum > 0 && Math.abs(qtyTable - boldNum) < 0.1 && hasTHBUnit) {
-      isQtyHallucinated = true;
+    } else if (boldNum > 0 && Math.abs(qtyTable - boldNum) < 0.1) {
+      // If qtyTable matches the bold total amount, it's the total cost value misclassified as quantity.
+      // We apply this only if price > 1.1 (stocks/cryptos) to avoid stablecoin/fiat transfers.
+      if (price > 1.1) {
+        isQtyHallucinated = true;
+      }
     }
   }
 
@@ -323,12 +334,15 @@ function validateSlipData(raw) {
     }
   }
 
-  // Cross-validation fallback if share_amount is 0 or was marked hallucinated (holding raw THB amount)
+  // Cross-validation fallback if share_amount is 0 or was marked hallucinated (holding raw total amount)
   if ((share_amount <= 0 || isQtyHallucinated) && price > 0) {
-    const totalThb = boldNum > 0 ? boldNum : qtyTable;
-    if (totalThb > 0) {
-      const rate = exchangeRate > 0 ? exchangeRate : 35.0;
-      const totalUsd = totalThb / rate;
+    const totalRaw = boldNum > 0 ? boldNum : qtyTable;
+    if (totalRaw > 0) {
+      let totalUsd = totalRaw;
+      if (hasTHBUnit) {
+        const rate = exchangeRate > 0 ? exchangeRate : 35.0;
+        totalUsd = totalRaw / rate;
+      }
       share_amount = totalUsd / price;
     }
   }
@@ -336,8 +350,8 @@ function validateSlipData(raw) {
   // Final double-check: Detect obvious mix-ups between total value and share count
   if (share_amount > 0 && price > 0) {
     const product = share_amount * price;
-    // If the product of quantity and price is > 500k USD, it's almost certainly a total cost value misclassified as quantity
-    if (product > 500000) {
+    // Lowered threshold from 500k to 50k to protect typical retail portfolios from large misclassifications
+    if (product > 50000) {
       const corrected = share_amount / price;
       if (corrected > 0.0001) {
         share_amount = corrected;
