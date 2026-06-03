@@ -24,50 +24,61 @@ const CORS = {
 };
 
 // ─── Prompt & Schema Context ──────────────────────────────────────────────────
-const SYSTEM_PROMPT = `You are a precise financial transaction data extractor.
-Analyze the provided image of a financial trade receipt / slip (typically from the Dime! app by SCB).
-Extract the following fields and return ONLY a raw JSON object matching the Schema.
+const SYSTEM_PROMPT = `You are an expert financial receipt parser. You extract transaction details from Dime! (by SCB) trade receipts.
+Analyze the receipt image and extract the following fields into a raw JSON object matching the Schema.
 
 Schema:
 {
   "action": "BUY" or "SELL",
-  "symbol": "Asset ticker (e.g. NVDA, AAPL, BTC, SCB-GOLD)",
+  "symbol": "ticker",
   "actual_price": number,
   "share_amount": number,
-  "timestamp": "ISO 8601 string YYYY-MM-DDTHH:MM:SS or YYYY-MM-DD"
+  "timestamp": "ISO 8601 YYYY-MM-DDTHH:MM:SS"
 }
 
-CRITICAL RULES FOR ACCURACY:
+RULES FOR EXTRACTION:
 
-1. ACTION (BUY or SELL):
-   - Check the top left header or text. "ซื้อ" means BUY. "ขาย" means SELL.
+1. ACTION (BUY/SELL):
+   - Look at the top left header:
+     - If it shows "ซื้อ" (in Green), the action is "BUY".
+     - If it shows "ขาย" (in Red), the action is "SELL".
+   - You must be extremely careful. In this slip, "ขาย NVDA" means SELL.
 
-2. SYMBOL (Ticker):
-   - Look for the ticker near the top right after "ซื้อ" or "ขาย".
-   - Examples: "ซื้อ NVDA" -> symbol is "NVDA". "ขาย AAPL" -> symbol is "AAPL".
+2. SYMBOL:
+   - The stock ticker is the uppercase English letters at the top header right after "ซื้อ" or "ขาย".
+   - Example: "ขาย NVDA" -> symbol is "NVDA".
 
-3. ACTUAL PRICE (ราคาที่ได้จริง / Executed Price):
-   - You MUST extract the price per share from the "ราคาที่ได้จริง" (Executed Price) line.
-   - Ignore "ราคาที่คุณตั้ง" (Your set price / Limit price).
-   - Ignore "ค่าธรรมเนียม & ภาษี" (Fees & Taxes) — fees are usually tiny numbers like 0.01, 0.05, 0.08, 0.12 USD/THB. NEVER use them.
-   - Ignore "ยอดชำระสุทธิ" / "ยอดรับสุทธิ" / "ยอดที่ต้องจ่าย" (Total Net Amount).
-   - Price must be the actual price per share/unit.
+3. SHARE AMOUNT (Quantity of shares/units):
+   - Look at the BIG BOLD number at the top of the white box (under "ซื้อ/ขาย [Symbol]").
+   - It is always followed by the word "หุ้น" (e.g. "100.5480039 หุ้น").
+   - Extract this exact number as the quantity. For example, "100.5480039 หุ้น" -> share_amount is 100.5480039.
+   - NEVER use the total stock value ("มูลค่าหุ้น" e.g., 17,304.81 USD) or total payout ("ยอดที่จะได้รับคืน" / "ยอดชำระสุทธิ") as share_amount.
+   - NEVER shift decimal places of total stock value. Only use the big number at the top followed by "หุ้น".
 
-4. SHARE AMOUNT (จำนวนหุ้น / จำนวนหน่วย / Quantity):
-   - Extract the quantity from the "จำนวนหุ้น" or "จำนวนหน่วย" (Quantity) field.
-   - This represents the number of shares or units you actually bought or sold.
-   - It can be a decimal (e.g., 17.5941041) or integer (e.g., 10).
-   - Ignore fee/tax numbers (e.g., 0.01, 0.08, 0.05).
-   - NEVER use cash values (USD/THB totals) for share_amount.
+4. ACTUAL PRICE (ราคาที่ได้จริง / Executed Price per share):
+   - Under "ราคา" (Price), look for the column labeled "ราคาที่ได้จริง" (Executed Price).
+   - Use the price per share shown directly under "ราคาที่ได้จริง" (e.g. "172.10 USD").
+   - Ignore "ราคาที่คุณตั้ง" (Limit price / set price).
+   - Ignore commission ("ค่าคอมมิชชัน"), VAT ("ภาษีมูลค่าเพิ่ม"), and fees ("ค่าธรรมเนียม").
 
-5. TIMESTAMP (วันที่ส่งคำสั่ง / Transaction Time):
-   - Extract the date and time from the "วันที่ส่งคำสั่ง" (Order Date) field.
-   - Convert Thai Buddhist Era (BE) year to Gregorian (CE) year by subtracting 543 (e.g., year 68 -> 2025 CE, year 2568 -> 2025 CE).
-   - Convert Thai month abbreviations (ม.ค.=01, ก.พ.=02, มี.ค.=03, เม.ย.=04, พ.ค.=05, มิ.ย.=06, ก.ค.=07, ส.ค.=08, ก.ย.=09, ต.ค.=10, พ.ย.=11, ธ.ค.=12).
-   - Output format: YYYY-MM-DDTHH:MM:SS. If time is missing, use T00:00:00.
-
-Return ONLY the raw JSON string. Example output:
-{"action":"BUY","symbol":"NVDA","actual_price":130.60,"share_amount":17.5941041,"timestamp":"2025-05-23T22:14:00"}`;
+5. TIMESTAMP:
+   - Look for the row "วันที่ส่งคำสั่ง" (Order Date) or "วันที่ส่งคำสั่งสำเร็จ" at the bottom.
+   - Format: "DD เดือนย่อ YY - HH:MM น." (e.g. "21 ก.ค. 68 - 23:37 น.").
+   - Convert Thai year to Gregorian year: YY + 1957 (e.g. 68 -> 2025, 69 -> 2026).
+   - Map Thai months correctly (do not confuse similar-looking letters):
+     - ม.ค. = 01 (Jan)
+     - ก.พ. = 02 (Feb)
+     - มี.ค. = 03 (Mar)
+     - เม.ย. = 04 (Apr)
+     - พ.ค. = 05 (May)
+     - มิ.ย. = 06 (Jun)
+     - ก.ค. = 07 (Jul - July. In this slip, "ก.ค." means July -> 07)
+     - ส.ค. = 08 (Aug)
+     - ก.ย. = 09 (Sep)
+     - ต.ค. = 10 (Oct)
+     - พ.ย. = 11 (Nov)
+     - ธ.ค. = 12 (Dec)
+   - Example: "21 ก.ค. 68 - 23:37 น." -> "2025-07-21T23:37:00".`;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
