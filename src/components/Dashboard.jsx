@@ -2112,54 +2112,8 @@ export default function Dashboard({ user, onLogout, showToast }) {
         return a.symbol;
       }).filter(Boolean))];
 
-      // Calculate optimal timeframe range based on earliest purchase date
-      let earliestDate = null;
-      const hasNonCash = portfolioAssets.some(a => a.type !== "fiat" && a.category !== "fiat");
-      portfolioAssets.forEach(asset => {
-        const isCash = asset.type === "fiat" || asset.category === "fiat";
-        if (hasNonCash && isCash) return;
-        const assetLots = asset.lots && asset.lots.length > 0 ? asset.lots : [];
-        assetLots.forEach(lot => {
-          if (lot && lot.date && lot.date !== "1970-01-01") {
-            if (!earliestDate || lot.date < earliestDate) {
-              earliestDate = lot.date;
-            }
-          }
-        });
-      });
-
-      let optimalRange = range;
-      if (earliestDate) {
-        const earliestTime = new Date(earliestDate + "T00:00:00.000Z").getTime();
-        const ageInDays = (Date.now() - earliestTime) / 86400000;
-
-        const rangeDurationDays = {
-          "1D": 1,
-          "1W": 7,
-          "1M": 30,
-          "3M": 90,
-          "6M": 180,
-          "YTD": 365,
-          "1Y": 365,
-          "5Y": 1825,
-          "MAX": Infinity
-        };
-
-        const rangesOrder = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "5Y", "MAX"];
-        let matchedRange = "1D";
-        for (const r of rangesOrder) {
-          matchedRange = r;
-          if (rangeDurationDays[r] >= ageInDays) {
-            break;
-          }
-        }
-
-        const requestedIdx = rangesOrder.indexOf(range);
-        const matchedIdx = rangesOrder.indexOf(matchedRange);
-        if (matchedIdx < requestedIdx) {
-          optimalRange = matchedRange;
-        }
-      }
+      // Fetch prices for the requested timeframe range directly
+      const optimalRange = range;
 
       const res = await fetch(`/api/prices?sparkline=${encodeURIComponent(syms.join(","))}&tf=${optimalRange}`);
       if (res.ok) {
