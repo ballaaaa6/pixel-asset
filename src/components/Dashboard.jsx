@@ -29,6 +29,92 @@ export const getDisplaySymbol = (symbol) => {
   return symbol;
 };
 
+export const ASSET_NAME_MAP = {
+  "MU": "Micron Technology, Inc.",
+  "AAPL": "Apple Inc.",
+  "TSLA": "Tesla, Inc.",
+  "NVDA": "NVIDIA Corporation",
+  "MSFT": "Microsoft Corporation",
+  "AMZN": "Amazon.com, Inc.",
+  "GOOGL": "Alphabet Inc.",
+  "GOOG": "Alphabet Inc.",
+  "META": "Meta Platforms, Inc.",
+  "NFLX": "Netflix, Inc.",
+  "AMD": "Advanced Micro Devices, Inc.",
+  "INTC": "Intel Corporation",
+  "BABA": "Alibaba Group Holding Limited",
+  "ASML": "ASML Holding N.V.",
+  "TSM": "Taiwan Semiconductor Manufacturing Company, Limited",
+  "DIS": "The Walt Disney Company",
+  "NKE": "NIKE, Inc.",
+  "JPM": "JPMorgan Chase & Co.",
+  "V": "Visa Inc.",
+  "MA": "Mastercard Incorporated",
+  "WMT": "Walmart Inc.",
+  "PG": "The Procter & Gamble Company",
+  "KO": "The Coca-Cola Company",
+  "PEP": "PepsiCo, Inc.",
+  "COST": "Costco Wholesale Corporation",
+  "AVGO": "Broadcom Inc.",
+  "QCOM": "Qualcomm Incorporated",
+  "TXN": "Texas Instruments Incorporated",
+  "ADBE": "Adobe Inc.",
+  "CRM": "Salesforce, Inc.",
+  "ORCL": "Oracle Corporation",
+  "ACN": "Accenture plc",
+  "MCD": "McDonald's Corporation",
+  "SBUX": "Starbucks Corporation",
+  "CAT": "Caterpillar Inc.",
+  "GE": "General Electric Company",
+  "F": "Ford Motor Company",
+  "GM": "General Motors Company",
+  "XOM": "Exxon Mobil Corporation",
+  "CVX": "Chevron Corporation",
+  "GC=F": "Spot Gold (ทองคำตลาดโลก)",
+  "CL=F": "Crude Oil (น้ำมันดิบตลาดโลก)",
+  "OIL": "Crude Oil (น้ำมันดิบตลาดโลก)",
+  "GOLD": "Spot Gold (ทองคำตลาดโลก)",
+  "PTT.BK": "PTT Public Company Limited",
+  "CPALL.BK": "CP ALL Public Company Limited",
+  "AOT.BK": "Airports of Thailand Public Company Limited",
+  "BDMS.BK": "Bangkok Dusit Medical Services Public Company Limited",
+  "KBANK.BK": "Kasikornbank Public Company Limited",
+  "SCB.BK": "SCB X Public Company Limited",
+  "ADVANC.BK": "Advanced Info Service Public Company Limited",
+  "GULF.BK": "Gulf Energy Development Public Company Limited",
+  "PTTEP.BK": "PTT Exploration and Production Public Company Limited",
+  "INTUCH.BK": "Intouch Holdings Public Company Limited",
+  "BDMS": "Bangkok Dusit Medical Services Public Company Limited",
+  "KBANK": "Kasikornbank Public Company Limited",
+  "SCB": "SCB X Public Company Limited",
+  "THB": "Thai Baht (เงินบาทไทย ฿)",
+  "USD": "US Dollar (ดอลลาร์สหรัฐ $)",
+  "EUR": "Euro (ยูโร 🇪🇺)",
+  "GBP": "British Pound (ปอนด์สหราชอาณาจักร 🇬🇧)",
+  "JPY": "Japanese Yen (เยนญี่ปุ่น 🇯🇵)",
+  "SGD": "Singapore Dollar (ดอลลาร์สิงคโปร์ 🇸🇬)",
+  "HKD": "Hong Kong Dollar (ดอลลาร์ฮ่องกง 🇭🇰)",
+  "AUD": "Australian Dollar (ดอลลาร์ออสเตรเลีย 🇦🇺)"
+};
+
+export const getAssetFullName = (symbol, name, category) => {
+  const symUpper = (symbol || "").toUpperCase();
+  if (ASSET_NAME_MAP[symUpper]) return ASSET_NAME_MAP[symUpper];
+  if (symUpper.endsWith(".BK")) {
+    const base = symUpper.replace(".BK", "");
+    if (!name || name === symbol || name === base) {
+      return `${base} Public Company Limited`;
+    }
+  }
+  if (category === "gold") {
+    if (symUpper === "CL=F") return "Crude Oil (น้ำมันดิบตลาดโลก)";
+    return "Spot Gold (ทองคำตลาดโลก)";
+  }
+  if (name && name.toUpperCase() !== symUpper) return name;
+  return `${symUpper} Asset`;
+};
+
+
 const getDynamicDateFormat = (dateIso, visibleDurationMs, hasMultipleYears = false) => {
   const d = new Date(dateIso);
   const oneHour = 60 * 60 * 1000;
@@ -1906,8 +1992,10 @@ function PnLDetailsModal({
     const unrealized = asset.qty > 0 ? (valueUSD - costUSD) : 0;
 
     // Realized
-    const realized = getRealizedPnL(asset.lots || [], isThai, exchangeRate);
-    const realizedTHB = getRealizedPnLInTHB(asset.lots || [], isThai);
+    const rawRealized = getRealizedPnL(asset.lots || [], isThai, exchangeRate);
+    const rawRealizedTHB = getRealizedPnLInTHB(asset.lots || [], isThai);
+    const realized = rawRealized - (asset.clearedRealizedUSD || 0);
+    const realizedTHB = rawRealizedTHB - (asset.clearedRealizedTHB || 0);
 
     // Initial Capital (cumulative buys)
     let totalInvested = 0;
@@ -2096,7 +2184,7 @@ function PnLDetailsModal({
                             </span>
                           )}
                         </div>
-                        <div style={{ fontSize: 11, fontWeight: 500, color: "var(--text-muted)", marginTop: 2 }}>{item.name}</div>
+                        <div style={{ fontSize: 11, fontWeight: 500, color: "var(--text-muted)", marginTop: 2 }}>{getAssetFullName(item.symbol, item.name, item.category)}</div>
                       </td>
                       <td style={{ padding: "10px 12px" }}>
                         {isSoldOut ? (
@@ -2157,7 +2245,7 @@ function PnLDetailsModal({
                             ล้าง
                           </button>
                           <button
-                            onClick={() => onDeleteAsset(item.id)}
+                            onClick={() => onDeleteAsset(item.id, true)}
                             style={{
                               padding: "4px 8px",
                               fontSize: 11,
@@ -2506,49 +2594,45 @@ export default function Dashboard({ user, onLogout, showToast }) {
     if (!asset) return;
 
     const displaySym = asset.broker ? `${getDisplaySymbol(asset.symbol)} (${asset.broker})` : getDisplaySymbol(asset.symbol);
-    const confirmMsg = `คุณแน่ใจหรือไม่ที่จะล้างประวัติธุรกรรมในอดีตของ ${displaySym}? \n\nการดำเนินการนี้จะรีเซ็ตกำไรสะสมที่รับรู้แล้ว (Realized P&L) ให้กลายเป็น 0 โดยจะคงเหลือเฉพาะหุ้นที่ถืออยู่ปัจจุบันจำนวน ${asset.qty} หน่วย ที่ราคาทุนเฉลี่ย $${(asset.avgCost ?? 0).toFixed(2)} เท่านั้น`;
+    const confirmMsg = `คุณแน่ใจหรือไม่ที่จะล้างผลตอบแทนสะสมที่รับรู้แล้ว (Realized P&L) ของ ${displaySym} ให้กลับไปเป็น 0? \n\nการดำเนินการนี้จะล้างเฉพาะค่าผลตอบแทนสะสมในอดีต โดยจะไม่ส่งผลกระทบใดๆ ต่อรายการประวัติการซื้อขายดั้งเดิม หรือจำนวนหุ้นที่คุณถืออยู่ปัจจุบัน`;
     if (!confirm(confirmMsg)) return;
+
+    const isThai = asset.symbol.toUpperCase().endsWith(".BK");
+    const rawRealized = getRealizedPnL(asset.lots || [], isThai, exchangeRate);
+    const rawRealizedTHB = getRealizedPnLInTHB(asset.lots || [], isThai);
 
     const updatedAssets = assets.map(a => {
       if (a.id === assetId) {
-        if (a.qty <= 0) {
-          return { ...a, lots: [], qty: 0, avgCost: 0 };
-        }
-        const resetLot = {
-          id: `${Date.now()}-reset`,
-          date: new Date().toISOString().split("T")[0],
-          time: "00:00",
-          qty: a.qty,
-          price: a.avgCost ?? a.avgPrice ?? 0,
-          broker: a.broker
-        };
         return {
           ...a,
-          lots: [resetLot]
+          clearedRealizedUSD: rawRealized,
+          clearedRealizedTHB: rawRealizedTHB
         };
       }
       return a;
-    }).filter(a => a.qty > 0 || (a.lots && a.lots.length > 0));
+    });
 
     await savePortfolio(updatedAssets);
     await fetchPrices(updatedAssets);
     fetchSparklines(updatedAssets, chartRange);
-    showToast(`ล้างประวัติในอดีตของ ${displaySym} สำเร็จ`, "success");
+    showToast(`ล้างผลตอบแทนสะสมที่รับรู้แล้วของ ${displaySym} เรียบร้อย`, "success");
   };
 
-  const handleDeleteAsset = async (param) => {
+  const handleDeleteAsset = async (param, fromModal = false) => {
     const assetId = typeof param === "string" ? param : param?.id;
     const asset = assets.find(a => a.id === assetId);
     if (!asset) return;
 
     const displaySym = asset.broker ? `${getDisplaySymbol(asset.symbol)} (${asset.broker})` : getDisplaySymbol(asset.symbol);
 
-    if (asset.qty > 0) {
-      alert(`❌ ไม่สามารถลบ ${displaySym} ได้เนื่องจากคุณยังมีจำนวนที่ถือครองอยู่ (${asset.qty} หน่วย)\n\nกรุณาทำธุรกรรมขายออกให้หมดก่อนลบสินทรัพย์`);
-      return;
+    if (fromModal) {
+      if (asset.qty > 0) {
+        alert(`❌ ไม่สามารถลบ ${displaySym} จากหน้ากำไร/ขาดทุนรายตัวได้เนื่องจากยังมีหุ้นเหลืออยู่บนหน้าหลัก (${asset.qty} หน่วย)\n\nกรุณาลบจากหน้ากระดานหลัก หรือทำธุรกรรมขายออกให้หมดก่อน`);
+        return;
+      }
     }
 
-    const confirmMsg = `คุณแน่ใจหรือไม่ที่จะลบสินทรัพย์ ${displaySym} ออกจากพอร์ตโฟลิโออย่างถาวร?`;
+    const confirmMsg = `คุณแน่ใจหรือไม่ที่จะลบสินทรัพย์ ${displaySym} และประวัติธุรกรรมทั้งหมดออกอย่างถาวร?`;
     if (!confirm(confirmMsg)) return;
 
     const updatedAssets = assets.filter(a => a.id !== assetId);
@@ -3358,10 +3442,12 @@ export default function Dashboard({ user, onLogout, showToast }) {
       totToday += c.todayChg;
 
       const isThai = a.symbol.toUpperCase().endsWith(".BK");
-      const realized = getRealizedPnL(a.lots || [], isThai, exchangeRate);
+      const rawRealized = getRealizedPnL(a.lots || [], isThai, exchangeRate);
+      const realized = rawRealized - (a.clearedRealizedUSD || 0);
       totRealized += realized;
 
-      const realizedTHB = getRealizedPnLInTHB(a.lots || [], isThai);
+      const rawRealizedTHB = getRealizedPnLInTHB(a.lots || [], isThai);
+      const realizedTHB = rawRealizedTHB - (a.clearedRealizedTHB || 0);
       totRealizedTHB += realizedTHB;
 
       const assetWithPnL = {
@@ -4172,7 +4258,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                                         <span className="best-badge">🏆 Best</span>
                                       )}
                                     </div>
-                                    <div className="asset-fullname">{asset.name}</div>
+                                    <div className="asset-fullname">{getAssetFullName(asset.symbol, asset.name, asset.category)}</div>
                                     <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
                                       <MarketBadge state={pData?.marketState} />
                                       <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", background: "#F1F5F9", padding: "1px 6px", borderRadius: 4 }}>
@@ -4342,7 +4428,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                                   )}
                                   {!isCashAsset && isBest && <span className="best-badge" style={{ padding: "1px 6px", borderRadius: 4 }}>🏆 Best</span>}
                                 </div>
-                                <div className="asset-fullname">{asset.name}</div>
+                                <div className="asset-fullname">{getAssetFullName(asset.symbol, asset.name, asset.category)}</div>
                                 <MarketBadge state={pData?.marketState} />
                               </div>
                             </div>

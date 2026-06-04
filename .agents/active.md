@@ -3,4 +3,4 @@
 - **Current Branch**: `main`
 - **Active Task**: None (Ready for new instructions)
 - **Tech Stack**: React (Vite), Cloudflare Pages Functions, SQLite (via KV/Miniflare)
-- **Last Status Update**: 2026-06-04 (Optimized P&L breakdown table column widths in Dashboard.jsx: expanded status column to 12% with min-width and nowrap to prevent wrapping of 'กำลังถือ', renamed button to 'ล้าง' to save space, and compressed action column to 6%. Built successfully and pushed to cloud.)
+- **Last Status Update**: 2026-06-04 (Implemented dynamic getAssetFullName formatter to display full asset names on the second line in all UI tables and panels. Redesigned P&L breakdown clear action to use virtual offsets (clearedRealizedUSD/THB) to reset displayed P&L to 0 without mutating transaction logs or dates. Allowed direct asset deletion from the main dashboard while retaining security checks on the breakdown modal. Built successfully and pushed to cloud.)

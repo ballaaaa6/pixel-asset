@@ -27,6 +27,91 @@ const getDisplaySymbol = (symbol) => {
   return symbol;
 };
 
+const ASSET_NAME_MAP = {
+  "MU": "Micron Technology, Inc.",
+  "AAPL": "Apple Inc.",
+  "TSLA": "Tesla, Inc.",
+  "NVDA": "NVIDIA Corporation",
+  "MSFT": "Microsoft Corporation",
+  "AMZN": "Amazon.com, Inc.",
+  "GOOGL": "Alphabet Inc.",
+  "GOOG": "Alphabet Inc.",
+  "META": "Meta Platforms, Inc.",
+  "NFLX": "Netflix, Inc.",
+  "AMD": "Advanced Micro Devices, Inc.",
+  "INTC": "Intel Corporation",
+  "BABA": "Alibaba Group Holding Limited",
+  "ASML": "ASML Holding N.V.",
+  "TSM": "Taiwan Semiconductor Manufacturing Company, Limited",
+  "DIS": "The Walt Disney Company",
+  "NKE": "NIKE, Inc.",
+  "JPM": "JPMorgan Chase & Co.",
+  "V": "Visa Inc.",
+  "MA": "Mastercard Incorporated",
+  "WMT": "Walmart Inc.",
+  "PG": "The Procter & Gamble Company",
+  "KO": "The Coca-Cola Company",
+  "PEP": "PepsiCo, Inc.",
+  "COST": "Costco Wholesale Corporation",
+  "AVGO": "Broadcom Inc.",
+  "QCOM": "Qualcomm Incorporated",
+  "TXN": "Texas Instruments Incorporated",
+  "ADBE": "Adobe Inc.",
+  "CRM": "Salesforce, Inc.",
+  "ORCL": "Oracle Corporation",
+  "ACN": "Accenture plc",
+  "MCD": "McDonald's Corporation",
+  "SBUX": "Starbucks Corporation",
+  "CAT": "Caterpillar Inc.",
+  "GE": "General Electric Company",
+  "F": "Ford Motor Company",
+  "GM": "General Motors Company",
+  "XOM": "Exxon Mobil Corporation",
+  "CVX": "Chevron Corporation",
+  "GC=F": "Spot Gold (ทองคำตลาดโลก)",
+  "CL=F": "Crude Oil (น้ำมันดิบตลาดโลก)",
+  "OIL": "Crude Oil (น้ำมันดิบตลาดโลก)",
+  "GOLD": "Spot Gold (ทองคำตลาดโลก)",
+  "PTT.BK": "PTT Public Company Limited",
+  "CPALL.BK": "CP ALL Public Company Limited",
+  "AOT.BK": "Airports of Thailand Public Company Limited",
+  "BDMS.BK": "Bangkok Dusit Medical Services Public Company Limited",
+  "KBANK.BK": "Kasikornbank Public Company Limited",
+  "SCB.BK": "SCB X Public Company Limited",
+  "ADVANC.BK": "Advanced Info Service Public Company Limited",
+  "GULF.BK": "Gulf Energy Development Public Company Limited",
+  "PTTEP.BK": "PTT Exploration and Production Public Company Limited",
+  "INTUCH.BK": "Intouch Holdings Public Company Limited",
+  "BDMS": "Bangkok Dusit Medical Services Public Company Limited",
+  "KBANK": "Kasikornbank Public Company Limited",
+  "SCB": "SCB X Public Company Limited",
+  "THB": "Thai Baht (เงินบาทไทย ฿)",
+  "USD": "US Dollar (ดอลลาร์สหรัฐ $)",
+  "EUR": "Euro (ยูโร 🇪🇺)",
+  "GBP": "British Pound (ปอนด์สหราชอาณาจักร 🇬🇧)",
+  "JPY": "Japanese Yen (เยนญี่ปุ่น 🇯🇵)",
+  "SGD": "Singapore Dollar (ดอลลาร์สิงคโปร์ 🇸🇬)",
+  "HKD": "Hong Kong Dollar (ดอลลาร์ฮ่องกง 🇭🇰)",
+  "AUD": "Australian Dollar (ดอลลาร์ออสเตรเลีย 🇦🇺)"
+};
+
+const getAssetFullName = (symbol, name, category) => {
+  const symUpper = (symbol || "").toUpperCase();
+  if (ASSET_NAME_MAP[symUpper]) return ASSET_NAME_MAP[symUpper];
+  if (symUpper.endsWith(".BK")) {
+    const base = symUpper.replace(".BK", "");
+    if (!name || name === symbol || name === base) {
+      return `${base} Public Company Limited`;
+    }
+  }
+  if (category === "gold") {
+    if (symUpper === "CL=F") return "Crude Oil (น้ำมันดิบตลาดโลก)";
+    return "Spot Gold (ทองคำตลาดโลก)";
+  }
+  if (name && name.toUpperCase() !== symUpper) return name;
+  return `${symUpper} Asset`;
+};
+
 const getDynamicDateFormat = (dateIso, visibleDurationMs, hasMultipleYears = false) => {
   const d = new Date(dateIso);
   const oneHour = 60 * 60 * 1000;
@@ -1828,7 +1913,7 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, historica
                   </span>
                 )}
               </div>
-              <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{asset.name}</div>
+              <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{getAssetFullName(asset.symbol, asset.name, asset.category)}</div>
             </div>
           </div>
 

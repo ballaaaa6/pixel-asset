@@ -24,12 +24,13 @@ This document records the current features, pending roadmap items, and immediate
 
 - **Portfolio Breakdown & Actions (P&L Breakdown Modal)**:
   - **Dynamic Broker/Bank Linking**: Each asset row in the detailed P&L Breakdown modal renders its corresponding broker/bank badge (e.g. Dime!, KBank), cleanly separating holdings of the same symbol across different accounts.
-  - **Realized P&L Clear Action**: Re-consolidates historical transaction lots down to a single starting BUY lot matching the current quantity and weighted average cost. This resets accumulated past realized gains/losses to 0 without affecting the current portfolio valuation or cost basis.
-  - **Permanent Delete Action (With Safety Checks)**: Allows permanent removal of an asset from the portfolio. Enforces a safety rule preventing deletion if the current holding quantity is greater than 0 (`qty > 0`) to prevent data corruption between the main board and breakdown panels.
+  - **Realized P&L Clear Action (Non-Destructive Offset)**: Resets accumulated realized gains/losses to 0 by computing a virtual offset (`clearedRealizedUSD`/`clearedRealizedTHB`) instead of collapsing existing buy/sell transaction lots or altering historical timestamps. This preserves true transaction dates and avg cost history while cleanly resetting displayed P&L metrics.
+  - **Permanent Delete Action (Split Permissions)**: Users can delete an asset directly from the main dashboard (which removes it and all associated lots completely). However, from the P&L Breakdown Modal, deletion is strictly prohibited if there are active holdings (`qty > 0`) to safeguard active assets in the main layout.
   - **Optimized Column Layout & Button Labels**: Renamed the action button from "ล้างประวัติ" to "ล้าง" to optimize spatial efficiency. Resized column widths in `Dashboard.jsx`, increasing the status column width (12%, `minWidth: "90px"`) and applying `whiteSpace: "nowrap"` to ensure badges like "กำลังถือ" render on a single line. The management column has been compacted to 6% width.
 
-- **Display Suffix Hiding (Dynamic Symbol Clean)**:
-  - Added a global formatter `getDisplaySymbol` to hide exchange suffixes (such as `.BK` for Thai stocks, `.HK`, etc.) in frontend UI listings (main board, P&L breakdown table, dropdowns, and details panel) while safely maintaining the original symbols in the backend/KV store for pricing proxy synchronization.
+- **Display Suffix Hiding & Full Name Rendering (getAssetFullName)**:
+  - Added a global formatter `getDisplaySymbol` to hide exchange suffixes (such as `.BK` for Thai stocks, `.HK`, etc.) in frontend UI listings.
+  - Implemented `getAssetFullName` which checks against a curated dictionary `ASSET_NAME_MAP` and formats symbols automatically (e.g. appending "Public Company Limited" to Thai equities and showing descriptive names for gold/oil commodities and cash fiat assets) to guarantee the second line of name displays always renders the correct full asset name instead of duplicate ticker symbols.
 
 - **Receipt Processing Engine & Auto-mapping**:
   - Multi-file receipt uploader utilizing client-side canvas cropping (Tier 1) and full-image scans (Tier 2).
