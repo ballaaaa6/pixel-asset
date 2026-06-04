@@ -136,6 +136,38 @@ const getDynamicDateFormat = (dateIso, visibleDurationMs, hasMultipleYears = fal
   }
 };
 
+const calculateEMA = (data, period) => {
+  if (!data || data.length === 0) return [];
+  const k = 2 / (period + 1);
+  const emaValues = new Array(data.length);
+  
+  let firstValidIdx = -1;
+  for (let i = 0; i < data.length; i++) {
+    if (data[i] && data[i].value != null) {
+      firstValidIdx = i;
+      break;
+    }
+  }
+  
+  if (firstValidIdx === -1) return emaValues;
+  
+  emaValues[firstValidIdx] = data[firstValidIdx].value;
+  let prevEMA = data[firstValidIdx].value;
+  
+  for (let i = firstValidIdx + 1; i < data.length; i++) {
+    if (data[i] && data[i].value != null) {
+      const currentVal = data[i].value;
+      const emaVal = currentVal * k + prevEMA * (1 - k);
+      emaValues[i] = emaVal;
+      prevEMA = emaVal;
+    } else {
+      emaValues[i] = null;
+    }
+  }
+  
+  return emaValues;
+};
+
 const interpolateData = (data, visibleDurationMs) => {
   if (!data || data.length < 2) return data;
   
@@ -178,13 +210,21 @@ const interpolateData = (data, visibleDurationMs) => {
         const t = t1 + s * intervalMs;
         const ratio = (t - t1) / diff;
         
-        // Linear interpolation for value
+        // Linear interpolation for value and EMA lines
         const val = p1.value + (p2.value - p1.value) * ratio;
+        const ema10 = (p1.ema10 != null && p2.ema10 != null) ? p1.ema10 + (p2.ema10 - p1.ema10) * ratio : null;
+        const ema20 = (p1.ema20 != null && p2.ema20 != null) ? p1.ema20 + (p2.ema20 - p1.ema20) * ratio : null;
+        const ema50 = (p1.ema50 != null && p2.ema50 != null) ? p1.ema50 + (p2.ema50 - p1.ema50) * ratio : null;
+        const ema200 = (p1.ema200 != null && p2.ema200 != null) ? p1.ema200 + (p2.ema200 - p1.ema200) * ratio : null;
         const cost = p1.cost != null ? p1.cost : null;
         
         interpolated.push({
           date: new Date(t).toISOString(),
           value: val,
+          ema10,
+          ema20,
+          ema50,
+          ema200,
           cost: cost,
           hasPurchased: p1.hasPurchased ?? (p1.cost != null)
         });
@@ -353,6 +393,11 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
   const touchRef = useRef({ lastX: 0, lastY: 0, type: null, startDist: 0, startZoom: null, isPinching: false, centerX: 0 });
   const lastTouchTime = useRef(0);
 
+  const [showEma10, setShowEma10] = useState(false);
+  const [showEma20, setShowEma20] = useState(false);
+  const [showEma50, setShowEma50] = useState(true);
+  const [showEma200, setShowEma200] = useState(true);
+
   const diffStartIdxRef = useRef(null);
   const diffEndIdxRef = useRef(null);
 
@@ -436,9 +481,9 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
   }, [rawDisplayedCandles]);
 
   /* ── Compute Y range: adaptive tight scale with dynamic cost curve ── */
-  const { pts, costPts, yMin, yMax, isUp, interpolatedData, renderPts } = useMemo(() => {
+  const { pts, costPts, yMin, yMax, isUp, interpolatedData, renderPts, ema10Path, ema20Path, ema50Path, ema200Path } = useMemo(() => {
     if (!rawDisplayedCandles || rawDisplayedCandles.length < 2) {
-      return { pts: [], costPts: [], yMin: 0, yMax: 1, isUp: true, interpolatedData: [], renderPts: [] };
+      return { pts: [], costPts: [], yMin: 0, yMax: 1, isUp: true, interpolatedData: [], renderPts: [], ema10Path: "", ema20Path: "", ema50Path: "", ema200Path: "" };
     }
 
     // Sort lots by date ascending
@@ -448,8 +493,8 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
 
     const isCashAsset = asset?.type === "fiat" || asset?.category === "fiat";
 
-    // 1. Create a raw timeline with only value/price points (uninterpolated)
-    const rawPriceData = rawDisplayedCandles.map((c) => {
+    // A. Create a full timeline with only value/price points (uninterpolated) for the entire history to calculate accurate EMAs
+    const fullPriceData = candles.map((c) => {
       let priceUSD = 0;
       if (isCashAsset) {
         if (asset.symbol === "USD") {
@@ -466,6 +511,31 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
       }
       return { date: c.date, value: priceUSD };
     });
+
+    let ema10Arr = [];
+    let ema20Arr = [];
+    let ema50Arr = [];
+    let ema200Arr = [];
+    
+    if (!isCashAsset) {
+      ema10Arr = calculateEMA(fullPriceData, 10);
+      ema20Arr = calculateEMA(fullPriceData, 20);
+      ema50Arr = calculateEMA(fullPriceData, 50);
+      ema200Arr = calculateEMA(fullPriceData, 200);
+    }
+
+    const fullPriceDataWithEmas = fullPriceData.map((d, i) => ({
+      ...d,
+      ema10: ema10Arr[i] ?? null,
+      ema20: ema20Arr[i] ?? null,
+      ema50: ema50Arr[i] ?? null,
+      ema200: ema200Arr[i] ?? null,
+    }));
+
+    // Slice price data to match current zoom viewport
+    const rawPriceData = zoomRange
+      ? fullPriceDataWithEmas.slice(zoomRange.start, zoomRange.end + 1)
+      : fullPriceDataWithEmas;
 
     // 2. Interpolate priceData dynamically based on visibleDurationMs to get final timeline
     const interpolatedPriceData = interpolateData(rawPriceData, visibleDurationMs);
@@ -524,7 +594,16 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
       const hasPurchased = i >= firstPurchaseMappedIdx;
 
       if (!hasPurchased) {
-        return { date: d.date, value: d.value, cost: null, hasPurchased: false };
+        return { 
+          date: d.date, 
+          value: d.value, 
+          ema10: d.ema10, 
+          ema20: d.ema20, 
+          ema50: d.ema50, 
+          ema200: d.ema200, 
+          cost: null, 
+          hasPurchased: false 
+        };
       }
 
       const stats = getStatsOnIndex(i);
@@ -541,19 +620,43 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
         costUSD = isThai ? avgCost / exchangeRate : avgCost;
       }
 
-      return { date: d.date, value: d.value, cost: costUSD, hasPurchased: true };
+      return { 
+        date: d.date, 
+        value: d.value, 
+        ema10: d.ema10, 
+        ema20: d.ema20, 
+        ema50: d.ema50, 
+        ema200: d.ema200, 
+        cost: costUSD, 
+        hasPurchased: true 
+      };
     });
 
     const valuesUSD = interpolatedData.map(d => d.value).filter(v => v != null);
     const costsUSD = interpolatedData.filter(d => d.hasPurchased).map(d => d.cost).filter(c => c != null);
 
     if (valuesUSD.length === 0) {
-      return { pts: [], costPts: [], yMin: 0, yMax: 1, isUp: true, interpolatedData };
+      return { pts: [], costPts: [], yMin: 0, yMax: 1, isUp: true, interpolatedData, renderPts: [], ema10Path: "", ema20Path: "", ema50Path: "", ema200Path: "" };
     }
 
     const isShortTF = tf === "1D" || tf === "5D" || tf === "1W";
-    const dataMin = isShortTF ? Math.min(...valuesUSD) : Math.min(...valuesUSD, ...costsUSD);
-    const dataMax = isShortTF ? Math.max(...valuesUSD) : Math.max(...valuesUSD, ...costsUSD);
+
+    const activeEmas = [];
+    if (!isCashAsset) {
+      interpolatedData.forEach(d => {
+        if (showEma10 && d.ema10 != null) activeEmas.push(d.ema10);
+        if (showEma20 && d.ema20 != null) activeEmas.push(d.ema20);
+        if (showEma50 && d.ema50 != null) activeEmas.push(d.ema50);
+        if (showEma200 && d.ema200 != null) activeEmas.push(d.ema200);
+      });
+    }
+
+    const dataMin = isShortTF 
+      ? Math.min(...valuesUSD, ...activeEmas) 
+      : Math.min(...valuesUSD, ...costsUSD, ...activeEmas);
+    const dataMax = isShortTF 
+      ? Math.max(...valuesUSD, ...activeEmas) 
+      : Math.max(...valuesUSD, ...costsUSD, ...activeEmas);
     const rangeVal = dataMax - dataMin || dataMin * 0.02 || 1;
 
     // Tight padding: 5% of range each side (shows movement clearly)
@@ -578,11 +681,22 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
 
     const renderPts = smoothPoints(pts, toY);
 
+    // Map EMA coordinate points for SVG rendering
+    const ema10Pts = !isCashAsset ? interpolatedData.map((d, i) => (d.ema10 != null ? { x: toX(i), y: toY(d.ema10) } : null)).filter(Boolean) : [];
+    const ema20Pts = !isCashAsset ? interpolatedData.map((d, i) => (d.ema20 != null ? { x: toX(i), y: toY(d.ema20) } : null)).filter(Boolean) : [];
+    const ema50Pts = !isCashAsset ? interpolatedData.map((d, i) => (d.ema50 != null ? { x: toX(i), y: toY(d.ema50) } : null)).filter(Boolean) : [];
+    const ema200Pts = !isCashAsset ? interpolatedData.map((d, i) => (d.ema200 != null ? { x: toX(i), y: toY(d.ema200) } : null)).filter(Boolean) : [];
+
+    const ema10Path = smoothPath(ema10Pts);
+    const ema20Path = smoothPath(ema20Pts);
+    const ema50Path = smoothPath(ema50Pts);
+    const ema200Path = smoothPath(ema200Pts);
+
     // Determine isUp based on the entire displayed portion
     const isUp = valuesUSD.length >= 2 ? valuesUSD[valuesUSD.length - 1] >= valuesUSD[0] : true;
 
-    return { pts, costPts, yMin, yMax, isUp, toY, toX, interpolatedData, renderPts };
-  }, [rawDisplayedCandles, visibleDurationMs, avgCost, lots, isThai, exchangeRate, PAD_T, iH, PAD_L, iW, tf, asset]);
+    return { pts, costPts, yMin, yMax, isUp, toY, toX, interpolatedData, renderPts, ema10Path, ema20Path, ema50Path, ema200Path };
+  }, [rawDisplayedCandles, visibleDurationMs, avgCost, lots, isThai, exchangeRate, PAD_T, iH, PAD_L, iW, tf, asset, candles, zoomRange, showEma10, showEma20, showEma50, showEma200]);
 
   /* ── Y-axis tick labels ── */
   const yTicks = useMemo(() => {
@@ -1213,6 +1327,52 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
         cursor: zoomRange ? (dragStart && dragStart.type === "pan" ? "grabbing" : "grab") : "crosshair",
         touchAction: "pan-y"
       }}>
+      {/* Floating EMA Toggle Panel */}
+      {!isCashAsset && (
+        <div 
+          onMouseDown={e => e.stopPropagation()}
+          onTouchStart={e => e.stopPropagation()}
+          style={{
+            position: "absolute",
+            top: "8px",
+            right: "24px",
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            background: "rgba(255, 255, 255, 0.85)",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
+            border: "1px solid var(--border)",
+            borderRadius: "10px",
+            padding: "4px 10px",
+            boxShadow: "var(--shadow-xs)",
+            zIndex: 10,
+            pointerEvents: "auto",
+            fontFamily: "Outfit, sans-serif"
+          }}
+        >
+          <label style={{ display: "flex", alignItems: "center", gap: "5px", cursor: "pointer", fontSize: "11px", fontWeight: "700", color: "var(--text-muted)", userSelect: "none" }}>
+            <input type="checkbox" checked={showEma10} onChange={e => setShowEma10(e.target.checked)} style={{ cursor: "pointer", accentColor: "#00d2ff" }} />
+            <span style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "50%", background: "#00d2ff" }}></span>
+            EMA 10
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: "5px", cursor: "pointer", fontSize: "11px", fontWeight: "700", color: "var(--text-muted)", userSelect: "none" }}>
+            <input type="checkbox" checked={showEma20} onChange={e => setShowEma20(e.target.checked)} style={{ cursor: "pointer", accentColor: "#FBBF24" }} />
+            <span style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "1px", border: "1px dashed #FBBF24", background: "transparent" }}></span>
+            EMA 20
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: "5px", cursor: "pointer", fontSize: "11px", fontWeight: "700", color: "var(--text-muted)", userSelect: "none" }}>
+            <input type="checkbox" checked={showEma50} onChange={e => setShowEma50(e.target.checked)} style={{ cursor: "pointer", accentColor: "#F97316" }} />
+            <span style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "50%", background: "#F97316" }}></span>
+            EMA 50
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: "5px", cursor: "pointer", fontSize: "11px", fontWeight: "700", color: "var(--text-muted)", userSelect: "none" }}>
+            <input type="checkbox" checked={showEma200} onChange={e => setShowEma200(e.target.checked)} style={{ cursor: "pointer", accentColor: "#DC2626" }} />
+            <span style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "50%", background: "#DC2626" }}></span>
+            EMA 200
+          </label>
+        </div>
+      )}
       <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: "block", cursor: "crosshair" }}>
         <defs>
           {/* Gradient for gain area (above cost) */}
@@ -1316,6 +1476,57 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
             strokeDasharray="6 4"
             opacity="0.85"
             clipPath="url(#assetClipFull)"
+          />
+        )}
+
+        {/* ── EMA Indicators ── */}
+        {!isCashAsset && showEma10 && ema10Path && (
+          <path
+            d={ema10Path}
+            fill="none"
+            stroke="#00d2ff"
+            strokeWidth="1"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            clipPath="url(#assetClipFull)"
+            opacity="0.9"
+          />
+        )}
+        {!isCashAsset && showEma20 && ema20Path && (
+          <path
+            d={ema20Path}
+            fill="none"
+            stroke="#FBBF24"
+            strokeWidth="1"
+            strokeDasharray="3 3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            clipPath="url(#assetClipFull)"
+            opacity="0.9"
+          />
+        )}
+        {!isCashAsset && showEma50 && ema50Path && (
+          <path
+            d={ema50Path}
+            fill="none"
+            stroke="#F97316"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            clipPath="url(#assetClipFull)"
+            opacity="0.95"
+          />
+        )}
+        {!isCashAsset && showEma200 && ema200Path && (
+          <path
+            d={ema200Path}
+            fill="none"
+            stroke="#DC2626"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            clipPath="url(#assetClipFull)"
+            opacity="0.95"
           />
         )}
 
