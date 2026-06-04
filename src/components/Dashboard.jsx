@@ -47,17 +47,17 @@ const interpolateData = (data, visibleDurationMs) => {
   const oneDay = 24 * oneHour;
 
   if (visibleDurationMs < 6 * oneHour) {
-    intervalMs = 5 * oneMin;
+    intervalMs = 1 * oneMin;
   } else if (visibleDurationMs < 24 * oneHour) {
-    intervalMs = 15 * oneMin;
+    intervalMs = 5 * oneMin;
   } else if (visibleDurationMs < 3 * oneDay) {
-    intervalMs = 1 * oneHour;
+    intervalMs = 15 * oneMin;
   } else if (visibleDurationMs < 10 * oneDay) {
-    intervalMs = 4 * oneHour;
+    intervalMs = 1 * oneHour;
   } else if (visibleDurationMs < 45 * oneDay) {
-    intervalMs = 12 * oneHour;
+    intervalMs = 4 * oneHour;
   } else if (visibleDurationMs < 180 * oneDay) {
-    intervalMs = 1 * oneDay;
+    intervalMs = 12 * oneHour;
   } else {
     return data;
   }
