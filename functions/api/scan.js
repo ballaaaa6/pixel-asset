@@ -52,7 +52,12 @@ CRITICAL TRANSCRIPTION DIRECTIONS:
 
 2. NO CALCULATION OR MATH: Do NOT perform any mathematical division or calculation yourself. Transcribe the exact numbers visible in the image. For "qty_table", do NOT divide "bold_amount" by "actual_price" to calculate it; copy the exact digits printed next to or under the "จำนวนหุ้น" / "จำนวนหน่วย" header.
 
-3. NO FILLER: Output Raw JSON only. No markdown, no explanation. Start with '{', end with '}'.`;
+3. QUANTITY VS COMMISSION ACCURACY: When transcribing "qty_table", be extremely careful not to confuse the share quantity with other numbers in the table:
+   - Do NOT transcribe "ค่าคอมมิชชัน" (Commission, e.g., 0.25, 2.50, 6.07) or "ภาษีมูลค่าเพิ่ม" (VAT, e.g., 0.00, 0.18) as the quantity. These are fees, not shares.
+   - Do NOT transcribe the ticker price or transaction total as quantity.
+   - Share quantity ("จำนวนหุ้น") is typically a long fractional decimal number with 6 to 8 decimal places (e.g., 75.9920476, 84.0939307). Commission and fees are always 2 decimal places and usually very low numbers. Look closely at the header "จำนวนหุ้น" or "จำนวนหน่วย" and grab only the number directly below or next to it.
+
+4. NO FILLER: Output Raw JSON only. No markdown, no explanation. Start with '{', end with '}'.`;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
