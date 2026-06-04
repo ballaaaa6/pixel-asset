@@ -436,9 +436,9 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
   }, [rawDisplayedCandles]);
 
   /* ── Compute Y range: adaptive tight scale with dynamic cost curve ── */
-  const { pts, costPts, yMin, yMax, isUp, interpolatedData } = useMemo(() => {
+  const { pts, costPts, yMin, yMax, isUp, interpolatedData, renderPts } = useMemo(() => {
     if (!rawDisplayedCandles || rawDisplayedCandles.length < 2) {
-      return { pts: [], costPts: [], yMin: 0, yMax: 1, isUp: true, interpolatedData: [] };
+      return { pts: [], costPts: [], yMin: 0, yMax: 1, isUp: true, interpolatedData: [], renderPts: [] };
     }
 
     // Sort lots by date ascending

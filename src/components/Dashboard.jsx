@@ -4402,7 +4402,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                                     <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
                                       <MarketBadge state={pData?.marketState} />
                                       <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", background: "#F1F5F9", padding: "1px 6px", borderRadius: 4 }}>
-                                        {weightPct.toFixed(1)}%
+                                        {weightPct.toFixed(2)}%
                                       </span>
                                     </div>
                                   </div>
