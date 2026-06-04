@@ -20,6 +20,84 @@ const fmt = {
   date: (s) => s ? new Date(s).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" }) : "—",
 };
 
+const getDynamicDateFormat = (dateIso, visibleDurationMs, hasMultipleYears = false) => {
+  const d = new Date(dateIso);
+  const oneHour = 60 * 60 * 1000;
+  const oneDay = 24 * oneHour;
+  const sevenDays = 7 * oneDay;
+  const sixMonths = 180 * oneDay;
+
+  if (visibleDurationMs <= oneDay) {
+    return d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+  } else if (visibleDurationMs <= sevenDays) {
+    return d.toLocaleDateString("th-TH", { day: "numeric", month: "short" }) + " " + d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+  } else if (visibleDurationMs <= sixMonths) {
+    return d.toLocaleDateString("th-TH", { day: "numeric", month: "short" });
+  } else {
+    return d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: hasMultipleYears ? "2-digit" : undefined });
+  }
+};
+
+const interpolateData = (data, visibleDurationMs) => {
+  if (!data || data.length < 2) return data;
+  
+  let intervalMs = 0;
+  const oneMin = 60 * 1000;
+  const oneHour = 60 * oneMin;
+  const oneDay = 24 * oneHour;
+
+  if (visibleDurationMs < 6 * oneHour) {
+    intervalMs = 5 * oneMin;
+  } else if (visibleDurationMs < 24 * oneHour) {
+    intervalMs = 15 * oneMin;
+  } else if (visibleDurationMs < 3 * oneDay) {
+    intervalMs = 1 * oneHour;
+  } else if (visibleDurationMs < 10 * oneDay) {
+    intervalMs = 4 * oneHour;
+  } else if (visibleDurationMs < 45 * oneDay) {
+    intervalMs = 12 * oneHour;
+  } else if (visibleDurationMs < 180 * oneDay) {
+    intervalMs = 1 * oneDay;
+  } else {
+    return data;
+  }
+
+  const interpolated = [];
+  
+  for (let i = 0; i < data.length - 1; i++) {
+    const p1 = data[i];
+    const p2 = data[i + 1];
+    
+    const t1 = new Date(p1.date).getTime();
+    const t2 = new Date(p2.date).getTime();
+    const diff = t2 - t1;
+    
+    interpolated.push(p1);
+    
+    if (diff > intervalMs) {
+      const steps = Math.floor(diff / intervalMs);
+      for (let s = 1; s < steps; s++) {
+        const t = t1 + s * intervalMs;
+        const ratio = (t - t1) / diff;
+        
+        // Linear interpolation for value
+        const val = p1.value + (p2.value - p1.value) * ratio;
+        const cost = p1.cost != null ? p1.cost : null;
+        
+        interpolated.push({
+          date: new Date(t).toISOString(),
+          value: val,
+          cost: cost
+        });
+      }
+    }
+  }
+  
+  interpolated.push(data[data.length - 1]);
+  return interpolated;
+};
+
+
 /* Smooth Bezier Curve Path for SVG */
 function smoothPath(pts) {
   if (!pts || pts.length < 2) return "";
@@ -254,18 +332,29 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
 
   const RANGES = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "5Y", "MAX"];
 
-  const displayedData = useMemo(() => {
+  const rawDisplayedData = useMemo(() => {
     if (!history) return [];
     if (!zoomRange) return history;
     return history.slice(zoomRange.start, zoomRange.end + 1);
   }, [history, zoomRange]);
 
+  const visibleDurationMs = useMemo(() => {
+    if (!rawDisplayedData || rawDisplayedData.length < 2) return 0;
+    const firstTime = new Date(rawDisplayedData[0].date).getTime();
+    const lastTime = new Date(rawDisplayedData[rawDisplayedData.length - 1].date).getTime();
+    return lastTime - firstTime;
+  }, [rawDisplayedData]);
+
+  const displayedData = useMemo(() => {
+    return interpolateData(rawDisplayedData, visibleDurationMs);
+  }, [rawDisplayedData, visibleDurationMs]);
+
   const hasMultipleYears = useMemo(() => {
-    if (!displayedData || displayedData.length < 2) return false;
-    const firstYear = new Date(displayedData[0].date).getFullYear();
-    const lastYear = new Date(displayedData[displayedData.length - 1].date).getFullYear();
+    if (!rawDisplayedData || rawDisplayedData.length < 2) return false;
+    const firstYear = new Date(rawDisplayedData[0].date).getFullYear();
+    const lastYear = new Date(rawDisplayedData[rawDisplayedData.length - 1].date).getFullYear();
     return firstYear !== lastYear;
-  }, [displayedData]);
+  }, [rawDisplayedData]);
 
   // Group transaction lots by history index
   const transactionsByIdx = useMemo(() => {
@@ -325,14 +414,25 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
         const idx = parseInt(idxStr, 10);
         if (idx < startIdx || idx > endIdx) return null;
 
-        const displayIdx = idx - startIdx;
+        const targetDate = history[idx].date;
+        let bestDisplayIdx = -1, bestDiff = Infinity;
+        displayedData.forEach((d, i) => {
+          const diff = Math.abs(new Date(d.date) - new Date(targetDate));
+          if (diff < bestDiff) {
+            bestDiff = diff;
+            bestDisplayIdx = i;
+          }
+        });
+
+        if (bestDisplayIdx === -1) return null;
+
         const txs = transactionsByIdx[idx];
         const primarySymbol = txs[0]?.symbol || "";
-        const x = PAD_L + (displayIdx / (displayedData.length - 1)) * iW;
+        const x = PAD_L + (bestDisplayIdx / (displayedData.length - 1)) * iW;
 
         // Determine color type: all buy = green, all sell = red, mix = orange
-        const buysCount = txs.filter(t => t.type === "BUY" || (t.qty || 0) >= 0).length;
-        const sellsCount = txs.filter(t => t.type === "SELL" || (t.qty || 0) < 0).length;
+        const buysCount = txs.filter(t => t.type ? (t.type === "BUY" || t.type === "buy") : (t.qty || 0) > 0).length;
+        const sellsCount = txs.filter(t => t.type ? (t.type === "SELL" || t.type === "sell") : (t.qty || 0) < 0).length;
         let colorType = "mixed";
         if (buysCount > 0 && sellsCount === 0) colorType = "buy";
         else if (buysCount === 0 && sellsCount > 0) colorType = "sell";
@@ -439,7 +539,16 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
       } else {
         const relX = (mouseX - PAD_L) / iW;
         const idx = Math.max(0, Math.min(Math.round(relX * (displayedData.length - 1)), displayedData.length - 1));
-        const originalIdx = (zoomRange ? zoomRange.start : 0) + idx;
+        
+        let originalIdx = (zoomRange ? zoomRange.start : 0);
+        let bestDiff = Infinity;
+        history.forEach((h, i) => {
+          const diff = Math.abs(new Date(h.date) - new Date(displayedData[idx].date));
+          if (diff < bestDiff) {
+            bestDiff = diff;
+            originalIdx = i;
+          }
+        });
 
         setIsDiffActive(true);
         updateDiffStartIdx(originalIdx);
@@ -460,7 +569,17 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
         const boundedX = Math.max(PAD_L, Math.min(W - PAD_R, mouseXInSvg));
         const relX = (boundedX - PAD_L) / iW;
         const idx = Math.max(0, Math.min(Math.round(relX * (displayedData.length - 1)), displayedData.length - 1));
-        const originalIdx = (zoomRange ? zoomRange.start : 0) + idx;
+        
+        let originalIdx = (zoomRange ? zoomRange.start : 0);
+        let bestDiff = Infinity;
+        history.forEach((h, i) => {
+          const diff = Math.abs(new Date(h.date) - new Date(displayedData[idx].date));
+          if (diff < bestDiff) {
+            bestDiff = diff;
+            originalIdx = i;
+          }
+        });
+
         updateDiffEndIdx(originalIdx);
         setHovered(null);
       } else if (dragStart.type === "pan") {
@@ -470,6 +589,7 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
         const currentEnd = dragStart.startZoom.end;
         const rangeSize = currentEnd - currentStart;
         const stepSize = iW / Math.max(1, rangeSize);
+
         const indexShift = Math.round(-deltaX / stepSize);
 
         if (indexShift !== 0) {
@@ -495,9 +615,19 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
     const relX = (mouseXInSvg - PAD_L) / iW;
     const idx = Math.max(0, Math.min(Math.round(relX * (displayedData.length - 1)), displayedData.length - 1));
     if (displayedData[idx]) {
+      let originalIdx = 0;
+      let bestDiff = Infinity;
+      history.forEach((h, i) => {
+        const diff = Math.abs(new Date(h.date) - new Date(displayedData[idx].date));
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          originalIdx = i;
+        }
+      });
+
       setHovered({
         idx,
-        originalIdx: (zoomRange ? zoomRange.start : 0) + idx,
+        originalIdx,
         x: pts[idx].x,
         y: pts[idx].y,
         costY: costPts[idx]?.y,
@@ -548,7 +678,16 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
       const mouseXInSvg = ((e.clientX - rect.left) / rect.width) * W;
       const relX = (mouseXInSvg - PAD_L) / iW;
       const hoveredIdx = Math.max(0, Math.min(Math.round(relX * (displayedData.length - 1)), displayedData.length - 1));
-      const centerIdx = currentStart + hoveredIdx;
+      
+      let centerIdx = currentStart;
+      let bestDiff = Infinity;
+      history.forEach((h, i) => {
+        const diff = Math.abs(new Date(h.date) - new Date(displayedData[hoveredIdx].date));
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          centerIdx = i;
+        }
+      });
 
       if (isZoomIn) {
         if (rangeSize <= 2) return;
@@ -608,7 +747,16 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
         if (touchX >= PAD_L && touchX <= W - PAD_R) {
           const relX = (touchX - PAD_L) / iW;
           const idx = Math.max(0, Math.min(Math.round(relX * (displayedData.length - 1)), displayedData.length - 1));
-          const originalIdx = (zoomRange ? zoomRange.start : 0) + idx;
+          
+          let originalIdx = (zoomRange ? zoomRange.start : 0);
+          let bestDiff = Infinity;
+          history.forEach((h, i) => {
+            const diff = Math.abs(new Date(h.date) - new Date(displayedData[idx].date));
+            if (diff < bestDiff) {
+              bestDiff = diff;
+              originalIdx = i;
+            }
+          });
 
           touchRef.current = {
             startX: e.touches[0].clientX,
@@ -666,7 +814,16 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
           const boundedX = Math.max(PAD_L, Math.min(W - PAD_R, touchX));
           const relX = (boundedX - PAD_L) / iW;
           const idx = Math.max(0, Math.min(Math.round(relX * (displayedData.length - 1)), displayedData.length - 1));
-          const originalIdx = (zoomRange ? zoomRange.start : 0) + idx;
+          
+          let originalIdx = (zoomRange ? zoomRange.start : 0);
+          let bestDiff = Infinity;
+          history.forEach((h, i) => {
+            const diff = Math.abs(new Date(h.date) - new Date(displayedData[idx].date));
+            if (diff < bestDiff) {
+              bestDiff = diff;
+              originalIdx = i;
+            }
+          });
 
           updateDiffEndIdx(originalIdx);
           setHovered(null);
@@ -841,13 +998,16 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
+        onSelectStart={(e) => e.preventDefault()}
         style={{
           cursor: zoomRange ? (dragStart && dragStart.type === "pan" ? "grabbing" : "grab") : "crosshair",
           position: "relative",
           width: "100%",
           touchAction: "pan-y",
           userSelect: "none",
-          WebkitUserSelect: "none"
+          WebkitUserSelect: "none",
+          MozUserSelect: "none",
+          msUserSelect: "none"
         }}>
         <svg
           viewBox={`0 0 ${W} ${H}`}
@@ -1053,12 +1213,7 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
           {dateLabels.map(({ x, date }, i) => (
             <text key={i} x={x} y={H - PAD_B + 18} textAnchor="middle" fontSize="11"
               fill="var(--text-muted)" fontFamily="var(--font-family)" fontWeight="700">
-              {(() => {
-                const d = new Date(date);
-                if (range === "1D") return d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
-                if (range === "5D" || range === "1W") return d.toLocaleDateString("th-TH", { day: "numeric", month: "short" }) + " " + d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
-                return d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: hasMultipleYears ? "2-digit" : undefined });
-              })()}
+              {getDynamicDateFormat(date, visibleDurationMs, hasMultipleYears)}
             </text>
           ))}
 
@@ -1104,12 +1259,7 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
               pointerEvents: "none"
             }}>
               <div style={{ fontSize: 10, opacity: 0.75, marginBottom: 2 }}>
-                {(() => {
-                  const d = new Date(hovered.date);
-                  if (range === "1D") return d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
-                  if (range === "5D" || range === "1W") return d.toLocaleDateString("th-TH", { day: "numeric", month: "short" }) + " " + d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
-                  return d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
-                })()}
+                {getDynamicDateFormat(hovered.date, visibleDurationMs, hasMultipleYears)}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>

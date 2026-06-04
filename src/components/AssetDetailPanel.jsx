@@ -18,6 +18,85 @@ const fmtDate = (iso, tf, hasMultipleYears = false) => {
 };
 const fmtDateShort = (iso) => new Date(iso).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
 
+const getDynamicDateFormat = (dateIso, visibleDurationMs, hasMultipleYears = false) => {
+  const d = new Date(dateIso);
+  const oneHour = 60 * 60 * 1000;
+  const oneDay = 24 * oneHour;
+  const sevenDays = 7 * oneDay;
+  const sixMonths = 180 * oneDay;
+
+  if (visibleDurationMs <= oneDay) {
+    return d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+  } else if (visibleDurationMs <= sevenDays) {
+    return d.toLocaleDateString("th-TH", { day: "numeric", month: "short" }) + " " + d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+  } else if (visibleDurationMs <= sixMonths) {
+    return d.toLocaleDateString("th-TH", { day: "numeric", month: "short" });
+  } else {
+    return d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: hasMultipleYears ? "2-digit" : undefined });
+  }
+};
+
+const interpolateData = (data, visibleDurationMs) => {
+  if (!data || data.length < 2) return data;
+  
+  let intervalMs = 0;
+  const oneMin = 60 * 1000;
+  const oneHour = 60 * oneMin;
+  const oneDay = 24 * oneHour;
+
+  if (visibleDurationMs < 6 * oneHour) {
+    intervalMs = 5 * oneMin;
+  } else if (visibleDurationMs < 24 * oneHour) {
+    intervalMs = 15 * oneMin;
+  } else if (visibleDurationMs < 3 * oneDay) {
+    intervalMs = 1 * oneHour;
+  } else if (visibleDurationMs < 10 * oneDay) {
+    intervalMs = 4 * oneHour;
+  } else if (visibleDurationMs < 45 * oneDay) {
+    intervalMs = 12 * oneHour;
+  } else if (visibleDurationMs < 180 * oneDay) {
+    intervalMs = 1 * oneDay;
+  } else {
+    return data;
+  }
+
+  const interpolated = [];
+  
+  for (let i = 0; i < data.length - 1; i++) {
+    const p1 = data[i];
+    const p2 = data[i + 1];
+    
+    const t1 = new Date(p1.date).getTime();
+    const t2 = new Date(p2.date).getTime();
+    const diff = t2 - t1;
+    
+    interpolated.push(p1);
+    
+    if (diff > intervalMs) {
+      const steps = Math.floor(diff / intervalMs);
+      for (let s = 1; s < steps; s++) {
+        const t = t1 + s * intervalMs;
+        const ratio = (t - t1) / diff;
+        
+        // Linear interpolation for value
+        const val = p1.value + (p2.value - p1.value) * ratio;
+        const cost = p1.cost != null ? p1.cost : null;
+        
+        interpolated.push({
+          date: new Date(t).toISOString(),
+          value: val,
+          cost: cost,
+          hasPurchased: p1.hasPurchased ?? (p1.cost != null)
+        });
+      }
+    }
+  }
+  
+  interpolated.push(data[data.length - 1]);
+  return interpolated;
+};
+
+
 /* ══════════════════════════════════════════════════════
    BEZIER SMOOTH PATH
 ══════════════════════════════════════════════════════ */
@@ -136,6 +215,7 @@ const getCurrencyTicker = (symbol) => {
 ══════════════════════════════════════════════════════ */
 function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, hideValues, getHistoricalRate }) {
   hideValuesGlobal = hideValues;
+  const isCashAsset = asset?.type === "fiat" || asset?.category === "fiat";
   const containerRef = useRef(null);
   const [hovered, setHovered] = useState(null);
   const [dims, setDims] = useState({ w: 600, h: 280 });
@@ -187,22 +267,53 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
   const iW = W - PAD_L - PAD_R;
   const iH = H - PAD_T - PAD_B;
 
-  const displayedCandles = useMemo(() => {
+  const rawDisplayedCandles = useMemo(() => {
     if (!candles) return [];
     if (!zoomRange) return candles;
     return candles.slice(zoomRange.start, zoomRange.end + 1);
   }, [candles, zoomRange]);
 
+  const visibleDurationMs = useMemo(() => {
+    if (!rawDisplayedCandles || rawDisplayedCandles.length < 2) return 0;
+    const firstTime = new Date(rawDisplayedCandles[0].date).getTime();
+    const lastTime = new Date(rawDisplayedCandles[rawDisplayedCandles.length - 1].date).getTime();
+    return lastTime - firstTime;
+  }, [rawDisplayedCandles]);
+
+  const transactionsByDate = useMemo(() => {
+    if (!lots) return {};
+    const sortedLots = [...lots]
+      .filter(lot => lot && lot.date)
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+    const map = {};
+    sortedLots.forEach((lot, i) => {
+      const dateStr = lot.date.split("T")[0];
+      if (!map[dateStr]) {
+        map[dateStr] = [];
+      }
+      map[dateStr].push({
+        num: i + 1,
+        type: lot.type || (lot.qty >= 0 ? "BUY" : "SELL"),
+        qty: Math.abs(lot.qty),
+        price: lot.price,
+        date: lot.date
+      });
+    });
+    return map;
+  }, [lots]);
+
   const hasMultipleYears = useMemo(() => {
-    if (!displayedCandles || displayedCandles.length < 2) return false;
-    const firstYear = new Date(displayedCandles[0].date).getFullYear();
-    const lastYear = new Date(displayedCandles[displayedCandles.length - 1].date).getFullYear();
+    if (!rawDisplayedCandles || rawDisplayedCandles.length < 2) return false;
+    const firstYear = new Date(rawDisplayedCandles[0].date).getFullYear();
+    const lastYear = new Date(rawDisplayedCandles[rawDisplayedCandles.length - 1].date).getFullYear();
     return firstYear !== lastYear;
-  }, [displayedCandles]);
+  }, [rawDisplayedCandles]);
 
   /* ── Compute Y range: adaptive tight scale with dynamic cost curve ── */
-  const { pts, costPts, yMin, yMax, isUp } = useMemo(() => {
-    if (!displayedCandles || displayedCandles.length < 2) return { pts: [], costPts: [], yMin: 0, yMax: 1, isUp: true };
+  const { pts, costPts, yMin, yMax, isUp, interpolatedData } = useMemo(() => {
+    if (!rawDisplayedCandles || rawDisplayedCandles.length < 2) {
+      return { pts: [], costPts: [], yMin: 0, yMax: 1, isUp: true, interpolatedData: [] };
+    }
 
     // Sort lots by date ascending
     const sortedLots = lots && lots.length > 0
@@ -240,7 +351,7 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
     const isCashAsset = asset?.type === "fiat" || asset?.category === "fiat";
 
     // Calculate unit price and unit average cost for each candle
-    const rawData = displayedCandles.map((c) => {
+    const rawData = rawDisplayedCandles.map((c) => {
       const targetDateOnly = c.date.split("T")[0];
 
       let priceUSD = 0;
@@ -263,7 +374,7 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
 
       if (!hasPurchased) {
         // Return unit price as valueUSD, but null/0 costUSD for days before purchase
-        return { date: c.date, valueUSD: priceUSD, costUSD: null, hasPurchased: false };
+        return { date: c.date, value: priceUSD, cost: null, hasPurchased: false };
       }
 
       const stats = getStatsOnDate(c.date);
@@ -280,48 +391,49 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
         costUSD = isThai ? avgCost / exchangeRate : avgCost;
       }
 
-      return { date: c.date, valueUSD: priceUSD, costUSD, hasPurchased: true };
+      return { date: c.date, value: priceUSD, cost: costUSD, hasPurchased: true };
     });
 
-    const valuesUSD = rawData.map(d => d.valueUSD).filter(v => v != null);
-    const costsUSD = rawData.filter(d => d.hasPurchased).map(d => d.costUSD).filter(c => c != null);
+    // Interpolate rawData dynamically based on visibleDurationMs
+    const interpolatedData = interpolateData(rawData, visibleDurationMs);
+
+    const valuesUSD = interpolatedData.map(d => d.value).filter(v => v != null);
+    const costsUSD = interpolatedData.filter(d => d.hasPurchased).map(d => d.cost).filter(c => c != null);
 
     if (valuesUSD.length === 0) {
-      return { pts: [], costPts: [], yMin: 0, yMax: 1, isUp: true };
+      return { pts: [], costPts: [], yMin: 0, yMax: 1, isUp: true, interpolatedData };
     }
 
     const isShortTF = tf === "1D" || tf === "5D" || tf === "1W";
     const dataMin = isShortTF ? Math.min(...valuesUSD) : Math.min(...valuesUSD, ...costsUSD);
     const dataMax = isShortTF ? Math.max(...valuesUSD) : Math.max(...valuesUSD, ...costsUSD);
-    const range   = dataMax - dataMin || dataMin * 0.02 || 1;
+    const rangeVal = dataMax - dataMin || dataMin * 0.02 || 1;
 
     // Tight padding: 5% of range each side (shows movement clearly)
-    const pad = range * 0.05;
+    const pad = rangeVal * 0.05;
     const yMin = Math.max(0, dataMin - pad);
     const yMax = dataMax + pad;
     const yRange = yMax - yMin;
 
     const toY = (v) => PAD_T + ((yMax - v) / yRange) * iH;
-    const toX = (i) => PAD_L + (i / (displayedCandles.length - 1)) * iW;
+    const toX = (i) => PAD_L + (i / (interpolatedData.length - 1)) * iW;
 
     // Map all candles: return price movement for all days, but with costUSD only after purchase
-    const pts = displayedCandles.map((c, i) => {
-      const d = rawData[i];
-      if (d.valueUSD == null) return null;
-      return { x: toX(i), y: toY(d.valueUSD), value: d.valueUSD, date: c.date, hasPurchased: d.hasPurchased };
+    const pts = interpolatedData.map((d, i) => {
+      if (d.value == null) return null;
+      return { x: toX(i), y: toY(d.value), value: d.value, date: d.date, hasPurchased: d.hasPurchased };
     });
 
-    const costPts = displayedCandles.map((c, i) => {
-      const d = rawData[i];
-      if (!d.hasPurchased || d.costUSD == null) return null;
-      return { x: toX(i), y: toY(d.costUSD), cost: d.costUSD, date: c.date };
+    const costPts = interpolatedData.map((d, i) => {
+      if (!d.hasPurchased || d.cost == null) return null;
+      return { x: toX(i), y: toY(d.cost), cost: d.cost, date: d.date };
     });
 
     // Determine isUp based on the entire displayed portion
     const isUp = valuesUSD.length >= 2 ? valuesUSD[valuesUSD.length - 1] >= valuesUSD[0] : true;
 
-    return { pts, costPts, yMin, yMax, isUp, toY, toX };
-  }, [displayedCandles, avgCost, lots, isThai, exchangeRate, PAD_T, iH, PAD_L, iW, tf, asset]);
+    return { pts, costPts, yMin, yMax, isUp, toY, toX, interpolatedData };
+  }, [rawDisplayedCandles, visibleDurationMs, avgCost, lots, isThai, exchangeRate, PAD_T, iH, PAD_L, iW, tf, asset]);
 
   /* ── Y-axis tick labels ── */
   const yTicks = useMemo(() => {
@@ -343,14 +455,14 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
 
   /* ── X-axis tick labels ── */
   const xTicks = useMemo(() => {
-    if (!displayedCandles || displayedCandles.length < 2) return [];
-    const count = Math.min(6, displayedCandles.length);
-    const step = Math.floor(displayedCandles.length / count);
+    if (!interpolatedData || interpolatedData.length < 2) return [];
+    const count = Math.min(6, interpolatedData.length);
+    const step = Math.floor(interpolatedData.length / count);
     return Array.from({ length: count }, (_, i) => {
-      const idx = Math.min(i * step, displayedCandles.length - 1);
-      return { idx, x: PAD_L + (idx / (displayedCandles.length - 1)) * iW, date: displayedCandles[idx].date };
+      const idx = Math.min(i * step, interpolatedData.length - 1);
+      return { idx, x: PAD_L + (idx / (interpolatedData.length - 1)) * iW, date: interpolatedData[idx].date };
     });
-  }, [displayedCandles, PAD_L, iW]);
+  }, [interpolatedData, PAD_L, iW]);
 
   /* ── Filter active points (excluding nulls before first purchase) ── */
   const activePts = useMemo(() => pts.filter(Boolean), [pts]);
@@ -397,7 +509,7 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
 
   /* ── Lot markers (purchase dates) ── */
   const lotMarkers = useMemo(() => {
-    if (!lots || !displayedCandles || displayedCandles.length < 2) return [];
+    if (!lots || !candles || candles.length < 2 || !interpolatedData || interpolatedData.length < 2) return [];
     
     // Sort lots chronologically to ensure correct sequence numbering
     const sortedLots = [...lots]
@@ -461,9 +573,18 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
 
     // 3. Map groups to final markers with screen coordinate X and consolidated details
     return Object.values(groupedMap).map(group => {
-      const displayIdx = group.idx - startIdx;
-      const x = PAD_L + (displayIdx / (displayedCandles.length - 1)) * iW;
+      const targetDate = candles[group.idx].date;
+      let bestDisplayIdx = -1, bestDiff = Infinity;
+      interpolatedData.forEach((d, i) => {
+        const diff = Math.abs(new Date(d.date) - new Date(targetDate));
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          bestDisplayIdx = i;
+        }
+      });
       
+      const x = PAD_L + (bestDisplayIdx / (interpolatedData.length - 1)) * iW;
+
       // Determine color type: all buy = green, all sell = red, mix = orange
       let colorType = "mixed";
       if (group.buysCount > 0 && group.sellsCount === 0) colorType = "buy";
@@ -492,7 +613,9 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
         txs: group.txs
       };
     });
-  }, [lots, candles, displayedCandles, zoomRange, PAD_L, iW, isThai, exchangeRate, tf]);
+  }, [lots, candles, interpolatedData, zoomRange, PAD_L, iW, isThai, exchangeRate, tf]);
+
+  const displayedCandles = interpolatedData;
 
   const stateRef = useRef();
   stateRef.current = {
@@ -524,7 +647,16 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
       } else {
         const relX = (mouseX - PAD_L) / iW;
         const idx = Math.max(0, Math.min(Math.round(relX * (displayedCandles.length - 1)), displayedCandles.length - 1));
-        const originalIdx = (zoomRange ? zoomRange.start : 0) + idx;
+        
+        let originalIdx = (zoomRange ? zoomRange.start : 0);
+        let bestDiff = Infinity;
+        candles.forEach((h, i) => {
+          const diff = Math.abs(new Date(h.date) - new Date(displayedCandles[idx].date));
+          if (diff < bestDiff) {
+            bestDiff = diff;
+            originalIdx = i;
+          }
+        });
 
         setIsDiffActive(true);
         updateDiffStartIdx(originalIdx);
@@ -545,7 +677,17 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
         const boundedX = Math.max(PAD_L, Math.min(W - PAD_R, mouseXInSvg));
         const relX = (boundedX - PAD_L) / iW;
         const idx = Math.max(0, Math.min(Math.round(relX * (displayedCandles.length - 1)), displayedCandles.length - 1));
-        const originalIdx = (zoomRange ? zoomRange.start : 0) + idx;
+        
+        let originalIdx = (zoomRange ? zoomRange.start : 0);
+        let bestDiff = Infinity;
+        candles.forEach((h, i) => {
+          const diff = Math.abs(new Date(h.date) - new Date(displayedCandles[idx].date));
+          if (diff < bestDiff) {
+            bestDiff = diff;
+            originalIdx = i;
+          }
+        });
+
         updateDiffEndIdx(originalIdx);
         setHovered(null);
       } else if (dragStart.type === "pan") {
@@ -635,7 +777,16 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
       const mouseXInSvg = ((e.clientX - rect.left) / rect.width) * W;
       const relX = (mouseXInSvg - PAD_L) / iW;
       const hoveredIdx = Math.max(0, Math.min(Math.round(relX * (displayedCandles.length - 1)), displayedCandles.length - 1));
-      const centerIdx = currentStart + hoveredIdx;
+      
+      let centerIdx = currentStart;
+      let bestDiff = Infinity;
+      candles.forEach((h, i) => {
+        const diff = Math.abs(new Date(h.date) - new Date(displayedCandles[hoveredIdx].date));
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          centerIdx = i;
+        }
+      });
 
       if (isZoomIn) {
         if (rangeSize <= 2) return;
@@ -695,7 +846,16 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
         if (touchX >= PAD_L && touchX <= W - PAD_R) {
           const relX = (touchX - PAD_L) / iW;
           const idx = Math.max(0, Math.min(Math.round(relX * (displayedCandles.length - 1)), displayedCandles.length - 1));
-          const originalIdx = (zoomRange ? zoomRange.start : 0) + idx;
+          
+          let originalIdx = (zoomRange ? zoomRange.start : 0);
+          let bestDiff = Infinity;
+          candles.forEach((h, i) => {
+            const diff = Math.abs(new Date(h.date) - new Date(displayedCandles[idx].date));
+            if (diff < bestDiff) {
+              bestDiff = diff;
+              originalIdx = i;
+            }
+          });
 
           touchRef.current = {
             startX: e.touches[0].clientX,
@@ -753,7 +913,16 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
           const boundedX = Math.max(PAD_L, Math.min(W - PAD_R, touchX));
           const relX = (boundedX - PAD_L) / iW;
           const idx = Math.max(0, Math.min(Math.round(relX * (displayedCandles.length - 1)), displayedCandles.length - 1));
-          const originalIdx = (zoomRange ? zoomRange.start : 0) + idx;
+          
+          let originalIdx = (zoomRange ? zoomRange.start : 0);
+          let bestDiff = Infinity;
+          candles.forEach((h, i) => {
+            const diff = Math.abs(new Date(h.date) - new Date(displayedCandles[idx].date));
+            if (diff < bestDiff) {
+              bestDiff = diff;
+              originalIdx = i;
+            }
+          });
 
           updateDiffEndIdx(originalIdx);
           setHovered(null);
@@ -860,10 +1029,14 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseLeave}
+      onSelectStart={(e) => e.preventDefault()}
       style={{
         width: "100%",
         position: "relative",
         userSelect: "none",
+        WebkitUserSelect: "none",
+        MozUserSelect: "none",
+        msUserSelect: "none",
         cursor: zoomRange ? (dragStart && dragStart.type === "pan" ? "grabbing" : "grab") : "crosshair",
         touchAction: "pan-y"
       }}>
@@ -1093,42 +1266,80 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
         {xTicks.map(({ x, date }, i) => (
           <text key={i} x={x} y={H - PAD_B + 16} textAnchor="middle" fontSize="10"
             fill="#94A3B8" fontFamily="Outfit,sans-serif" fontWeight="600">
-            {fmtDate(date, tf, hasMultipleYears)}
+            {getDynamicDateFormat(date, visibleDurationMs, hasMultipleYears)}
           </text>
         ))}
-
-        {/* ── Hover tooltip ── */}
-        {hovered && (() => {
-          const tipW = 160, tipH = hovered.cost != null ? 68 : 46;
-          const tipX = hovered.x < W / 2
-            ? Math.min(hovered.x + 15, W - PAD_R - tipW)
-            : Math.max(PAD_L + 15, hovered.x - tipW - 15);
-          const tipY = Math.max(PAD_T + 10, Math.min(H - PAD_B - tipH - 10, hovered.y - tipH / 2));
-
-          const diff = hovered.cost != null ? hovered.value - hovered.cost : 0;
-          const diffPct = hovered.cost != null && hovered.cost > 0 ? (diff / hovered.cost) * 100 : 0;
-          return (
-            <g style={{ pointerEvents: "none" }}>
-              <rect x={tipX} y={tipY} width={tipW} height={tipH} rx="10"
-                fill="#1E293B" opacity="0.95" />
-              <text x={tipX + tipW / 2} y={tipY + 15} textAnchor="middle"
-                fontSize="10" fill="#94A3B8" fontFamily="Outfit,sans-serif">
-                {fmtDate(hovered.date, tf, hasMultipleYears)}
-              </text>
-              <text x={tipX + tipW / 2} y={tipY + 31} textAnchor="middle"
-                fontSize="12" fill="white" fontWeight="800" fontFamily="Outfit,sans-serif">
-                ราคา: {fmtUSD(hovered.value)}
-              </text>
-              {hovered.cost != null && (
-                <text x={tipX + tipW / 2} y={tipY + 51} textAnchor="middle"
-                  fontSize="11" fill={diff >= 0 ? "#00B98A" : "#FF4B55"} fontWeight="800" fontFamily="Outfit,sans-serif">
-                  ทุนเฉลี่ย: {fmtUSD(hovered.cost)} ({fmtPct(diffPct)})
-                </text>
-              )}
-            </g>
-          );
-        })()}
       </svg>
+
+      {/* Hover Tooltip Box (HTML) */}
+      {hovered && (() => {
+        const diff = hovered.cost != null ? hovered.value - hovered.cost : 0;
+        const diffPct = hovered.cost != null && hovered.cost > 0 ? (diff / hovered.cost) * 100 : 0;
+        const dateStr = hovered.date.split("T")[0];
+        const txs = transactionsByDate[dateStr];
+        const isThaiAsset = asset?.symbol?.endsWith(".BK");
+        return (
+          <div className="chart-tooltip-box" style={{
+            top: Math.max(10, Math.min(H - 180, hovered.y - 45)) + "px",
+            left: (hovered.x / W) * 100 + "%",
+            opacity: 1,
+            transform: hovered.x < W / 2 ? "translateX(15px)" : "translateX(calc(-100% - 15px))",
+            zIndex: 100,
+            pointerEvents: "none"
+          }}>
+            <div style={{ fontSize: 10, opacity: 0.75, marginBottom: 2 }}>
+              {getDynamicDateFormat(hovered.date, visibleDurationMs, hasMultipleYears)}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                <span style={{ fontSize: 10, color: "var(--text-faint)" }}>ราคา:</span>
+                <span style={{ fontSize: 12, fontWeight: 800, color: "white" }}>
+                  {isThaiAsset ? fmtTHB(hovered.value * exchangeRate) : fmtUSD(hovered.value)}
+                </span>
+              </div>
+              {hovered.cost != null && (
+                <>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                    <span style={{ fontSize: 10, color: "var(--text-faint)" }}>ทุนเฉลี่ย:</span>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: "#A5B4FC" }}>
+                      {isThaiAsset ? fmtTHB(hovered.cost * exchangeRate) : fmtUSD(hovered.cost)}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: 2, marginTop: 2 }}>
+                    <span style={{ fontSize: 10, color: "var(--text-faint)" }}>P&L:</span>
+                    <span style={{ fontSize: 11, fontWeight: 900, color: diff >= 0 ? "#6EE7B7" : "#FCA5A5" }}>
+                      {diff >= 0 ? "+" : ""}{isThaiAsset ? fmtTHB(diff * exchangeRate) : fmtUSD(diff)} ({fmtPct(diffPct)})
+                    </span>
+                  </div>
+                </>
+              )}
+              {txs && txs.length > 0 && (
+                <div style={{
+                  marginTop: 6,
+                  borderTop: "1px dashed rgba(255,255,255,0.2)",
+                  paddingTop: 6,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 3
+                }}>
+                  <span style={{ fontSize: 10, color: "#F59E0B", fontWeight: 800, display: "flex", alignItems: "center", gap: 4 }}>
+                    🛒 ธุรกรรมในวันนี้:
+                  </span>
+                  {txs.map((tx, idx) => (
+                    <span key={idx} style={{ fontSize: 10, color: "#FFF", opacity: 0.9 }}>
+                      • {tx.type === "BUY" ? "ซื้อ" : "ขาย"} {fmtQty(tx.qty)} {isCashAsset ? asset.symbol : "หุ้น"} @ {isThai ? fmtTHB(tx.price) : fmtUSD(tx.price)} (ครั้งที่ {tx.num})
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: "none" }}>
+        {/* Dummy closing tag workaround to preserve subsequent content parsing */}
+      </svg>
+
 
       {/* Floating Diff / Comparison Overlay Box */}
       {isDiffActive && diffStartIdx !== null && diffEndIdx !== null && diffStartIdx !== diffEndIdx && (() => {
@@ -1387,10 +1598,11 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, historica
         const firstPurchaseDate = new Date(sortedLots[0].date + "T00:00:00.000Z");
         const today = new Date();
         const diffDays = Math.ceil((today - firstPurchaseDate) / (1000 * 60 * 60 * 24));
-        if (diffDays <= 7) fetchTf = "5D";
+         if (diffDays <= 7) fetchTf = "5D";
         else if (diffDays <= 30) fetchTf = "1M";
         else if (diffDays <= 180) fetchTf = "6M";
         else if (diffDays <= 365) fetchTf = "1Y";
+        else if (diffDays <= 730) fetchTf = "2Y";
         else if (diffDays <= 1825) fetchTf = "5Y";
         else fetchTf = "MAX";
       } else {

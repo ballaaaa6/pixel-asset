@@ -54,6 +54,7 @@ export async function onRequestGet(context) {
         "6M":  { range: "6mo", interval: "1d"  },
         "YTD": { range: "ytd", interval: "1d"  },
         "1Y":  { range: "1y",  interval: "1d"  },
+        "2Y":  { range: "2y",  interval: "1d"  },
         "5Y":  { range: "5y",  interval: "1wk" },
         "MAX": { range: "max", interval: "1wk" },
       };
@@ -223,6 +224,7 @@ export async function onRequestGet(context) {
         "6M":  { range: "6mo", interval: "1d"  },
         "YTD": { range: "ytd", interval: "1d"  },
         "1Y":  { range: "1y",  interval: "1d"  },
+        "2Y":  { range: "2y",  interval: "1d"  },
         "5Y":  { range: "5y",  interval: "1wk" },
         "MAX": { range: "max", interval: "1wk" },
       };
