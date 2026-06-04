@@ -228,6 +228,28 @@ function stepPath(pts) {
   return d;
 }
 
+/* Smooth data points using a moving average filter */
+function smoothPoints(points, toY) {
+  if (!points || points.length < 5) return points;
+  const windowSize = points.length > 50 ? 5 : 3;
+  const half = Math.floor(windowSize / 2);
+  return points.map((pt, idx) => {
+    if (!pt || pt.value == null) return pt;
+    if (idx < half || idx >= points.length - half) return pt;
+    let sum = 0;
+    let count = 0;
+    for (let w = -half; w <= half; w++) {
+      const neighbor = points[idx + w];
+      if (neighbor && neighbor.value != null) {
+        sum += neighbor.value;
+        count++;
+      }
+    }
+    if (count === 0) return pt;
+    return { ...pt, y: toY(sum / count) };
+  });
+}
+
 function AssetLogo({ symbol, category, style }) {
   const [srcIndex, setSrcIndex] = useState(0);
   const sym = symbol ? symbol.split(".")[0].toUpperCase() : "";
@@ -529,10 +551,12 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
       return { x: toX(i), y: toY(d.cost), cost: d.cost, date: d.date };
     });
 
+    const renderPts = smoothPoints(pts, toY);
+
     // Determine isUp based on the entire displayed portion
     const isUp = valuesUSD.length >= 2 ? valuesUSD[valuesUSD.length - 1] >= valuesUSD[0] : true;
 
-    return { pts, costPts, yMin, yMax, isUp, toY, toX, interpolatedData };
+    return { pts, costPts, yMin, yMax, isUp, toY, toX, interpolatedData, renderPts };
   }, [rawDisplayedCandles, visibleDurationMs, avgCost, lots, isThai, exchangeRate, PAD_T, iH, PAD_L, iW, tf, asset]);
 
   /* ── Y-axis tick labels ── */
@@ -568,7 +592,7 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
   }, [interpolatedData, PAD_L, iW, tf]);
 
   /* ── Filter active points (excluding nulls before first purchase) ── */
-  const activePts = useMemo(() => pts.filter(Boolean), [pts]);
+  const activePts = useMemo(() => renderPts.filter(Boolean), [renderPts]);
   const activeCostPts = useMemo(() => costPts.filter(Boolean), [costPts]);
 
   /* ── Line paths ── */
@@ -844,21 +868,22 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
 
     const relX = (mouseXInSvg - PAD_L) / iW;
     const idx = Math.max(0, Math.min(Math.round(relX * (displayedCandles.length - 1)), displayedCandles.length - 1));
-    const pt = pts[idx];
+    const pt = renderPts[idx];
     if (pt) {
       const costPt = costPts[idx];
+      const rawPt = pts[idx];
       setHovered({
         idx,
         x: pt.x,
         y: pt.y,
         costY: costPt ? costPt.y : null,
-        value: pt.value,
+        value: rawPt?.value || pt.value,
         cost: costPt ? costPt.cost : null,
         date: pt.date,
         hasPurchased: pt.hasPurchased
       });
     }
-  }, [pts, costPts, displayedCandles, PAD_L, iW, W, dragStart, zoomRange, candles, isDiffActive]);
+  }, [renderPts, pts, costPts, displayedCandles, PAD_L, iW, W, dragStart, zoomRange, candles, isDiffActive]);
 
   const handleMouseUp = () => {
     if (dragStart && dragStart.type === "diff") {

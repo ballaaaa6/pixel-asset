@@ -225,6 +225,28 @@ function stepPath(pts) {
   return d;
 }
 
+/* Smooth data points using a moving average filter */
+function smoothPoints(points, toY) {
+  if (!points || points.length < 5) return points;
+  const windowSize = points.length > 50 ? 5 : 3;
+  const half = Math.floor(windowSize / 2);
+  return points.map((pt, idx) => {
+    if (!pt || pt.value == null) return pt;
+    if (idx < half || idx >= points.length - half) return pt;
+    let sum = 0;
+    let count = 0;
+    for (let w = -half; w <= half; w++) {
+      const neighbor = points[idx + w];
+      if (neighbor && neighbor.value != null) {
+        sum += neighbor.value;
+        count++;
+      }
+    }
+    if (count === 0) return pt;
+    return { ...pt, y: toY(sum / count) };
+  });
+}
+
 
 /* ═══════════════════════════════════════════════════════════════
    ASSET LOGO with multi-source fallback
@@ -614,8 +636,8 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
     });
   }, [assets, displayedData, history, iW, PAD_L]);
 
-  const { pts, costPts, yMin, yMax, isUp, color } = useMemo(() => {
-    if (!displayedData || displayedData.length < 2) return { pts: [], costPts: [], yMin: 0, yMax: 1, isUp: true, color: "var(--gain)" };
+  const { pts, costPts, yMin, yMax, isUp, color, renderPts } = useMemo(() => {
+    if (!displayedData || displayedData.length < 2) return { pts: [], costPts: [], yMin: 0, yMax: 1, isUp: true, color: "var(--gain)", renderPts: [] };
 
     const vals = displayedData.map(h => h.value);
     const costs = displayedData.map(h => h.cost || 0);
@@ -637,10 +659,12 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
     const pts = displayedData.map((h, i) => ({ x: toX(i), y: toY(h.value), value: h.value, date: h.date }));
     const costPts = displayedData.map((h, i) => ({ x: toX(i), y: toY(h.cost || 0), cost: h.cost || 0, date: h.date }));
 
+    const renderPts = smoothPoints(pts, toY);
+
     const isUp = vals[vals.length - 1] >= vals[0];
     const color = isUp ? "var(--gain)" : "var(--loss)";
 
-    return { pts, costPts, yMin, yMax, isUp, color, toY };
+    return { pts, costPts, yMin, yMax, isUp, color, renderPts };
   }, [displayedData, iH, iW, range]);
 
   const findClosestPtByTimestamp = (ts) => {
@@ -660,16 +684,16 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
     return bestPt;
   };
 
-  const linePath = useMemo(() => smoothPath(pts), [pts]);
+  const linePath = useMemo(() => smoothPath(renderPts), [renderPts]);
   const costLinePath = useMemo(() => stepPath(costPts), [costPts]);
 
   // Gain & Loss fill paths
   const fillValueArea = useMemo(() => {
-    if (!linePath || pts.length < 2) return "";
-    const first = pts[0], last = pts[pts.length - 1];
+    if (!linePath || renderPts.length < 2) return "";
+    const first = renderPts[0], last = renderPts[renderPts.length - 1];
     const bottomY = H - PAD_B;
     return linePath + ` L ${last.x},${bottomY} L ${first.x},${bottomY} Z`;
-  }, [linePath, pts, H, PAD_B]);
+  }, [linePath, renderPts, H, PAD_B]);
 
   const fillCostArea = useMemo(() => {
     if (!costLinePath || costPts.length < 2) return "";
@@ -693,10 +717,10 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
   }, [costLinePath, costPts, H, PAD_B]);
 
   const clipAboveValuePath = useMemo(() => {
-    if (!linePath || pts.length < 2) return "";
-    const first = pts[0], last = pts[pts.length - 1];
+    if (!linePath || renderPts.length < 2) return "";
+    const first = renderPts[0], last = renderPts[renderPts.length - 1];
     return linePath + ` L ${last.x},0 L ${first.x},0 Z`;
-  }, [linePath, pts]);
+  }, [linePath, renderPts]);
 
   const stateRef = useRef();
   stateRef.current = {
@@ -799,15 +823,15 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
       setHovered({
         idx,
         originalIdx,
-        x: pts[idx].x,
-        y: pts[idx].y,
+        x: renderPts[idx]?.x || pts[idx].x,
+        y: renderPts[idx]?.y || pts[idx].y,
         costY: costPts[idx]?.y,
         value: displayedData[idx].value,
         cost: displayedData[idx].cost || 0,
         date: displayedData[idx].date
       });
     }
-  }, [pts, costPts, displayedData, iW, W, dragStart, zoomRange, history, isDiffActive]);
+  }, [renderPts, pts, costPts, displayedData, iW, W, dragStart, zoomRange, history, isDiffActive]);
 
   const handleMouseUp = () => {
     if (dragStart && dragStart.type === "diff") {
