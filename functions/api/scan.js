@@ -482,7 +482,7 @@ function mergeLotIntoPortfolio(portfolio, slip) {
 }
 
 /**
- * Call Cloudflare Workers AI Vision google/gemma-4-26b-a4b-it model with fallback.
+ * Call Cloudflare Workers AI Vision google/gemma-4-26b-a4b-it model with fallback and model-specific image formatting.
  */
 async function callWorkersAIVision(ai, base64, mime) {
   let binaryString;
@@ -502,24 +502,46 @@ async function callWorkersAIVision(ai, base64, mime) {
   const primaryModel = "@cf/google/gemma-4-26b-a4b-it";
   const backupModel = "@cf/meta/llama-3.2-11b-vision-instruct";
 
-  // Helper to run a model
+  // Helper to run a model with its correct signature
   async function runModel(modelName, maxTokens) {
-    return await ai.run(modelName, {
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: "Extract the transaction data from this receipt image. Your response MUST be ONLY a raw JSON object matching the schema, with no conversational filler or markdown blocks. Start directly with '{'." }
-      ],
-      image: imageBytes,
-      max_tokens: maxTokens,
-      temperature: 0.0,
-      thinking: false,
-      chat_template_kwargs: {
-        enable_thinking: false
-      },
-      response_format: {
-        type: "json_object"
-      }
-    });
+    if (modelName === "@cf/google/gemma-4-26b-a4b-it") {
+      // Gemma 4 uses OpenAI-compatible multimodal messages array format
+      return await ai.run(modelName, {
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "Extract the transaction data from this receipt image. Your response MUST be ONLY a raw JSON object matching the schema, with no conversational filler or markdown blocks. Start directly with '{'." },
+              { type: "image_url", image_url: { url: `data:${mime};base64,${base64}` } }
+            ]
+          }
+        ],
+        max_tokens: maxTokens,
+        temperature: 0.0,
+        thinking: false,
+        chat_template_kwargs: {
+          enable_thinking: false
+        },
+        response_format: {
+          type: "json_object"
+        }
+      });
+    } else {
+      // Llama 3.2 Vision uses the top-level image property (Uint8Array)
+      return await ai.run(modelName, {
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: "Extract the transaction data from this receipt image. Your response MUST be ONLY a raw JSON object matching the schema, with no conversational filler or markdown blocks. Start directly with '{'." }
+        ],
+        image: imageBytes,
+        max_tokens: maxTokens,
+        temperature: 0.0,
+        response_format: {
+          type: "json_object"
+        }
+      });
+    }
   }
 
   // Parse text response, supporting both OpenAI choices array and legacy formats
@@ -558,7 +580,7 @@ async function callWorkersAIVision(ai, base64, mime) {
   let usedModel = primaryModel;
   let parsedJson = null;
 
-  // 1. Try Primary Model
+  // 1. Try Primary Model (Gemma 4)
   try {
     console.log(`Trying primary model: ${primaryModel}`);
     response = await runModel(primaryModel, 2048);
@@ -605,7 +627,7 @@ async function callWorkersAIVision(ai, base64, mime) {
     }
   }
 
-  // 3. Fallback to Backup Model
+  // 3. Fallback to Backup Model (Llama 3.2 Vision)
   if (!parsedJson) {
     console.log(`Primary model failed or returned invalid data. Running backup model: ${backupModel}`);
     usedModel = backupModel;
