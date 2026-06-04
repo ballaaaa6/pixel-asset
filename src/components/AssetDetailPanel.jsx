@@ -474,7 +474,14 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
 
   /* ── Line paths ── */
   const linePath = useMemo(() => smoothPath(activePts), [activePts]);
-  const costLinePath = useMemo(() => stepPath(activeCostPts), [activeCostPts]);
+  const costLinePath = useMemo(() => {
+    if (activeCostPts.length === 0) return "";
+    if (activeCostPts.length === 1) {
+      const pt = activeCostPts[0];
+      return `M ${pt.x.toFixed(2)},${pt.y.toFixed(2)} L ${(W - PAD_R).toFixed(2)},${pt.y.toFixed(2)}`;
+    }
+    return stepPath(activeCostPts);
+  }, [activeCostPts, W, PAD_R]);
 
   /* ── Fill paths ── */
   const fillValueArea = useMemo(() => {
@@ -485,25 +492,28 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
   }, [linePath, activePts, H, PAD_B]);
 
   const fillCostArea = useMemo(() => {
-    if (!costLinePath || activeCostPts.length < 2) return "";
-    const first = activeCostPts[0], last = activeCostPts[activeCostPts.length - 1];
+    if (!costLinePath || activeCostPts.length === 0) return "";
+    const first = activeCostPts[0];
+    const lastX = activeCostPts.length === 1 ? (W - PAD_R) : activeCostPts[activeCostPts.length - 1].x;
     const bottomY = H - PAD_B;
-    return costLinePath + ` L ${last.x},${bottomY} L ${first.x},${bottomY} Z`;
-  }, [costLinePath, activeCostPts, H, PAD_B]);
+    return costLinePath + ` L ${lastX.toFixed(2)},${bottomY.toFixed(2)} L ${first.x.toFixed(2)},${bottomY.toFixed(2)} Z`;
+  }, [costLinePath, activeCostPts, H, PAD_B, W, PAD_R]);
 
   // Clipping path definitions using active boundaries
   const clipAboveCostPath = useMemo(() => {
-    if (!costLinePath || activeCostPts.length < 2) return "";
-    const first = activeCostPts[0], last = activeCostPts[activeCostPts.length - 1];
-    return costLinePath + ` L ${last.x},0 L ${first.x},0 Z`;
-  }, [costLinePath, activeCostPts]);
+    if (!costLinePath || activeCostPts.length === 0) return "";
+    const first = activeCostPts[0];
+    const lastX = activeCostPts.length === 1 ? (W - PAD_R) : activeCostPts[activeCostPts.length - 1].x;
+    return costLinePath + ` L ${lastX.toFixed(2)},0 L ${first.x.toFixed(2)},0 Z`;
+  }, [costLinePath, activeCostPts, W, PAD_R]);
 
   const clipBelowCostPath = useMemo(() => {
-    if (!costLinePath || activeCostPts.length < 2) return "";
-    const first = activeCostPts[0], last = activeCostPts[activeCostPts.length - 1];
+    if (!costLinePath || activeCostPts.length === 0) return "";
+    const first = activeCostPts[0];
+    const lastX = activeCostPts.length === 1 ? (W - PAD_R) : activeCostPts[activeCostPts.length - 1].x;
     const bottomY = H - PAD_B;
-    return costLinePath + ` L ${last.x},${bottomY} L ${first.x},${bottomY} Z`;
-  }, [costLinePath, activeCostPts, H, PAD_B]);
+    return costLinePath + ` L ${lastX.toFixed(2)},${bottomY.toFixed(2)} L ${first.x.toFixed(2)},${bottomY.toFixed(2)} Z`;
+  }, [costLinePath, activeCostPts, H, PAD_B, W, PAD_R]);
 
   const clipAboveValuePath = useMemo(() => {
     if (!linePath || activePts.length < 2) return "";
@@ -1089,7 +1099,7 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
           <clipPath id="assetClipFull">
             <rect x={PAD_L} y={PAD_T} width={iW} height={iH} />
           </clipPath>
-          {hasCostLine && activeCostPts.length >= 2 && (
+          {hasCostLine && activeCostPts.length >= 1 && (
             <>
               <clipPath id="prePurchasedClip">
                 <rect x={PAD_L} y={0} width={Math.max(0, activeCostPts[0].x - PAD_L)} height={H} />
@@ -1136,7 +1146,7 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
         })()}
 
         {/* ── Fill areas with Clipping ── */}
-        {hasCostLine && costLinePath && fillValueArea && fillCostArea && activeCostPts.length >= 2 ? (
+        {hasCostLine && costLinePath && fillValueArea && fillCostArea && activeCostPts.length >= 1 ? (
           <g clipPath="url(#purchasedClip)">
             {/* Gain Zone (Value > Cost): Green Fill */}
             <path d={fillValueArea} fill="url(#gainGrad)" clipPath="url(#assetClipAboveCost)" />
@@ -1161,7 +1171,7 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
         )}
 
         {/* ── Price Value Line ── */}
-        {linePath && costLinePath && activeCostPts.length >= 2 ? (
+        {linePath && costLinePath && activeCostPts.length >= 1 ? (
           <>
             {/* Pre-purchased neutral price line */}
             <path

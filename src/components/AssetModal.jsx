@@ -394,6 +394,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
         setPrice(item.avgPrice ? item.avgPrice.toString() : "");
         setDate(item.date);
         setTime(item.time || "");
+        setBroker(item.broker || "Dime!");
         setTxType(item.transactionType);
         setConfirmed(true);
         triggerToast(`🤖 สแกนใบเสร็จสำเร็จ!\nดึงข้อมูล: ${item.symbol} (${item.transactionType === "BUY" ? "ซื้อ/ฝาก" : "ขาย/ถอน"} · ${item.qty} หน่วย @ $${item.avgPrice})`, "success");
@@ -1345,8 +1346,8 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
             </div>
 
             <div className="form-group" style={{ marginTop: 14, marginBottom: 0 }}>
-              <label className="form-label">ช่องทาง/โบรกเกอร์ <span style={{ fontSize: 10, color: "var(--text-faint)" }}>(เช่น Dime!, Webull, etc.)</span></label>
-              <input type="text" className="form-input" placeholder="พิมพ์ช่องทางหรือโบรกเกอร์ที่ซื้อขาย"
+              <label className="form-label">โบรกเกอร์ <span style={{ fontSize: 10, color: "var(--text-faint)" }}>(เช่น Dime!, Webull, etc.)</span></label>
+              <input type="text" className="form-input" placeholder="พิมพ์โบรกเกอร์ที่ซื้อขาย"
                 value={broker} onChange={e => setBroker(e.target.value)} />
             </div>
 
