@@ -829,7 +829,7 @@ export function PortfolioChart({ history, range, onRangeChange, assets, exchange
     const count = Math.min(maxTicks, displayedData.length);
     const step = Math.floor((displayedData.length - 1) / Math.max(count - 1, 1));
     return Array.from({ length: count }, (_, i) => {
-      const idx = Math.min(i === count - 1 ? interpolatedData.length - 1 : i * step, interpolatedData.length - 1);
+      const idx = Math.min(i === count - 1 ? displayedData.length - 1 : i * step, displayedData.length - 1);
       return { idx, x: PAD_L + (idx / (displayedData.length - 1)) * iW, date: displayedData[idx].date };
     });
   })();
