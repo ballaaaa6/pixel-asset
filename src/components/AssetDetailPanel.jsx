@@ -1377,7 +1377,27 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, historica
     }
 
     const targetSymbol = isCashAsset ? getCurrencyTicker(asset.symbol) : asset.symbol;
-    const fetchTf = tf === "ตั้งแต่ซื้อ" ? "MAX" : tf;
+    
+    let fetchTf = tf;
+    if (tf === "ตั้งแต่ซื้อ") {
+      const sortedLots = asset?.lots && asset.lots.length > 0
+        ? [...asset.lots].sort((a, b) => new Date(a.date) - new Date(b.date))
+        : [];
+      if (sortedLots.length > 0) {
+        const firstPurchaseDate = new Date(sortedLots[0].date + "T00:00:00.000Z");
+        const today = new Date();
+        const diffDays = Math.ceil((today - firstPurchaseDate) / (1000 * 60 * 60 * 24));
+        if (diffDays <= 7) fetchTf = "5D";
+        else if (diffDays <= 30) fetchTf = "1M";
+        else if (diffDays <= 180) fetchTf = "6M";
+        else if (diffDays <= 365) fetchTf = "1Y";
+        else if (diffDays <= 1825) fetchTf = "5Y";
+        else fetchTf = "MAX";
+      } else {
+        fetchTf = "MAX";
+      }
+    }
+
     fetch(`/api/prices?history=${encodeURIComponent(targetSymbol)}&tf=${fetchTf}`)
       .then(r => r.json())
       .then(data => {
@@ -1389,7 +1409,7 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, historica
       .catch(err => { if (!cancelled) { setError(err.message); setLoading(false); } });
 
     return () => { cancelled = true; };
-  }, [asset?.symbol, tf, isCashAsset]);
+  }, [asset?.symbol, tf, isCashAsset, asset?.lots]);
 
   if (!asset) return null;
 
