@@ -442,12 +442,56 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
       ? [...lots].sort((a,b) => new Date(a.date) - new Date(b.date))
       : [{ id: "virtual", date: "1970-01-01", qty: 1, price: avgCost }];
 
-    const firstPurchaseDate = sortedLots[0]?.date || "1970-01-01";
+    const isCashAsset = asset?.type === "fiat" || asset?.category === "fiat";
 
-    // Helper to calculate holding stats on a specific date (in original currency)
-    const getStatsOnDate = (dateStr) => {
-      const targetDateOnly = dateStr.split("T")[0];
-      const lotsBeforeOrOn = sortedLots.filter(lot => lot && lot.date && lot.date <= targetDateOnly);
+    // 1. Create a raw timeline with only value/price points (uninterpolated)
+    const rawPriceData = rawDisplayedCandles.map((c) => {
+      let priceUSD = 0;
+      if (isCashAsset) {
+        if (asset.symbol === "USD") {
+          priceUSD = 1.0;
+        } else {
+          if (["EUR", "GBP", "AUD", "NZD"].includes(asset.symbol)) {
+            priceUSD = c.close;
+          } else {
+            priceUSD = 1.0 / c.close;
+          }
+        }
+      } else {
+        priceUSD = isThai ? c.close / exchangeRate : c.close;
+      }
+      return { date: c.date, value: priceUSD };
+    });
+
+    // 2. Interpolate priceData dynamically based on visibleDurationMs to get final timeline
+    const interpolatedPriceData = interpolateData(rawPriceData, visibleDurationMs);
+
+    // 3. Pre-map each lot in sortedLots to its closest index in interpolatedPriceData for exact marker alignment
+    const lotsWithMappedIdx = sortedLots.map(lot => {
+      if (!lot || !lot.date) return null;
+      const lotTime = new Date(lot.date + "T" + (lot.time || "00:00") + ":00.000Z").getTime();
+      
+      let bestIdx = 0;
+      let bestDiff = Infinity;
+      interpolatedPriceData.forEach((d, idx) => {
+        const dTime = new Date(d.date).getTime();
+        const diff = Math.abs(dTime - lotTime);
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          bestIdx = idx;
+        }
+      });
+      return {
+        ...lot,
+        mappedIdx: bestIdx
+      };
+    }).filter(Boolean);
+
+    const firstPurchaseMappedIdx = lotsWithMappedIdx[0]?.mappedIdx ?? 0;
+
+    // Helper to calculate holding stats on a specific index of interpolatedPriceData (in original currency)
+    const getStatsOnIndex = (idx) => {
+      const lotsBeforeOrOn = lotsWithMappedIdx.filter(lot => lot.mappedIdx <= idx);
 
       let runningQty = 0;
       let runningAvgCost = 0;
@@ -470,36 +514,16 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
       return { qty: runningQty, cost: runningQty * runningAvgCost, avgCost: runningAvgCost };
     };
 
-    const isCashAsset = asset?.type === "fiat" || asset?.category === "fiat";
-
-    // Calculate unit price and unit average cost for each candle
-    const rawData = rawDisplayedCandles.map((c) => {
-      const targetDateOnly = c.date.split("T")[0];
-
-      let priceUSD = 0;
-      if (isCashAsset) {
-        if (asset.symbol === "USD") {
-          priceUSD = 1.0;
-        } else {
-          if (["EUR", "GBP", "AUD", "NZD"].includes(asset.symbol)) {
-            priceUSD = c.close;
-          } else {
-            priceUSD = 1.0 / c.close;
-          }
-        }
-      } else {
-        priceUSD = isThai ? c.close / exchangeRate : c.close;
-      }
-
-      // Check if this candle is on or after the first purchase date
-      const hasPurchased = targetDateOnly >= firstPurchaseDate;
+    // 4. Generate the final interpolatedData containing correct cost values calculated at each index
+    const interpolatedData = interpolatedPriceData.map((d, i) => {
+      // Check if this candle index is on or after the first purchase mapped index
+      const hasPurchased = i >= firstPurchaseMappedIdx;
 
       if (!hasPurchased) {
-        // Return unit price as valueUSD, but null/0 costUSD for days before purchase
-        return { date: c.date, value: priceUSD, cost: null, hasPurchased: false };
+        return { date: d.date, value: d.value, cost: null, hasPurchased: false };
       }
 
-      const stats = getStatsOnDate(c.date);
+      const stats = getStatsOnIndex(i);
 
       // Use unit average cost basis instead of cumulative total cost
       let costUSD = 0;
@@ -513,11 +537,8 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
         costUSD = isThai ? avgCost / exchangeRate : avgCost;
       }
 
-      return { date: c.date, value: priceUSD, cost: costUSD, hasPurchased: true };
+      return { date: d.date, value: d.value, cost: costUSD, hasPurchased: true };
     });
-
-    // Interpolate rawData dynamically based on visibleDurationMs
-    const interpolatedData = interpolateData(rawData, visibleDurationMs);
 
     const valuesUSD = interpolatedData.map(d => d.value).filter(v => v != null);
     const costsUSD = interpolatedData.filter(d => d.hasPurchased).map(d => d.cost).filter(c => c != null);

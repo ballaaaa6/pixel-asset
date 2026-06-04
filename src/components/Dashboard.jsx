@@ -468,8 +468,82 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
   }, [rawDisplayedData]);
 
   const displayedData = useMemo(() => {
-    return interpolateData(rawDisplayedData, visibleDurationMs);
-  }, [rawDisplayedData, visibleDurationMs]);
+    const interpolated = interpolateData(rawDisplayedData, visibleDurationMs);
+    if (!interpolated || interpolated.length < 2) return interpolated;
+
+    // Pre-map each lot of each asset to its closest index in interpolated for exact marker alignment
+    const assetLotsWithMappedIdx = assets.map(asset => {
+      const isThai = asset.symbol.toUpperCase().endsWith(".BK");
+      const isCashAsset = asset.type === "fiat" || asset.category === "fiat";
+      
+      const rawLots = asset.lots && asset.lots.length > 0
+        ? asset.lots
+        : [{ id: "virtual", date: "1970-01-01", time: "00:00", qty: asset.qty, price: (asset.avgCost ?? asset.avgPrice ?? 0) }];
+        
+      const mappedLots = rawLots.map(lot => {
+        if (!lot || !lot.date) return null;
+        
+        // Construct full ISO/timestamp for the lot
+        const lotTime = new Date(lot.date + "T" + (lot.time || "00:00") + ":00.000Z").getTime();
+        
+        // Find closest index in interpolated
+        let bestIdx = 0;
+        let bestDiff = Infinity;
+        interpolated.forEach((d, idx) => {
+          const dTime = new Date(d.date).getTime();
+          const diff = Math.abs(dTime - lotTime);
+          if (diff < bestDiff) {
+            bestDiff = diff;
+            bestIdx = idx;
+          }
+        });
+        
+        return {
+          ...lot,
+          mappedIdx: bestIdx
+        };
+      }).filter(Boolean);
+      
+      return {
+        ...asset,
+        lots: mappedLots,
+        isThai,
+        isCashAsset
+      };
+    });
+
+    // Recalculate cost for each point in interpolated
+    return interpolated.map((d, idx) => {
+      let totalCostUSD = 0;
+      let hasPurchasedAny = false;
+
+      assetLotsWithMappedIdx.forEach(asset => {
+        const lotsBeforeOrOn = asset.lots.filter(lot => lot.mappedIdx <= idx);
+        if (lotsBeforeOrOn.length === 0) return; // not purchased yet
+        
+        hasPurchasedAny = true;
+
+        const costUSD = lotsBeforeOrOn.reduce((sum, l) => {
+          let priceUSD = asset.isThai ? (l.price || 0) / exchangeRate : (l.price || 0);
+          if (asset.isCashAsset) {
+            if (asset.symbol === "USD") {
+              priceUSD = 1.0;
+            } else {
+              priceUSD = l.price || getCurrencyPriceUSD(asset.symbol, prices, exchangeRate);
+            }
+          }
+          return sum + (l.qty || 0) * priceUSD;
+        }, 0);
+
+        totalCostUSD += costUSD;
+      });
+
+      return {
+        ...d,
+        cost: hasPurchasedAny ? totalCostUSD : null
+      };
+    });
+  }, [rawDisplayedData, visibleDurationMs, assets, prices, exchangeRate]);
 
   const hasMultipleYears = useMemo(() => {
     if (!rawDisplayedData || rawDisplayedData.length < 2) return false;
@@ -3144,30 +3218,63 @@ export default function Dashboard({ user, onLogout, showToast }) {
     }
 
     // 3. Compute portfolio values for each date in the timeline
-    let history = timeline.map((date) => {
+    // Pre-map each lot of each asset to its closest timeline index for exact marker alignment
+    const assetLotsWithMappedIdx = assets.map(asset => {
+      const isThai = asset.symbol.toUpperCase().endsWith(".BK");
+      const isCashAsset = asset.type === "fiat" || asset.category === "fiat";
+      
+      const rawLots = asset.lots && asset.lots.length > 0
+        ? asset.lots
+        : [{ id: "virtual", date: "1970-01-01", time: "00:00", qty: asset.qty, price: (asset.avgCost ?? asset.avgPrice ?? 0) }];
+        
+      const mappedLots = rawLots.map(lot => {
+        if (!lot || !lot.date) return null;
+        
+        // Construct full ISO/timestamp for the lot
+        const lotTime = new Date(lot.date + "T" + (lot.time || "00:00") + ":00.000Z").getTime();
+        
+        // Find closest index in timeline
+        let bestIdx = 0;
+        let bestDiff = Infinity;
+        timeline.forEach((tStr, idx) => {
+          const tTime = new Date(tStr.includes("T") ? tStr : tStr + "T00:00:00.000Z").getTime();
+          const diff = Math.abs(tTime - lotTime);
+          if (diff < bestDiff) {
+            bestDiff = diff;
+            bestIdx = idx;
+          }
+        });
+        
+        return {
+          ...lot,
+          mappedIdx: bestIdx
+        };
+      }).filter(Boolean);
+      
+      return {
+        ...asset,
+        lots: mappedLots,
+        isThai,
+        isCashAsset
+      };
+    });
+
+    let history = timeline.map((date, idx) => {
       let totalUSD = 0;
       let totalCostUSD = 0;
-      const currentDateStr = date.split("T")[0];
 
-      assets.forEach(asset => {
-        const assetLots = asset.lots && asset.lots.length > 0
-          ? asset.lots
-          : [{ id: "virtual", date: "1970-01-01", qty: asset.qty, price: (asset.avgCost ?? asset.avgPrice ?? 0) }];
-
-        // Filter lots purchased on or before this day
-        const lotsBeforeOrOnDate = assetLots.filter(lot => lot && lot.date && lot.date <= currentDateStr);
+      assetLotsWithMappedIdx.forEach(asset => {
+        // Filter lots whose mappedIdx <= current timeline index idx
+        const lotsBeforeOrOnDate = asset.lots.filter(lot => lot.mappedIdx <= idx);
         if (lotsBeforeOrOnDate.length === 0) return; // not purchased yet
 
         // Calculate qty on this date
         const qtyOnDate = lotsBeforeOrOnDate.reduce((sum, l) => sum + (l.qty || 0), 0);
 
         // Calculate cost on this date in USD
-        const isThai = asset.symbol.toUpperCase().endsWith(".BK");
-        const isCashAsset = asset.type === "fiat" || asset.category === "fiat";
-
         const costOnDateUSD = lotsBeforeOrOnDate.reduce((sum, l) => {
-          let priceUSD = isThai ? (l.price || 0) / exchangeRate : (l.price || 0);
-          if (isCashAsset) {
+          let priceUSD = asset.isThai ? (l.price || 0) / exchangeRate : (l.price || 0);
+          if (asset.isCashAsset) {
             if (asset.symbol === "USD") {
               priceUSD = 1.0;
             } else {
@@ -3177,7 +3284,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
           return sum + (l.qty || 0) * priceUSD;
         }, 0);
 
-        if (isCashAsset) {
+        if (asset.isCashAsset) {
           let priceUSD = 0;
           if (asset.symbol === "USD") {
             priceUSD = 1.0;
@@ -3205,11 +3312,11 @@ export default function Dashboard({ user, onLogout, showToast }) {
         // Robust fallback: if sparkline price is null/missing, use live price or purchase price
         let priceUSD = 0;
         if (price != null && price > 0) {
-          priceUSD = isThai ? price / exchangeRate : price;
+          priceUSD = asset.isThai ? price / exchangeRate : price;
         } else {
           const livePrice = prices[asset.symbol.toUpperCase()]?.price;
           if (livePrice != null && livePrice > 0) {
-            priceUSD = isThai ? livePrice / exchangeRate : livePrice;
+            priceUSD = asset.isThai ? livePrice / exchangeRate : livePrice;
           } else {
             priceUSD = qtyOnDate > 0 ? costOnDateUSD / qtyOnDate : 0;
           }
