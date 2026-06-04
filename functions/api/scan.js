@@ -278,11 +278,16 @@ function validateSlipData(raw) {
     }
   }
 
-  // Check currency in bold_amount and stock_value (specifically targeting currency indicators next to totals)
+  // Check currency in bold_amount, stock_value, header_text, and status_text (including exchange rate detection)
   const boldStr = String(raw.bold_amount || "").toLowerCase();
   const valueStr = String(raw.stock_value || "").toLowerCase();
+  const headerStr = String(raw.header_text || "").toLowerCase();
+  const statusStr = String(raw.status_text || "").toLowerCase();
   const hasTHBUnit = boldStr.includes("บาท") || boldStr.includes("thb") || boldStr.includes("฿") ||
-                     valueStr.includes("บาท") || valueStr.includes("thb") || valueStr.includes("฿");
+                     valueStr.includes("บาท") || valueStr.includes("thb") || valueStr.includes("฿") ||
+                     headerStr.includes("บาท") || headerStr.includes("thb") ||
+                     statusStr.includes("บาท") || statusStr.includes("thb") ||
+                     exchangeRate > 0;
 
   if (price <= 0) return null;
 
