@@ -298,72 +298,58 @@ function validateSlipData(raw) {
 
   if (price <= 0) return null;
 
-  // 4. Resolve Quantity (share_amount) with cross-validation
+  // ─── 4. Resolve Quantity (share_amount) ───
   let share_amount = 0;
 
-  // Detect and flag when AI hallucinates and puts total transaction amount (THB or USD) directly into qtyTable
-  let isQtyHallucinated = false;
-  if (qtyTable > 0 && price > 0) {
-    const product = qtyTable * price;
-    // If USD stock but the total value exceeds $10,000 USD and we have a THB slip, it is likely hallucinated
-    if (product > 10000 && hasTHBUnit) {
-      isQtyHallucinated = true;
-    } else if (boldNum > 0 && Math.abs(qtyTable - boldNum) < 0.1) {
-      // If qtyTable matches the bold total amount, it's the total cost value misclassified as quantity.
-      // We apply this only if price > 1.1 (stocks/cryptos) to avoid stablecoin/fiat transfers.
-      if (price > 1.1) {
-        isQtyHallucinated = true;
+  // 4.1 Determine if the bold amount is the unit count (e.g. "1 หุ้น", "10 หน่วย")
+  const isBoldUnitCount = boldText.includes("หุ้น") || boldText.includes("หน่วย") || boldText.includes("share") || boldText.includes("unit");
+  
+  // Calculate total stock value in USD to cross-check with boldNum
+  const rate = exchangeRate > 0 ? exchangeRate : 35.0;
+  const stockValueUsd = stockValue > 0 ? (hasTHBUnit ? stockValue / rate : stockValue) : 0;
+  
+  // If boldNum * price equals stockValue (converted to USD), then boldNum is the quantity!
+  const isBoldQty = stockValueUsd > 0 && Math.abs(boldNum * price - stockValueUsd) / stockValueUsd < 0.15;
+
+  if ((isBoldUnitCount || isBoldQty) && boldNum > 0) {
+    share_amount = boldNum;
+  } else {
+    // 4.2 Fractional share case: table has quantity, boldNum is total currency
+    let totalUsd = stockValueUsd > 0 ? stockValueUsd : 0;
+    if (totalUsd <= 0 && boldNum > 0) {
+      totalUsd = hasTHBUnit ? boldNum / rate : boldNum;
+    }
+
+    let expectedQty = 0;
+    if (price > 0 && totalUsd > 0) {
+      expectedQty = totalUsd / price;
+    }
+
+    // Validate qtyTable to ensure it is not a fee/commission or hallucination
+    let isQtyTableValid = false;
+    if (qtyTable > 0 && expectedQty > 0) {
+      const diffPercent = Math.abs(qtyTable - expectedQty) / expectedQty;
+      // If within 25% tolerance, it is a valid quantity match
+      if (diffPercent < 0.25) {
+        isQtyTableValid = true;
       }
     }
-  }
 
-  if (qtyTable > 0 && !isQtyHallucinated) {
-    share_amount = qtyTable;
-  }
-  // Rule 4.2: If the bold amount at the top is explicitly labeled as shares/units (common in Limit orders and SELLs)
-  else if (boldNum > 0 && (boldText.includes("หุ้น") || boldText.includes("หน่วย") || boldText.includes("share") || boldText.includes("unit"))) {
-    share_amount = boldNum;
-  }
-  // Rule 4.3: If it's a SELL and we have a total stock value, divide it by the price
-  else if (action === "SELL") {
-    if (stockValue > 0) {
-      share_amount = stockValue / price;
-    } else if (boldNum > 0) {
+    if (isQtyTableValid) {
+      share_amount = qtyTable;
+    } else if (expectedQty > 0) {
+      share_amount = expectedQty;
+    } else if (qtyTable > 0) {
+      share_amount = qtyTable;
+    } else {
       share_amount = boldNum;
     }
   }
-  // Rule 4.4: If it's a BUY and the bold amount is a monetary value, divide by price
-  else {
-    let total = stockValue > 0 ? stockValue : boldNum;
-    
-    // If it's in THB, convert to USD before dividing by share price
-    if (hasTHBUnit && total > 0) {
-      const rate = exchangeRate > 0 ? exchangeRate : 35.0;
-      total = total / rate;
-    }
-    
-    if (total > 0) {
-      share_amount = total / price;
-    }
-  }
 
-  // Cross-validation fallback if share_amount is 0 or was marked hallucinated (holding raw total amount)
-  if ((share_amount <= 0 || isQtyHallucinated) && price > 0) {
-    const totalRaw = boldNum > 0 ? boldNum : qtyTable;
-    if (totalRaw > 0) {
-      let totalUsd = totalRaw;
-      if (hasTHBUnit) {
-        const rate = exchangeRate > 0 ? exchangeRate : 35.0;
-        totalUsd = totalRaw / rate;
-      }
-      share_amount = totalUsd / price;
-    }
-  }
-
-  // Final double-check: Detect obvious mix-ups between total value and share count
+  // Final double-check: Detect obvious mix-ups where share_amount holds total monetary value
   if (share_amount > 0 && price > 0) {
     const product = share_amount * price;
-    // Lowered threshold from 500k to 50k to protect typical retail portfolios from large misclassifications
+    // If the implied product is huge (e.g. > $50,000 USD), the quantity was definitely misclassified as total
     if (product > 50000) {
       const corrected = share_amount / price;
       if (corrected > 0.0001) {
