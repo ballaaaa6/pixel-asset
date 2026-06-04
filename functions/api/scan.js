@@ -482,7 +482,7 @@ function mergeLotIntoPortfolio(portfolio, slip) {
 }
 
 /**
- * Call Cloudflare Workers AI Vision google/gemma-4-26b-a4b-it model.
+ * Call Cloudflare Workers AI Vision google/gemma-4-26b-a4b-it model with fallback.
  */
 async function callWorkersAIVision(ai, base64, mime) {
   let binaryString;
@@ -499,90 +499,158 @@ async function callWorkersAIVision(ai, base64, mime) {
   }
   const imageBytes = Array.from(bytes);
 
-  const model = "@cf/google/gemma-4-26b-a4b-it";
+  const primaryModel = "@cf/google/gemma-4-26b-a4b-it";
+  const backupModel = "@cf/meta/llama-3.2-11b-vision-instruct";
 
-  let response;
-  try {
-    response = await ai.run(model, {
+  // Helper to run a model
+  async function runModel(modelName, maxTokens) {
+    return await ai.run(modelName, {
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: "Extract the transaction data from this receipt image. Your response MUST be ONLY a raw JSON object matching the schema, with no conversational filler or markdown blocks. Start directly with '{'." }
       ],
       image: imageBytes,
-      max_tokens: 512,
+      max_tokens: maxTokens,
       temperature: 0.0,
+      thinking: false,
+      chat_template_kwargs: {
+        enable_thinking: false
+      },
       response_format: {
         type: "json_object"
       }
     });
+  }
+
+  // Parse text response, supporting both OpenAI choices array and legacy formats
+  function parseTextResponse(res) {
+    let resultText = "";
+    if (typeof res === "string") {
+      resultText = res;
+    } else if (res && typeof res === "object") {
+      // Check for OpenAI compatible chat completion format choices
+      if (Array.isArray(res.choices) && res.choices.length > 0) {
+        const choice = res.choices[0];
+        if (choice.message && typeof choice.message.content === "string") {
+          resultText = choice.message.content;
+        } else if (typeof choice.text === "string") {
+          resultText = choice.text;
+        }
+      }
+      
+      // Legacy or custom formats fallback
+      if (!resultText) {
+        if (typeof res.response === "string") {
+          resultText = res.response;
+        } else if (res.response && typeof res.response === "object") {
+          resultText = res.response.text || JSON.stringify(res.response);
+        } else if (typeof res.text === "string") {
+          resultText = res.text;
+        } else {
+          resultText = JSON.stringify(res);
+        }
+      }
+    }
+    return resultText;
+  }
+
+  let response;
+  let usedModel = primaryModel;
+  let parsedJson = null;
+
+  // 1. Try Primary Model
+  try {
+    console.log(`Trying primary model: ${primaryModel}`);
+    response = await runModel(primaryModel, 2048);
   } catch (err) {
-    // If terms of service code 5016, or license consent is required
+    // If license agreement error
     if (err.message && (err.message.includes("5016") || err.message.includes("license") || err.message.includes("agree") || err.message.includes("Acceptable Use Policy"))) {
       try {
-        console.log("Agreeing to terms for model...");
+        console.log(`Agreeing to terms for model: ${primaryModel}`);
         try {
-          await ai.run(model, { prompt: "agree" });
+          await ai.run(primaryModel, { prompt: "agree" });
         } catch (agreeErr) {
-          // If the error message is confirmation of agreement, ignore the throw
           if (!agreeErr.message.includes("Thank you for agreeing")) {
             throw agreeErr;
           }
         }
-        
-        // Wait 1.2 seconds for propagation on Cloudflare global edge
         await new Promise(r => setTimeout(r, 1200));
-
-        // Retry vision generation with JSON mode and messages
-        response = await ai.run(model, {
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            { role: "user", content: "Extract the transaction data from this receipt image. Your response MUST be ONLY a raw JSON object matching the schema, with no conversational filler or markdown blocks. Start directly with '{'." }
-          ],
-          image: imageBytes,
-          max_tokens: 512,
-          temperature: 0.0,
-          response_format: {
-            type: "json_object"
-          }
-        });
+        response = await runModel(primaryModel, 2048);
       } catch (retryErr) {
-        throw new Error(`Workers AI run failed after license agreement: ${retryErr.message}`);
+        console.warn(`Primary model failed after license agreement: ${retryErr.message}. Falling back to backup.`);
+        response = null;
       }
     } else {
-      throw new Error(`Workers AI run failed: ${err.message}`);
+      console.warn(`Primary model failed with error: ${err.message}. Falling back to backup.`);
+      response = null;
     }
   }
 
-  // Safe resultText string resolution
-  let resultText = "";
-  if (typeof response === "string") {
-    resultText = response;
-  } else if (response && typeof response === "object") {
-    if (typeof response.response === "string") {
-      resultText = response.response;
-    } else if (response.response && typeof response.response === "object") {
-      resultText = response.response.text || JSON.stringify(response.response);
-    } else if (typeof response.text === "string") {
-      resultText = response.text;
-    } else {
-      resultText = JSON.stringify(response);
+  // 2. Parse Primary Model Response
+  if (response) {
+    try {
+      const txt = parseTextResponse(response);
+      const match = txt.match(/\{[\s\S]*\}/);
+      if (match) {
+        parsedJson = JSON.parse(match[0]);
+        // Schema check: verify that this is not a wrapper object and contains expected fields
+        if (!parsedJson.bold_amount && !parsedJson.symbol && !parsedJson.actual_price) {
+          console.warn("Primary model returned JSON but it doesn't match expected receipt schema fields. Falling back.");
+          parsedJson = null;
+        }
+      }
+    } catch (parseErr) {
+      console.warn(`Failed to parse or validate JSON from primary model: ${parseErr.message}. Falling back.`);
+      parsedJson = null;
     }
   }
 
-  if (!resultText) {
-    throw new Error("Empty response from Cloudflare Workers AI");
+  // 3. Fallback to Backup Model
+  if (!parsedJson) {
+    console.log(`Primary model failed or returned invalid data. Running backup model: ${backupModel}`);
+    usedModel = backupModel;
+    try {
+      response = await runModel(backupModel, 512);
+    } catch (err) {
+      if (err.message && (err.message.includes("5016") || err.message.includes("license") || err.message.includes("agree") || err.message.includes("Acceptable Use Policy"))) {
+        try {
+          console.log(`Agreeing to terms for model: ${backupModel}`);
+          try {
+            await ai.run(backupModel, { prompt: "agree" });
+          } catch (agreeErr) {
+            if (!agreeErr.message.includes("Thank you for agreeing")) {
+              throw agreeErr;
+            }
+          }
+          await new Promise(r => setTimeout(r, 1200));
+          response = await runModel(backupModel, 512);
+        } catch (retryErr) {
+          throw new Error(`Backup model run failed after license agreement: ${retryErr.message}`);
+        }
+      } else {
+        throw new Error(`Backup model run failed: ${err.message}`);
+      }
+    }
+
+    const txt = parseTextResponse(response);
+    const match = txt.match(/\{[\s\S]*\}/);
+    if (!match) {
+      throw new Error(`Backup model did not return a valid JSON object block: ${txt.slice(0, 150)}`);
+    }
+
+    try {
+      parsedJson = JSON.parse(match[0]);
+    } catch (parseErr) {
+      throw new Error(`Failed to parse extracted JSON from backup model text: ${parseErr.message}`);
+    }
   }
 
-  const jsonMatch = resultText.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    throw new Error(`Cloudflare AI did not return a valid JSON object block: ${resultText.slice(0, 150)}`);
+  // Add metadata for debugging/logging
+  if (parsedJson) {
+    parsedJson._debug_model = usedModel;
   }
 
-  try {
-    return JSON.parse(jsonMatch[0]);
-  } catch (parseErr) {
-    throw new Error(`Failed to parse extracted JSON from text: ${parseErr.message} (raw match: ${jsonMatch[0].slice(0, 120)})`);
-  }
+  return parsedJson;
 }
 
 // ─── Main Handler ─────────────────────────────────────────────────────────────
