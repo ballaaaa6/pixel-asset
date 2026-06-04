@@ -159,7 +159,10 @@ function AssetLogo({ symbol, category, style }) {
       ];
     }
 
-    if (cat === "gold" || sym === "XAU" || sym === "GLD" || sym === "IAU") {
+    if (cat === "gold" || sym === "XAU" || sym === "GLD" || sym === "IAU" || sym === "CL" || (symbol && symbol.toUpperCase() === "CL=F")) {
+      if (sym === "CL" || (symbol && symbol.toUpperCase() === "CL=F")) {
+        return [`https://images.financialmodelingprep.com/symbol/USO.png`];
+      }
       return [`https://images.financialmodelingprep.com/symbol/GLD.png`];
     }
 
@@ -1486,7 +1489,7 @@ const TF_OPTIONS = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "5Y", "ตั้�
 
 export default function AssetDetailPanel({ asset, price, exchangeRate, historicalRates, onClose, hideValues }) {
   hideValuesGlobal = hideValues;
-  const [tf, setTf]         = useState("1M");
+  const [tf, setTf]         = useState("1D");
   const [chartData, setChartData] = useState(null);
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState(null);
@@ -1790,7 +1793,21 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, historica
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 <span style={{ fontSize: 20, fontWeight: 900, color: "var(--text-main)" }}>{asset.symbol}</span>
-                <span className={`badge-type ${asset.category || "stock"}`}>{asset.category || "stock"}</span>
+                <span className={`badge-type ${asset.category || "stock"}`}>
+                  {asset.category === "gold" ? (asset.symbol === "CL=F" ? "น้ำมัน" : "ทองคำ") : (asset.category || "stock")}
+                </span>
+                {asset.broker && (
+                  <span style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: "var(--primary)",
+                    background: "var(--primary-light)",
+                    padding: "2px 8px",
+                    borderRadius: 6
+                  }}>
+                    {asset.broker}
+                  </span>
+                )}
               </div>
               <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{asset.name}</div>
             </div>
@@ -2031,7 +2048,21 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, historica
                             </td>
                           )}
                           <td style={{ padding: "9px 12px", color: "var(--text-muted)" }}>
-                            {fmtDateShort(lot.date)} {lot.time ? `· ${lot.time} น.` : ""}
+                            <div>{fmtDateShort(lot.date)} {lot.time ? `· ${lot.time} น.` : ""}</div>
+                            {lot.broker && (
+                              <div style={{
+                                fontSize: 10,
+                                fontWeight: 700,
+                                color: "var(--primary)",
+                                background: "var(--primary-light)",
+                                padding: "1px 6px",
+                                borderRadius: 4,
+                                display: "inline-block",
+                                marginTop: 3
+                              }}>
+                                {lot.broker}
+                              </div>
+                            )}
                           </td>
                           <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 600 }}>
                             {isBuy ? "+" : "-"}{fmtQty(Math.abs(lot.lotQty))} {isCashAsset ? asset.symbol : ""}

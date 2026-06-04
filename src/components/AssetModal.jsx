@@ -189,6 +189,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
   const [price,       setPrice]       = useState("");
   const [date,        setDate]        = useState(() => new Date().toISOString().split("T")[0]);
   const [time,        setTime]        = useState("");
+  const [broker,      setBroker]      = useState("");
   const [txType,      setTxType]      = useState("BUY"); // BUY or SELL
 
   /* Search state */
@@ -349,6 +350,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
               avgPrice:        String(validated.price),
               date:            validated.date,
               time:            validated.time,
+              broker:          "Dime!",
               transactionType: validated.transactionType
             });
             delete fileErrors[idx];
@@ -466,6 +468,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
       setPrice("");
       setDate(new Date().toISOString().split("T")[0]);
       setTime("");
+      setBroker(editingAsset.broker || "");
       setConfirmed(true);
       setShowDrop(false);
       setShowCurrencyDrop(false);
@@ -480,6 +483,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
       setPrice("");
       setDate(new Date().toISOString().split("T")[0]);
       setTime("");
+      setBroker("");
       setConfirmed(false);
       setShowDrop(false);
       setShowCurrencyDrop(false);
@@ -615,14 +619,32 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
       if (isNaN(pPrice) || pPrice < 0) { triggerToast("ใส่ราคาทุนให้ถูกต้อง", "error"); return; }
     }
 
+    const getTodayLocalDate = () => {
+      const d = new Date();
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    let finalDate = date ? date.trim() : "";
+    if (!finalDate) {
+      finalDate = getTodayLocalDate();
+    }
+    let finalTime = time ? time.trim() : "";
+    if (!finalTime) {
+      finalTime = "00:00";
+    }
+
     onSave({
       symbol: symbol.trim().toUpperCase(),
       name:   name.trim() || symbol.trim().toUpperCase(),
       type,
       qty:      pQty,
       avgPrice: pPrice,
-      date,
-      time,
+      date:     finalDate,
+      time:     finalTime,
+      broker:   broker.trim(),
       transactionType: txType,
     });
   };
@@ -631,6 +653,16 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
   const handleBatchSubmit = (e) => {
     e.preventDefault();
     if (scannedQueue.length === 0) return;
+
+    const getTodayLocalDate = () => {
+      const d = new Date();
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    const cleanedQueue = [];
 
     for (const item of scannedQueue) {
       if (!item.symbol.trim()) {
@@ -647,9 +679,29 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
         triggerToast(`กรุณากรอกราคาทุนต่อหน่วยของ ${item.symbol} ให้ถูกต้อง`, "error");
         return;
       }
+
+      let itemDate = item.date ? item.date.trim() : "";
+      if (!itemDate) {
+        itemDate = getTodayLocalDate();
+      }
+      let itemTime = item.time ? item.time.trim() : "";
+      if (!itemTime) {
+        itemTime = "00:00";
+      }
+
+      cleanedQueue.push({
+        ...item,
+        symbol: item.symbol.trim().toUpperCase(),
+        name: item.name ? item.name.trim() : item.symbol.trim().toUpperCase(),
+        qty: pQty,
+        avgPrice: pPrice,
+        date: itemDate,
+        time: itemTime,
+        broker: item.broker ? item.broker.trim() : "Dime!"
+      });
     }
 
-    onSave(scannedQueue);
+    onSave(cleanedQueue);
   };
 
   /* ─── Purchase history from lots ─── */
@@ -808,8 +860,8 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
                         </div>
                       </div>
 
-                      {/* Body Row: Qty & Price & Date & Time */}
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.2fr 0.8fr", gap: 8 }}>
+                      {/* Body Row: Qty & Price & Date & Time & Broker */}
+                      <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1.2fr 1.4fr 0.9fr 1.2fr", gap: 8 }}>
                         <div className="form-group" style={{ marginBottom: 0 }}>
                           <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: 3 }}>จำนวน</label>
                           <input type="number" step="any" className="form-input" style={{ height: 32, padding: "0 8px", fontSize: 12 }}
@@ -851,6 +903,16 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
                             }}
                           />
                         </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: 3 }}>โบรกเกอร์</label>
+                          <input type="text" className="form-input" style={{ height: 32, padding: "0 8px", fontSize: 12 }}
+                            value={item.broker || ""} onChange={e => {
+                              const updated = [...scannedQueue];
+                              updated[idx].broker = e.target.value;
+                              setScannedQueue(updated);
+                            }}
+                          />
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -880,23 +942,82 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
                 {!editingAsset && (
                   <div className="form-group">
                     <label className="form-label">ประเภทสินทรัพย์</label>
-                <div className="category-selector">
-                  {[
-                    { key: "stock",  emoji: "🇺🇸", label: "หุ้น" },
-                    { key: "gold",   emoji: "🥇", label: "ทองคำ" },
-                    { key: "crypto", emoji: "🪙", label: "คริปโต" },
-                    { key: "fiat",   emoji: "💵", label: "เงินสด" },
-                  ].map(c => (
-                    <button key={c.key} type="button"
-                      className={`category-btn${type === c.key ? " active" : ""} ripple-btn`}
-                      onClick={() => pickCategory(c.key)}>
-                      <span className="category-emoji">{c.emoji}</span>
-                      <span>{c.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+                    <div className="category-selector">
+                      {[
+                        { key: "stock",  emoji: "🇺🇸", label: "หุ้น" },
+                        { key: "gold",   emoji: "🥇/🛢️", label: "ทองคำ/น้ำมัน" },
+                        { key: "crypto", emoji: "🪙", label: "คริปโต" },
+                        { key: "fiat",   emoji: "💵", label: "เงินสด" },
+                      ].map(c => (
+                        <button key={c.key} type="button"
+                          className={`category-btn${type === c.key ? " active" : ""} ripple-btn`}
+                          onClick={() => pickCategory(c.key)}>
+                          <span className="category-emoji">{c.emoji}</span>
+                          <span>{c.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {type === "gold" && !editingAsset && (
+                  <div className="form-group" style={{ marginBottom: 16 }}>
+                    <label className="form-label">เลือกประเภทโภคภัณฑ์</label>
+                    <div style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      background: "#F1F5F9",
+                      padding: 4,
+                      borderRadius: 12,
+                      gap: 4
+                    }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSymbol("GC=F");
+                          setName("Spot Gold (ทองคำตลาดโลก)");
+                          setQuery("GC=F");
+                          setConfirmed(true);
+                        }}
+                        style={{
+                          height: 38,
+                          borderRadius: 10,
+                          border: "none",
+                          fontSize: 13,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          background: symbol === "GC=F" ? "var(--primary)" : "transparent",
+                          color: symbol === "GC=F" ? "white" : "var(--text-muted)",
+                          transition: "var(--transition)"
+                        }}
+                      >
+                        🥇 ทองคำ (Spot Gold)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSymbol("CL=F");
+                          setName("Crude Oil (น้ำมันดิบตลาดโลก)");
+                          setQuery("CL=F");
+                          setConfirmed(true);
+                        }}
+                        style={{
+                          height: 38,
+                          borderRadius: 10,
+                          border: "none",
+                          fontSize: 13,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          background: symbol === "CL=F" ? "var(--primary)" : "transparent",
+                          color: symbol === "CL=F" ? "white" : "var(--text-muted)",
+                          transition: "var(--transition)"
+                        }}
+                      >
+                        🛢️ น้ำมัน (Crude Oil)
+                      </button>
+                    </div>
+                  </div>
+                )}
 
             {/* ── Symbol search OR confirmed chip ── */}
             {type === "fiat" ? (
@@ -918,6 +1039,19 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
                     onBlur={() => {
                       // Delay so onMouseDown on suggestion fires first
                       setTimeout(() => setShowCurrencyDrop(false), 200);
+                    }}
+                    onKeyDown={e => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        if (filteredCurrencies.length > 0) {
+                          const c = filteredCurrencies[0];
+                          setSymbol(c.code);
+                          setName(c.name);
+                          setCurrencyQuery(c.code);
+                          setShowCurrencyDrop(false);
+                          setConfirmed(true);
+                        }
+                      }
                     }}
                     disabled={editingAsset}
                   />
@@ -1016,7 +1150,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
                         className="form-input"
                         style={{ paddingLeft: 44 }}
                         placeholder={
-                          type === "stock"  ? "พิมพ์ เช่น Apple, NVDA, PTT.BK…" :
+                          type === "stock"  ? "พิมพ์ชื่อหุ้น เช่น Apple, NVDA, PTT, CPALL…" :
                           type === "crypto" ? "พิมพ์ เช่น Bitcoin, ETH, SOL…" :
                           "GC=F"
                         }
@@ -1027,6 +1161,14 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
                         onBlur={() => {
                           // Delay so onMouseDown on suggestion fires first
                           setTimeout(() => setShowDrop(false), 180);
+                        }}
+                        onKeyDown={e => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            if (suggestions.length > 0) {
+                              pickSuggestion(suggestions[0]);
+                            }
+                          }
                         }}
                       />
                       {searching && (
@@ -1202,6 +1344,12 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
               </div>
             </div>
 
+            <div className="form-group" style={{ marginTop: 14, marginBottom: 0 }}>
+              <label className="form-label">ช่องทาง/โบรกเกอร์ <span style={{ fontSize: 10, color: "var(--text-faint)" }}>(เช่น Dime!, Webull, etc.)</span></label>
+              <input type="text" className="form-input" placeholder="พิมพ์ช่องทางหรือโบรกเกอร์ที่ซื้อขาย"
+                value={broker} onChange={e => setBroker(e.target.value)} />
+            </div>
+
             {/* ── Purchase History (ถ้ามี lots แล้ว) ── */}
             {editingAsset && lots.length > 0 && (
               <div style={{ marginTop: 16 }}>
@@ -1234,7 +1382,23 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
                       <tbody>
                         {[...lots].reverse().map((lot, i) => (
                           <tr key={lot.id || i} style={{ borderTop: "1px solid var(--border)" }}>
-                            <td style={{ padding: "9px 12px", color: "var(--text-muted)" }}>{fmtDate(lot.date)}</td>
+                            <td style={{ padding: "9px 12px", color: "var(--text-muted)" }}>
+                              <div>{fmtDate(lot.date)} {lot.time ? `· ${lot.time} น.` : ""}</div>
+                              {lot.broker && (
+                                <div style={{
+                                  fontSize: 9,
+                                  fontWeight: 700,
+                                  color: "var(--primary)",
+                                  background: "var(--primary-light)",
+                                  padding: "1px 4px",
+                                  borderRadius: 4,
+                                  display: "inline-block",
+                                  marginTop: 2
+                                }}>
+                                  {lot.broker}
+                                </div>
+                              )}
+                            </td>
                             <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 600 }}>{fmtQty(lot.qty)}</td>
                             <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 600 }}>{fmtUSD(lot.price)}</td>
                             <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 700, color: "var(--primary)" }}>
@@ -1269,9 +1433,9 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
               }}>
                 <span>💡</span>
                 <span>
-                  {type === "stock"  && "หุ้นไทยต่อท้ายด้วย .BK เช่น PTT.BK · ราคาทุนใส่เป็นบาทได้เลย"}
+                  {type === "stock"  && "พิมพ์ชื่อหุ้นที่ต้องการค้นหาแล้วเลือกจากรายการได้เลย · หุ้นไทยราคาหน่วยเป็นบาท"}
                   {type === "crypto" && "ต่อท้ายด้วย -USD เช่น BTC-USD · ราคาทุนใส่เป็น USD"}
-                  {type === "gold"   && "GC=F คือ Spot Gold ราคาต่อออนซ์ (USD)"}
+                  {type === "gold"   && "GC=F คือ Spot Gold, CL=F คือ Crude Oil ตลาดโลก (USD)"}
                   {type === "fiat"   && "กรอกจำนวนเงินสดที่คุณถือครองและเลือกสกุลเงินสดได้เลย"}
                 </span>
               </div>

@@ -159,7 +159,10 @@ function AssetLogo({ symbol, category, style }) {
       ];
     }
 
-    if (cat === "gold" || sym === "XAU" || sym === "GLD" || sym === "IAU") {
+    if (cat === "gold" || sym === "XAU" || sym === "GLD" || sym === "IAU" || sym === "CL" || (symbol && symbol.toUpperCase() === "CL=F")) {
+      if (sym === "CL" || (symbol && symbol.toUpperCase() === "CL=F")) {
+        return [`https://images.financialmodelingprep.com/symbol/USO.png`];
+      }
       return [`https://images.financialmodelingprep.com/symbol/GLD.png`];
     }
 
@@ -1497,7 +1500,7 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
    DONUT CHART (Fixed Height — No Layout Shift)
 ═══════════════════════════════════════════════════════════════ */
 const DONUT_COLORS = ["#5236FF", "#00B98A", "#F59E0B", "#FF4B55", "#8B5CF6", "#06B6D4", "#EC4899", "#84CC16"];
-const CATEGORY_LABELS = { stock: "หุ้น", crypto: "คริปโต", gold: "ทองคำ", fiat: "เงินสด" };
+const CATEGORY_LABELS = { stock: "หุ้น", crypto: "คริปโต", gold: "ทองคำ/น้ำมัน", fiat: "เงินสด" };
 
 function DonutChart({ segments, activeAssets, hasAssets }) {
   const [drillCategory, setDrillCategory] = useState(null);
@@ -2275,7 +2278,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
   const [refreshing, setRefreshing]       = useState(false);
   const [sparklineLoading, setSparklineLoading] = useState(false);
   const [autoRefresh, setAutoRefresh]     = useState(true);
-  const [chartRange, setChartRange]       = useState("1M");
+  const [chartRange, setChartRange]       = useState("1D");
   const [sortConfig, setSortConfig]       = useState({ key: "value", dir: "desc" });
   const [priceFlash, setPriceFlash]       = useState({});   // { SYM: "up"|"down" }
   const [modalOpen, setModalOpen]         = useState(false);
@@ -3341,13 +3344,30 @@ export default function Dashboard({ user, onLogout, showToast }) {
     try {
       let updatedAssets = [...assets];
 
+      const getTodayLocalDate = () => {
+        const d = new Date();
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
       for (const tx of sortedTx) {
         const sym      = (tx.symbol || "").trim().toUpperCase();
         const name     = (tx.name   || sym).trim();
         const newQty   = parseFloat(tx.qty);
         const newPrice = parseFloat(tx.avgPrice ?? tx.price ?? 0);
-        const buyDate  = tx.date || new Date().toISOString().split("T")[0];
         const category = tx.type ?? tx.category ?? "stock";
+        const broker   = (tx.broker || "").trim();
+
+        let buyDate = tx.date ? tx.date.trim() : "";
+        if (!buyDate) {
+          buyDate = getTodayLocalDate();
+        }
+        let buyTime = tx.time ? tx.time.trim() : "";
+        if (!buyTime) {
+          buyTime = "00:00";
+        }
 
         if (!sym) {
           if (!isBatch) showToast("เลือกสินทรัพย์ก่อนนะครับ", "error");
@@ -3366,19 +3386,25 @@ export default function Dashboard({ user, onLogout, showToast }) {
         }
 
         const isSell = tx.transactionType === "SELL";
-        const existingIdx = updatedAssets.findIndex(a => a.symbol === sym);
+        const displaySym = broker ? `${sym} (${broker})` : sym;
+
+        // Find existing asset by matching BOTH symbol AND broker
+        const existingIdx = updatedAssets.findIndex(a =>
+          a.symbol === sym &&
+          (a.broker || "").trim().toLowerCase() === broker.toLowerCase()
+        );
 
         if (isSell) {
           if (existingIdx < 0) {
             // Block in ALL cases — cannot sell what you don't own
             if (!isBatch) {
               showToast(
-                `❌ ไม่สามารถขาย ${sym} ได้ เพราะไม่มี ${sym} ในพอร์ตโฟลิโอ\nกรุณาเพิ่มรายการซื้อก่อน`,
+                `❌ ไม่สามารถขาย ${displaySym} ได้ เพราะไม่มีในพอร์ตโฟลิโอ\nกรุณาเพิ่มรายการซื้อก่อน`,
                 "error"
               );
               return;
             } else {
-              skippedTxs.push({ tx: { symbol: sym, ...tx }, reason: "ไม่มีสินทรัพย์นี้ในพอร์ตโฟลิโอ" });
+              skippedTxs.push({ tx: { symbol: sym, ...tx }, reason: `ไม่มีสินทรัพย์ ${displaySym} นี้ในพอร์ตโฟลิโอ` });
               continue; // skip this tx in batch mode
             }
           } else {
@@ -3386,7 +3412,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
             if (newQty > existing.qty) {
               if (!isBatch) {
                 showToast(
-                  `❌ ขาย ${sym} ไม่ได้ — จำนวนที่ขาย (${fmt.qty(newQty)}) มากกว่าที่ถืออยู่ (${fmt.qty(existing.qty)} หน่วย)`,
+                  `❌ ขาย ${displaySym} ไม่ได้ — จำนวนที่ขาย (${fmt.qty(newQty)}) มากกว่าที่ถืออยู่ (${fmt.qty(existing.qty)} หน่วย)`,
                   "error"
                 );
                 return;
@@ -3403,13 +3429,14 @@ export default function Dashboard({ user, onLogout, showToast }) {
           const existingAsset = updatedAssets[existingIdx];
           const duplicateLot = (existingAsset.lots || []).find(l => {
             const sameDate = l.date === buyDate;
-            const sameTime = (l.time || "") === (tx.time || "");
+            const sameTime = (l.time || "") === buyTime;
             const sameQty = Math.abs(l.qty - (isSell ? -newQty : newQty)) < 0.00001;
             const samePrice = Math.abs(l.price - newPrice) < 0.00001;
-            return sameDate && sameTime && sameQty && samePrice;
+            const sameBroker = (l.broker || "").trim().toLowerCase() === broker.toLowerCase();
+            return sameDate && sameTime && sameQty && samePrice && sameBroker;
           });
           if (duplicateLot) {
-            const confirmMsg = `⚠️ ตรวจพบธุรกรรมที่อาจซ้ำซ้อน:\nมีรายการ ${isSell ? "ขาย" : "ซื้อ"} ${sym} จำนวน ${newQty} หุ้น @ $${newPrice} วันที่ ${buyDate} ${tx.time ? "เวลา " + tx.time + " น." : ""} อยู่ในระบบแล้ว\n\nคุณต้องการบันทึกธุรกรรมนี้เพิ่มอีกรายการใช่หรือไม่?`;
+            const confirmMsg = `⚠️ ตรวจพบธุรกรรมที่อาจซ้ำซ้อน:\nมีรายการ ${isSell ? "ขาย" : "ซื้อ"} ${displaySym} จำนวน ${newQty} หุ้น @ $${newPrice} วันที่ ${buyDate} ${buyTime ? "เวลา " + buyTime + " น." : ""} อยู่ในระบบแล้ว\n\nคุณต้องการบันทึกธุรกรรมนี้เพิ่มอีกรายการใช่หรือไม่?`;
             if (!confirm(confirmMsg)) {
               if (isBatch) {
                 skippedTxs.push({ tx: { symbol: sym, ...tx }, reason: "ผู้ใช้ยกเลิกเนื่องจากพบธุรกรรมซ้ำซ้อน" });
@@ -3420,11 +3447,12 @@ export default function Dashboard({ user, onLogout, showToast }) {
         }
 
         const newLot = {
-          id:    `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          date:  buyDate,
-          time:  tx.time || "",
-          qty:   isSell ? -newQty : newQty,
-          price: newPrice,
+          id:     `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          date:   buyDate,
+          time:   buyTime,
+          qty:    isSell ? -newQty : newQty,
+          price:  newPrice,
+          broker: broker
         };
 
         if (existingIdx >= 0) {
@@ -3450,8 +3478,8 @@ export default function Dashboard({ user, onLogout, showToast }) {
             const isCash = category === "fiat";
             showToast(
               isSell
-                ? `✅ ${isCash ? "ถอนเงินสด" : "ขายออก"} ${sym} ${fmt.qty(newQty)} หน่วยสำเร็จ`
-                : `✅ ${isCash ? "ฝากเพิ่ม" : "ซื้อเพิ่ม"} ${sym} ${fmt.qty(newQty)} หน่วยสำเร็จ`,
+                ? `✅ ${isCash ? "ถอนเงินสด" : "ขายออก"} ${displaySym} ${fmt.qty(newQty)} หน่วยสำเร็จ`
+                : `✅ ${isCash ? "ฝากเพิ่ม" : "ซื้อเพิ่ม"} ${displaySym} ${fmt.qty(newQty)} หน่วยสำเร็จ`,
               "success"
             );
           }
@@ -3461,13 +3489,14 @@ export default function Dashboard({ user, onLogout, showToast }) {
             symbol:   sym,
             name,
             category,
+            broker,
             lots:     [newLot],
             qty:      isSell ? -newQty : newQty,
             avgCost:  newPrice,
           });
           if (!isBatch) {
             const isCash = category === "fiat";
-            showToast(`✅ เพิ่ม ${isCash ? "เงินสด" : "สินทรัพย์"} ${sym} เข้าพอร์ตแล้ว`, "success");
+            showToast(`✅ เพิ่ม ${isCash ? "เงินสด" : "สินทรัพย์"} ${displaySym} เข้าพอร์ตแล้ว`, "success");
           }
         }
       }
@@ -4007,9 +4036,25 @@ export default function Dashboard({ user, onLogout, showToast }) {
                                 <div className="asset-name-col">
                                   <AssetLogo symbol={asset.symbol} category={asset.category} />
                                   <div>
-                                    <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 2 }}>
+                                    <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 4 }}>
                                       <span className="asset-symbol">{asset.symbol}</span>
-                                      <span className={`badge-type ${asset.category || "stock"}`}>{asset.category || "stock"}</span>
+                                      <span className={`badge-type ${asset.category || "stock"}`}>
+                                        {asset.category === "gold" ? (asset.symbol === "CL=F" ? "น้ำมัน" : "ทองคำ") : (CATEGORY_LABELS[asset.category] || asset.category || "stock")}
+                                      </span>
+                                      {asset.broker && (
+                                        <span style={{
+                                          fontSize: 10,
+                                          fontWeight: 800,
+                                          color: "var(--primary)",
+                                          background: "var(--primary-light)",
+                                          padding: "1px 6px",
+                                          borderRadius: 4,
+                                          border: "1px solid rgba(82,54,255,0.15)",
+                                          whiteSpace: "nowrap"
+                                        }}>
+                                          {asset.broker}
+                                        </span>
+                                      )}
                                       {!isCashAsset && isBest && (
                                         <span className="best-badge">🏆 Best</span>
                                       )}
@@ -4165,7 +4210,24 @@ export default function Dashboard({ user, onLogout, showToast }) {
                               <div>
                                 <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
                                   <span className="asset-symbol">{asset.symbol}</span>
-                                  {!isCashAsset && isBest && <span className="best-badge">🏆</span>}
+                                  <span className={`badge-type ${asset.category || "stock"}`}>
+                                    {asset.category === "gold" ? (asset.symbol === "CL=F" ? "น้ำมัน" : "ทองคำ") : (CATEGORY_LABELS[asset.category] || asset.category || "stock")}
+                                  </span>
+                                  {asset.broker && (
+                                    <span style={{
+                                      fontSize: 10,
+                                      fontWeight: 800,
+                                      color: "var(--primary)",
+                                      background: "var(--primary-light)",
+                                      padding: "1px 6px",
+                                      borderRadius: 4,
+                                      border: "1px solid rgba(82,54,255,0.15)",
+                                      whiteSpace: "nowrap"
+                                    }}>
+                                      {asset.broker}
+                                    </span>
+                                  )}
+                                  {!isCashAsset && isBest && <span className="best-badge" style={{ padding: "1px 6px", borderRadius: 4 }}>🏆 Best</span>}
                                 </div>
                                 <div className="asset-fullname">{asset.name}</div>
                                 <MarketBadge state={pData?.marketState} />
