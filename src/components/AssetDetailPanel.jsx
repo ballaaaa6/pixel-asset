@@ -134,7 +134,7 @@ const getCurrencyTicker = (symbol) => {
 /* ══════════════════════════════════════════════════════
    MAIN ASSET DETAIL CHART
 ══════════════════════════════════════════════════════ */
-function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, hideValues }) {
+function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, hideValues, getHistoricalRate }) {
   hideValuesGlobal = hideValues;
   const containerRef = useRef(null);
   const [hovered, setHovered] = useState(null);
@@ -398,40 +398,36 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
   /* ── Lot markers (purchase dates) ── */
   const lotMarkers = useMemo(() => {
     if (!lots || !displayedCandles || displayedCandles.length < 2) return [];
+    
+    // Sort lots chronologically to ensure correct sequence numbering
+    const sortedLots = [...lots]
+      .filter(lot => lot && lot.date)
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+
     const startIdx = zoomRange ? zoomRange.start : 0;
     const endIdx = zoomRange ? zoomRange.end : candles.length - 1;
     const markers = [];
-    const startStr = candles[0].date.split("T")[0];
-    const endStr = candles[candles.length - 1].date.split("T")[0];
 
-    lots.forEach((lot, i) => {
-      if (!lot || !lot.date) return;
+    sortedLots.forEach((lot, i) => {
       const lotDateStr = lot.date;
 
-      // Strict boundary check: transaction must be within history bounds
-      if (lotDateStr < startStr || lotDateStr > endStr) return;
-
       let bestIdx = -1, bestDiff = Infinity;
+      const targetTime = new Date(lotDateStr + "T00:00:00.000Z").getTime();
 
-      // Try to find exact string match first in original candles
-      bestIdx = candles.findIndex(c => c.date.split("T")[0] === lotDateStr);
+      // Find nearest candle in original candles
+      candles.forEach((c, idx) => {
+        const cTime = new Date(c.date).getTime();
+        const diff = Math.abs(cTime - targetTime);
+        if (diff < bestDiff) { bestDiff = diff; bestIdx = idx; }
+      });
 
-      if (bestIdx === -1) {
-        const targetTime = new Date(lotDateStr + "T00:00:00.000Z").getTime();
-        candles.forEach((c, idx) => {
-          const cTime = new Date(c.date).getTime();
-          const diff = Math.abs(cTime - targetTime);
-          if (diff < bestDiff) { bestDiff = diff; bestIdx = idx; }
-        });
-      } else {
-        bestDiff = 0;
-      }
-
-      if (bestIdx >= startIdx && bestIdx <= endIdx) {
+      // Display marker if nearest candle is in current viewport and within 30 days
+      if (bestIdx >= startIdx && bestIdx <= endIdx && bestDiff <= 30 * 86400 * 1000) {
         const displayIdx = bestIdx - startIdx;
         const x = PAD_L + (displayIdx / (displayedCandles.length - 1)) * iW;
         const priceUSD = lot.price && isThai ? lot.price / exchangeRate : lot.price;
-        markers.push({ x, lot, priceUSD, idx: bestIdx, num: i + 1 });
+        const isBuy = (lot.qty || 0) >= 0;
+        markers.push({ x, lot, priceUSD, idx: bestIdx, num: i + 1, isBuy });
       }
     });
     return markers;
@@ -990,16 +986,19 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
         )}
 
         {/* ── Lot purchase markers ── */}
-        {lotMarkers.map((m, i) => (
-          <g key={i}>
-            <line x1={m.x} y1={PAD_T} x2={m.x} y2={H - PAD_B}
-              stroke="#F59E0B" strokeWidth="1.5" strokeDasharray="5 4" opacity="0.9" />
-            <circle cx={m.x} cy={PAD_T + 12} r="7" fill="#F59E0B" />
-            <text x={m.x} y={PAD_T + 16} textAnchor="middle" fontSize="9" fill="white" fontWeight="800" fontFamily="Outfit,sans-serif">
-              {m.num}
-            </text>
-          </g>
-        ))}
+        {lotMarkers.map((m, i) => {
+          const markerColor = m.isBuy ? "#16A34A" : "#DC2626";
+          return (
+            <g key={i}>
+              <line x1={m.x} y1={PAD_T} x2={m.x} y2={H - PAD_B}
+                stroke={markerColor} strokeWidth="1.5" strokeDasharray="5 4" opacity="0.85" />
+              <circle cx={m.x} cy={PAD_T + 12} r="7.5" fill={markerColor} />
+              <text x={m.x} y={PAD_T + 12} textAnchor="middle" fontSize="9" fill="white" fontWeight="900" fontFamily="Outfit,sans-serif" dominantBaseline="middle">
+                {m.num}
+              </text>
+            </g>
+          );
+        })}
 
         {/* ── Hover crosshair ── */}
         {hovered && (
@@ -1641,6 +1640,7 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, historica
                 exchangeRate={exchangeRate}
                 asset={asset}
                 hideValues={hideValues}
+                getHistoricalRate={getHistoricalRate}
               />
             ) : null}
           </div>
