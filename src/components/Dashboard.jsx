@@ -2051,14 +2051,14 @@ function PnLDetailsModal({
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, textAlign: "left" }}>
             <thead>
               <tr style={{ background: "#F1F5F9", position: "sticky", top: 0, zIndex: 1 }}>
-                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)" }}>สินทรัพย์</th>
-                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)" }}>สถานะ</th>
-                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)", textAlign: "right" }}>จำนวนถือ</th>
-                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)", textAlign: "right" }}>ทุนสะสมสะสม (USD)</th>
-                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)", textAlign: "right" }}>รับรู้แล้ว (Realized)</th>
-                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)", textAlign: "right" }}>ยังไม่รับรู้ (Unrealized)</th>
-                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)", textAlign: "right" }}>ผลตอบแทนรวม (USD)</th>
-                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)", textAlign: "center" }}>จัดการ</th>
+                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)", width: "16%" }}>สินทรัพย์</th>
+                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)", width: "12%", minWidth: "90px" }}>สถานะ</th>
+                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)", textAlign: "right", width: "10%" }}>จำนวนถือ</th>
+                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)", textAlign: "right", width: "14%" }}>ทุนสะสมสะสม (USD)</th>
+                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)", textAlign: "right", width: "14%" }}>รับรู้แล้ว (Realized)</th>
+                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)", textAlign: "right", width: "14%" }}>ยังไม่รับรู้ (Unrealized)</th>
+                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)", textAlign: "right", width: "14%" }}>ผลตอบแทนรวม (USD)</th>
+                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)", textAlign: "center", width: "6%" }}>จัดการ</th>
               </tr>
             </thead>
             <tbody>
@@ -2100,9 +2100,9 @@ function PnLDetailsModal({
                       </td>
                       <td style={{ padding: "10px 12px" }}>
                         {isSoldOut ? (
-                          <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", background: "#E2E8F0", padding: "2px 8px", borderRadius: 6 }}>ขายหมดแล้ว</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", background: "#E2E8F0", padding: "2px 8px", borderRadius: 6, whiteSpace: "nowrap" }}>ขายหมดแล้ว</span>
                         ) : (
-                          <span style={{ fontSize: 10, fontWeight: 700, color: "#16A34A", background: "#DCFCE7", padding: "2px 8px", borderRadius: 6 }}>กำลังถือ</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: "#16A34A", background: "#DCFCE7", padding: "2px 8px", borderRadius: 6, whiteSpace: "nowrap" }}>กำลังถือ</span>
                         )}
                       </td>
                       <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 600 }}>
@@ -2154,7 +2154,7 @@ function PnLDetailsModal({
                             }}
                             title="ล้างกำไรสะสมในอดีต (คงจำนวนหุ้นปัจจุบัน)"
                           >
-                            ล้างประวัติ
+                            ล้าง
                           </button>
                           <button
                             onClick={() => onDeleteAsset(item.id)}
