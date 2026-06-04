@@ -32,11 +32,13 @@ Extract the data into a JSON object with the following fields. Do not translate 
   "header_text": "The green/red text showing the transaction type and ticker (e.g. ซื้อ [ticker] or ขาย [ticker])",
   "header_color": "The color of the header text (either 'green' or 'red/pink')",
   "status_text": "The status section text near the top (e.g. จับคู่แล้ว or สำเร็จ. คุณได้รับเงินค่าขายคืนแล้ว)",
-  "bold_amount": "The large bold amount displayed under the asset name (e.g. total currency amount or unit count like '[number] หุ้น' or '[number] หน่วย')",
+  "bold_amount": "The large bold green/red text displayed under the asset name. Transcribe EXACTLY including the unit (e.g. '74,999.87 THB', '11,541.59 USD', '60 หุ้น', '100.5480039 หุ้น', '10 หุ้น')",
   "symbol": "The uppercase stock ticker symbol from the header",
   "actual_price": "The executed price per share. Next to 'ราคาที่ได้จริง' or under the column header 'ราคาที่ได้จริง' (transcribe exact numeric text and currency like '[number] USD')",
   "stock_value": "The total stock value next to 'มูลค่าหุ้น' (transcribe exact numeric text and currency like '74,999.87 THB' or '11,541.59 USD'). DO NOT transcribe the share quantity (long decimal number) here.",
-  "qty_table": "The quantity of shares. Under the column header 'จำนวนหุ้น'/'จำนวนหน่วย' in the details table (transcribe the exact long decimal number like '17.5941041', or 'N/A' if the row does not exist). DO NOT confuse this with commission, VAT, or stock value.",
+  "qty_table": "IMPORTANT: This is ONLY the number next to or under the label 'จำนวนหุ้น'/'จำนวนหน่วย'. It appears on the SAME LINE as 'ราคาที่ได้จริง' in Market orders (e.g. left side shows 'ราคาที่ได้จริง 130.60 USD', right side shows 'จำนวนหุ้น 17.5941041'). If no 'จำนวนหุ้น'/'จำนวนหน่วย' label exists on the receipt, return 'N/A'. NEVER return a commission, VAT, stock value, or any other number here.",
+  "exchange_rate": "The exchange rate if visible on the receipt, next to 'อัตราแลกเปลี่ยน' (e.g. '1 USD = 32.64 THB' → return '32.64'). Return 'N/A' if not visible.",
+  "order_type": "The order type: 'Market' if the receipt shows 'ใช้ราคาตลาด (Market)' or 'ราคาตลาด (Market)', or 'Limit' if it shows 'ตั้งราคาเอง (Limit)'. Look near 'ประเภทคำสั่ง' label or below the bold amount.",
   "raw_date": "The date-time string next to 'วันที่ส่งคำสั่ง', 'วันที่สำเร็จ', or inside the top card 'สถานะ (ณ ...)' (transcribe the exact text, e.g., '[day] [month] [year] - [time]')",
   "has_received_cash_back_label": true or false, indicating if the label 'ยอดที่จะได้รับคืน' or phrase 'เงินค่าขายคืน' appears anywhere on the receipt,
   "has_payment_amount_label": true or false, indicating if the label 'ยอดที่ต้องชำระ' appears anywhere on the receipt
@@ -52,13 +54,19 @@ CRITICAL TRANSCRIPTION DIRECTIONS:
 
 2. NO CALCULATION OR MATH: Do NOT perform any mathematical division or calculation yourself. Transcribe the exact numbers visible in the image. For "qty_table", do NOT divide "bold_amount" by "actual_price" to calculate it; copy the exact digits printed next to or under the "จำนวนหุ้น" / "จำนวนหน่วย" header.
 
-3. QUANTITY VS COMMISSION/STOCK VALUE ACCURACY: When transcribing "qty_table", be extremely careful not to confuse the share quantity with other numbers in the table:
-   - Do NOT confuse "จำนวนหุ้น" (Share quantity, e.g., 17.5941041) with "มูลค่าหุ้น" (Stock Value, e.g., 74,999.87 THB). They are separate rows/columns.
-   - Do NOT transcribe "ค่าคอมมิชชัน" (Commission, e.g., 0.25, 2.50, 6.07) or "ภาษีมูลค่าเพิ่ม" (VAT, e.g., 0.00, 0.18) as the quantity. These are fees, not shares.
-   - Do NOT transcribe the ticker price or transaction total as quantity.
-   - Share quantity ("จำนวนหุ้น" / "จำนวนหน่วย") is typically a long fractional decimal number with 6 to 8 decimal places (e.g., 75.9920476, 84.0939307). Commission and fees are always 2 decimal places and usually very low numbers. Look closely at the header "จำนวนหุ้น" or "จำนวนหน่วย" and grab only the number directly below or next to it.
+3. RECEIPT LAYOUT TYPES — There are exactly 4 layouts. Understanding them helps you find qty_table correctly:
+   a. Fractional BUY (Market): bold_amount is a CURRENCY amount (e.g. "11,541.59 USD" or "74,999.87 THB"). The จำนวนหุ้น appears on the SAME LINE as ราคาที่ได้จริง, on the RIGHT SIDE. It is a LONG DECIMAL like 75.9920476. This is the qty_table value.
+   b. Whole-share BUY (Limit): bold_amount is "N หุ้น" (e.g. "10 หุ้น"). There is NO จำนวนหุ้น label or row anywhere. qty_table should be "N/A".
+   c. Whole-share SELL (Limit): bold_amount is "N หุ้น" (e.g. "60 หุ้น", "114 หุ้น"). There is NO จำนวนหุ้น label or row. qty_table should be "N/A".
+   d. Fractional SELL (Market): bold_amount is "N.NNNNNNN หุ้น" (e.g. "100.5480039 หุ้น"). There is NO จำนวนหุ้น label or row. qty_table should be "N/A".
+   KEY RULE: qty_table exists ONLY in layout (a) — Fractional BUY Market orders. For all other layouts, return "N/A".
 
-4. NO FILLER: Output Raw JSON only. No markdown, no explanation. Start with '{', end with '}'.`;
+4. QUANTITY VS COMMISSION/STOCK VALUE ACCURACY: When transcribing "qty_table", be extremely careful:
+   - The จำนวนหุ้น value is on the SAME LINE as ราคาที่ได้จริง, positioned to its RIGHT. It is NOT in the fee table below.
+   - Do NOT confuse it with "มูลค่าหุ้น" (Stock Value, e.g., 74,999.87), "ค่าคอมมิชชัน" (Commission, e.g., 6.07), or "ภาษีมูลค่าเพิ่ม" (VAT, e.g., 0.18). These are in separate rows BELOW.
+   - The share quantity has 6-8 decimal places (e.g., 75.9920476). Fees always have exactly 2 decimal places.
+
+5. NO FILLER: Output Raw JSON only. No markdown, no explanation. Start with '{', end with '}'.`;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -277,7 +285,7 @@ function validateSlipData(raw) {
   const boldNum = parseNumeric(raw.bold_amount);
   const boldText = String(raw.bold_amount || "").toLowerCase();
 
-  // Resolve exchange rate if available
+  // Resolve exchange rate if available (from AI or fallback)
   let exchangeRate = 0;
   if (raw.exchange_rate && raw.exchange_rate !== "N/A") {
     const rateMatch = String(raw.exchange_rate).match(/(\d{2,3}(?:\.\d+)?)/);
@@ -286,7 +294,7 @@ function validateSlipData(raw) {
     }
   }
 
-  // Check currency in bold_amount, stock_value, header_text, and status_text (including exchange rate detection)
+  // Check currency in bold_amount, stock_value, header_text, and status_text
   const boldStr = String(raw.bold_amount || "").toLowerCase();
   const valueStr = String(raw.stock_value || "").toLowerCase();
   const headerStr = String(raw.header_text || "").toLowerCase();
@@ -300,67 +308,88 @@ function validateSlipData(raw) {
   if (price <= 0) return null;
 
   // ─── 4. Resolve Quantity (share_amount) ───
+  //
+  // Dime! receipts have 4 layout types with different quantity locations:
+  //   Layout A (Fractional BUY / Market): bold = currency amount, qty in table (จำนวนหุ้น)
+  //   Layout B (Whole BUY / Limit):       bold = "N หุ้น", NO qty in table
+  //   Layout C (Whole SELL / Limit):      bold = "N หุ้น", NO qty in table
+  //   Layout D (Fractional SELL / Market): bold = "N.NNNN หุ้น", NO qty in table
+  //
+  // RULE: If bold contains "หุ้น" or "หน่วย", the quantity IS in the bold text.
+  //       Otherwise, the quantity is in the table (qty_table) — but only if valid.
   let share_amount = 0;
 
-  // 4.1 Determine if the bold amount is the unit count (e.g. "1 หุ้น", "10 หน่วย")
+  // 4.1 Check if bold_amount directly contains the share count
   const isBoldUnitCount = boldText.includes("หุ้น") || boldText.includes("หน่วย") || boldText.includes("share") || boldText.includes("unit");
-  
-  // Calculate total stock value in USD to cross-check with boldNum
-  const rate = exchangeRate > 0 ? exchangeRate : 35.0;
-  const stockValueUsd = stockValue > 0 ? (hasTHBUnit ? stockValue / rate : stockValue) : 0;
-  
-  // If boldNum * price equals stockValue (converted to USD), then boldNum is the quantity!
-  const isBoldQty = stockValueUsd > 0 && Math.abs(boldNum * price - stockValueUsd) / stockValueUsd < 0.15;
 
-  // Get decimal count of qty_table raw string to detect long fractional share amounts
-  const rawQtyStr = String(raw.qty_table || "").trim();
-  const decimalPart = rawQtyStr.split(".")[1] || "";
-  const decimalCount = decimalPart.length;
-
-  if ((isBoldUnitCount || isBoldQty) && boldNum > 0) {
+  if (isBoldUnitCount && boldNum > 0) {
+    // ══ Layouts B, C, D: Bold text contains the share count ══
+    // Works for both integer ("60 หุ้น") and fractional ("100.5480039 หุ้น")
     share_amount = boldNum;
-  } else if (qtyTable > 0 && decimalCount >= 5) {
-    // If the qtyTable has a long fractional decimal part (5+ decimals), it is definitely the fractional share count!
-    // We trust it directly and bypass expectedQty checks to avoid AI mismatch errors in stock_value.
-    share_amount = qtyTable;
   } else {
-    // 4.2 Fractional share case: table has quantity, boldNum is total currency
-    let totalUsd = stockValueUsd > 0 ? stockValueUsd : 0;
-    if (totalUsd <= 0 && boldNum > 0) {
-      totalUsd = hasTHBUnit ? boldNum / rate : boldNum;
-    }
+    // ══ Layout A: Bold text is a currency amount, qty should be in table ══
+    // Use exchange rate from AI if available, otherwise default
+    const rate = exchangeRate > 0 ? exchangeRate : 35.0;
 
+    // Convert stock_value to USD for cross-validation
+    const stockValueUsd = stockValue > 0 ? (hasTHBUnit ? stockValue / rate : stockValue) : 0;
+
+    // Calculate expected quantity from stock_value / price for cross-validation
     let expectedQty = 0;
-    if (price > 0 && totalUsd > 0) {
-      expectedQty = totalUsd / price;
+    if (price > 0 && stockValueUsd > 0) {
+      expectedQty = stockValueUsd / price;
     }
 
-    // Validate qtyTable to ensure it is not a fee/commission or hallucination
-    let isQtyTableValid = false;
-    if (qtyTable > 0 && expectedQty > 0) {
-      const diffPercent = Math.abs(qtyTable - expectedQty) / expectedQty;
-      // If within 25% tolerance, it is a valid quantity match
-      if (diffPercent < 0.25) {
-        isQtyTableValid = true;
-      }
-    }
+    // Get decimal count of qty_table raw string
+    const rawQtyStr = String(raw.qty_table || "").trim();
+    const decimalPart = rawQtyStr.split(".")[1] || "";
+    const decimalCount = decimalPart.length;
 
-    if (isQtyTableValid) {
+    // Trust qty_table if it has 5+ decimal places (definitely a fractional share count)
+    if (qtyTable > 0 && decimalCount >= 5) {
       share_amount = qtyTable;
+    } else if (qtyTable > 0 && expectedQty > 0) {
+      // Cross-validate: check if qty_table is close to expected
+      const diffPercent = Math.abs(qtyTable - expectedQty) / expectedQty;
+      if (diffPercent < 0.15) {
+        // qty_table matches expected — use it
+        share_amount = qtyTable;
+      } else {
+        // qty_table is way off (likely commission/VAT/stock_value) — use calculated
+        share_amount = expectedQty;
+      }
     } else if (expectedQty > 0) {
+      // No valid qty_table, fall back to calculated
       share_amount = expectedQty;
     } else if (qtyTable > 0) {
+      // Last resort: use qty_table even without cross-validation
       share_amount = qtyTable;
-    } else {
-      share_amount = boldNum;
+    } else if (boldNum > 0 && price > 0) {
+      // Fallback: compute from boldNum (total) / price
+      const computedBoldUsd = hasTHBUnit ? boldNum / rate : boldNum;
+      share_amount = computedBoldUsd / price;
     }
   }
 
-  // Final double-check: Detect obvious mix-ups where share_amount holds total monetary value
-  if (share_amount > 0 && price > 0) {
-    const product = share_amount * price;
-    // If the implied product is huge (e.g. > $50,000 USD), the quantity was definitely misclassified as total
-    if (product > 50000) {
+  // Final safety: if share_amount × price grossly exceeds stock_value, it's likely
+  // the total monetary value was used as quantity — correct it by dividing by price.
+  // We compare against stock_value instead of a hardcoded threshold to avoid
+  // incorrectly "correcting" legitimate large share counts.
+  if (share_amount > 0 && price > 0 && !isBoldUnitCount) {
+    const impliedTotal = share_amount * price;
+    const rate = exchangeRate > 0 ? exchangeRate : 35.0;
+    const stockValueUsd = stockValue > 0 ? (hasTHBUnit ? stockValue / rate : stockValue) : 0;
+
+    if (stockValueUsd > 0) {
+      // If implied total is more than 3× stock value, share_amount is wrong
+      if (impliedTotal > stockValueUsd * 3) {
+        const corrected = stockValueUsd / price;
+        if (corrected > 0.0001) {
+          share_amount = corrected;
+        }
+      }
+    } else if (impliedTotal > 500000) {
+      // Legacy fallback: no stock_value available, use $500K absolute threshold
       const corrected = share_amount / price;
       if (corrected > 0.0001) {
         share_amount = corrected;
