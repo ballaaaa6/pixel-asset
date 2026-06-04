@@ -3064,8 +3064,18 @@ export default function Dashboard({ user, onLogout, showToast }) {
     const isBatch = Array.isArray(formData);
     const transactions = isBatch ? formData : [formData];
 
-    // Sort transactions by date ascending (oldest first)
-    const sortedTx = [...transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
+    // Sort transactions by date & time ascending (oldest first), prioritizing BUY over SELL if identical
+    const sortedTx = [...transactions].sort((a, b) => {
+      const dtA = new Date(`${a.date || "1970-01-01"}T${a.time || "00:00"}`);
+      const dtB = new Date(`${b.date || "1970-01-01"}T${b.time || "00:00"}`);
+      if (dtA.getTime() !== dtB.getTime()) {
+        return dtA - dtB;
+      }
+      // Same date & time: process BUY first so we have the shares before we try to SELL them
+      if (a.transactionType === "BUY" && b.transactionType === "SELL") return -1;
+      if (a.transactionType === "SELL" && b.transactionType === "BUY") return 1;
+      return 0;
+    });
 
     try {
       let updatedAssets = [...assets];
