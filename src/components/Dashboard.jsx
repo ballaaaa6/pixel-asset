@@ -178,6 +178,8 @@ export default function Dashboard({ user, onLogout, showToast }) {
 
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [profilePic, setProfilePic]             = useState(() => localStorage.getItem(`profile_pic_${user.username}`) || "");
+  const [avatarPreviewOpen, setAvatarPreviewOpen] = useState(false);
+  const [avatarHovered, setAvatarHovered]         = useState(false);
   const [nickname, setNickname]                 = useState(() => localStorage.getItem(`profile_nickname_${user.username}`) || "");
   const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem("gemini_api_key") || "");
 
@@ -1553,7 +1555,11 @@ export default function Dashboard({ user, onLogout, showToast }) {
 
                 {/* Avatar Upload */}
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
-                  <div style={{ position: "relative" }}>
+                  <div
+                    style={{ position: "relative" }}
+                    onMouseEnter={() => setAvatarHovered(true)}
+                    onMouseLeave={() => setAvatarHovered(false)}
+                  >
                     <img
                       src={profilePic || "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='90' height='90' viewBox='0 0 80 80'><rect width='80' height='80' fill='%23F1F5F9'/><text x='50%' y='55%' font-family='sans-serif' font-size='32' text-anchor='middle' fill='%2394A3B8'>👤</text></svg>"}
                       alt="profile avatar"
@@ -1563,9 +1569,104 @@ export default function Dashboard({ user, onLogout, showToast }) {
                         borderRadius: "50%",
                         objectFit: "cover",
                         border: "3px solid var(--primary)",
-                        boxShadow: "var(--shadow-md)"
+                        boxShadow: "var(--shadow-md)",
+                        display: "block"
                       }}
                     />
+
+                    {/* Hover Tint Overlay & Eye Button */}
+                    {profilePic && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          width: 90,
+                          height: 90,
+                          borderRadius: "50%",
+                          background: "rgba(0, 0, 0, 0.4)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          opacity: avatarHovered ? 1 : 0,
+                          transition: "opacity 0.2s ease-in-out",
+                          pointerEvents: avatarHovered ? "auto" : "none",
+                          zIndex: 4
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setAvatarPreviewOpen(true)}
+                          style={{
+                            background: "rgba(255, 255, 255, 0.25)",
+                            border: "none",
+                            color: "white",
+                            width: 32,
+                            height: 32,
+                            borderRadius: "50%",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            cursor: "pointer",
+                            transition: "background 0.2s, transform 0.2s",
+                            backdropFilter: "blur(4px)"
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = "rgba(255, 255, 255, 0.4)";
+                            e.currentTarget.style.transform = "scale(1.1)";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = "rgba(255, 255, 255, 0.25)";
+                            e.currentTarget.style.transform = "scale(1)";
+                          }}
+                          title="ดูรูปภาพโปรไฟล์"
+                        >
+                          <Eye size={16} />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Red Delete Button */}
+                    {profilePic && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (confirm("คุณต้องการลบรูปโปรไฟล์นี้ใช่หรือไม่?")) {
+                            setProfilePic("");
+                          }
+                        }}
+                        style={{
+                          position: "absolute",
+                          top: "-4px",
+                          right: "-4px",
+                          background: "#EF4444",
+                          color: "white",
+                          width: 24,
+                          height: 24,
+                          borderRadius: "50%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: "pointer",
+                          boxShadow: "0 2px 8px rgba(239, 68, 68, 0.4)",
+                          border: "2px solid white",
+                          zIndex: 10,
+                          transition: "transform 0.2s, background 0.2s"
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = "scale(1.15)";
+                          e.currentTarget.style.background = "#DC2626";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = "scale(1)";
+                          e.currentTarget.style.background = "#EF4444";
+                        }}
+                        title="ลบรูปโปรไฟล์"
+                      >
+                        <X size={12} strokeWidth={3} />
+                      </button>
+                    )}
+
                     <label
                       style={{
                         position: "absolute",
@@ -1581,7 +1682,8 @@ export default function Dashboard({ user, onLogout, showToast }) {
                         justifyContent: "center",
                         cursor: "pointer",
                         boxShadow: "var(--shadow-md)",
-                        border: "2px solid white"
+                        border: "2px solid white",
+                        zIndex: 8
                       }}
                       title="เปลี่ยนรูปโปรไฟล์"
                     >
@@ -1794,6 +1896,85 @@ export default function Dashboard({ user, onLogout, showToast }) {
                 ปิดหน้าต่าง
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {avatarPreviewOpen && profilePic && (
+        <div
+          className="modal-overlay"
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            background: "rgba(15, 23, 42, 0.75)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            animation: "fadeInOverlay 0.3s ease-out"
+          }}
+          onClick={() => setAvatarPreviewOpen(false)}
+        >
+          <div
+            style={{
+              position: "relative",
+              maxWidth: "90%",
+              maxHeight: "90%",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              animation: "scaleInModal 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setAvatarPreviewOpen(false)}
+              style={{
+                position: "absolute",
+                top: -48,
+                right: 0,
+                background: "rgba(255, 255, 255, 0.15)",
+                border: "none",
+                color: "white",
+                width: 36,
+                height: 36,
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                transition: "background 0.2s, transform 0.2s"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "rgba(255, 255, 255, 0.3)";
+                e.currentTarget.style.transform = "scale(1.05)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "rgba(255, 255, 255, 0.15)";
+                e.currentTarget.style.transform = "scale(1)";
+              }}
+              title="ปิดการแสดงรูปภาพ"
+            >
+              <X size={20} />
+            </button>
+            <img
+              src={profilePic}
+              alt="Avatar Preview"
+              style={{
+                maxWidth: "100%",
+                maxHeight: "80vh",
+                borderRadius: "16px",
+                objectFit: "contain",
+                boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+                border: "4px solid rgba(255, 255, 255, 0.2)"
+              }}
+            />
           </div>
         </div>
       )}
