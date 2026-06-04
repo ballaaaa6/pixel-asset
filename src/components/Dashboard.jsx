@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { Plus, RefreshCw, LogOut, Trash2, Download, Upload, PieChart, Pencil, X, Settings, Eye, EyeOff } from "lucide-react";
+import { Plus, RefreshCw, LogOut, Trash2, Download, Upload, PieChart, Pencil, X, Settings, Eye, EyeOff, Sparkles } from "lucide-react";
 import AssetModal from "./AssetModal";
 import AssetDetailPanel from "./AssetDetailPanel";
 
@@ -219,6 +219,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
   const [profilePic, setProfilePic]             = useState(() => localStorage.getItem(`profile_pic_${user.username}`) || "");
   const [avatarPreviewOpen, setAvatarPreviewOpen] = useState(false);
   const [avatarHovered, setAvatarHovered]         = useState(false);
+  const [presetModalOpen, setPresetModalOpen]     = useState(false);
   const [nickname, setNickname]                 = useState(() => localStorage.getItem(`profile_nickname_${user.username}`) || "");
   const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem("gemini_api_key") || "");
 
@@ -1641,7 +1642,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                       }}
                     />
 
-                    {/* Hover Tint Overlay & Eye Button */}
+                    {/* Hover Tint Overlay with View & Presets Buttons */}
                     {profilePic && (
                       <div
                         style={{
@@ -1655,6 +1656,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
+                          gap: 8,
                           opacity: avatarHovered ? 1 : 0,
                           transition: "opacity 0.2s ease-in-out",
                           pointerEvents: avatarHovered ? "auto" : "none",
@@ -1668,8 +1670,8 @@ export default function Dashboard({ user, onLogout, showToast }) {
                             background: "rgba(255, 255, 255, 0.25)",
                             border: "none",
                             color: "white",
-                            width: 32,
-                            height: 32,
+                            width: 30,
+                            height: 30,
                             borderRadius: "50%",
                             display: "flex",
                             alignItems: "center",
@@ -1688,7 +1690,36 @@ export default function Dashboard({ user, onLogout, showToast }) {
                           }}
                           title="ดูรูปภาพโปรไฟล์"
                         >
-                          <Eye size={16} />
+                          <Eye size={15} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPresetModalOpen(true)}
+                          style={{
+                            background: "rgba(255, 255, 255, 0.25)",
+                            border: "none",
+                            color: "white",
+                            width: 30,
+                            height: 30,
+                            borderRadius: "50%",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            cursor: "pointer",
+                            transition: "background 0.2s, transform 0.2s",
+                            backdropFilter: "blur(4px)"
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = "rgba(255, 255, 255, 0.4)";
+                            e.currentTarget.style.transform = "scale(1.1)";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = "rgba(255, 255, 255, 0.25)";
+                            e.currentTarget.style.transform = "scale(1)";
+                          }}
+                          title="เลือกรูปภาพสำเร็จรูป (Presets)"
+                        >
+                          <Sparkles size={15} />
                         </button>
                       </div>
                     )}
@@ -1734,6 +1765,41 @@ export default function Dashboard({ user, onLogout, showToast }) {
                       </button>
                     )}
 
+                    {/* Bottom-Left Sparkles Button (to open Presets Grid Modal) */}
+                    <button
+                      type="button"
+                      onClick={() => setPresetModalOpen(true)}
+                      style={{
+                        position: "absolute",
+                        bottom: 0,
+                        left: 0,
+                        background: "linear-gradient(135deg, #8B5CF6, #EC4899)",
+                        color: "white",
+                        width: 28,
+                        height: 28,
+                        borderRadius: "50%",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "pointer",
+                        boxShadow: "var(--shadow-md)",
+                        border: "2px solid white",
+                        zIndex: 8,
+                        padding: 0,
+                        transition: "transform 0.2s"
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = "scale(1.15)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = "scale(1)";
+                      }}
+                      title="เลือกรูปภาพสำเร็จรูป (Presets)"
+                    >
+                      <Sparkles size={14} />
+                    </button>
+
+                    {/* Bottom-Right Plus Button (to upload file) */}
                     <label
                       style={{
                         position: "absolute",
@@ -1764,47 +1830,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
                     </label>
                   </div>
                   <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-muted)", textAlign: "center" }}>รองรับไฟล์รูปภาพ JPG, PNG, WebP (ไม่เกิน 10MB)</span>
-
-                  {/* Preset Avatars Row */}
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, marginTop: 4 }}>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)" }}>หรือเลือกรูปภาพสำเร็จรูป (Presets):</span>
-                    <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
-                      {PRESET_AVATARS.map((preset) => {
-                        const isSelected = profilePic === preset.svg;
-                        return (
-                          <button
-                            key={preset.id}
-                            type="button"
-                            onClick={() => setProfilePic(preset.svg)}
-                            style={{
-                              background: preset.bg,
-                              border: isSelected ? "2.5px solid var(--primary)" : "2.5px solid transparent",
-                              width: 32,
-                              height: 32,
-                              borderRadius: "50%",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              fontSize: 16,
-                              cursor: "pointer",
-                              padding: 0,
-                              boxShadow: isSelected ? "0 0 8px rgba(82, 54, 255, 0.4)" : "var(--shadow-xs)",
-                              transition: "transform 0.2s, border-color 0.2s, box-shadow 0.2s"
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.transform = "scale(1.15)";
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.transform = "scale(1)";
-                            }}
-                            title={`เลือกรูปประจำตัว ${preset.id}`}
-                          >
-                            {preset.emoji}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
                 </div>
 
                 {/* Nickname Input */}
@@ -2083,6 +2108,124 @@ export default function Dashboard({ user, onLogout, showToast }) {
                 border: "4px solid rgba(255, 255, 255, 0.2)"
               }}
             />
+          </div>
+        </div>
+      )}
+
+      {presetModalOpen && (
+        <div
+          className="modal-overlay"
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            background: "rgba(15, 23, 42, 0.65)",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9998,
+            animation: "fadeInOverlay 0.3s ease-out"
+          }}
+          onClick={() => setPresetModalOpen(false)}
+        >
+          <div
+            className="modal-content"
+            style={{
+              maxWidth: 380,
+              background: "#FFFFFF",
+              borderRadius: "24px",
+              padding: "24px",
+              boxShadow: "var(--shadow-lg)",
+              border: "1px solid var(--border)",
+              position: "relative",
+              display: "flex",
+              flexDirection: "column",
+              gap: 20,
+              animation: "scaleInModal 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header" style={{ borderBottom: "none", padding: 0 }}>
+              <span className="modal-title" style={{ fontSize: 16, fontWeight: 800 }}>🎨 เลือกรูปประจำตัว (Presets)</span>
+              <button
+                type="button"
+                className="btn-close"
+                onClick={() => setPresetModalOpen(false)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "var(--text-muted)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: 4
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, 1fr)",
+              gap: 16,
+              justifyItems: "center",
+              padding: "8px 0"
+            }}>
+              {PRESET_AVATARS.map((preset) => {
+                const isSelected = profilePic === preset.svg;
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => {
+                      setProfilePic(preset.svg);
+                      setPresetModalOpen(false);
+                    }}
+                    style={{
+                      background: preset.bg,
+                      border: isSelected ? "3px solid var(--primary)" : "3px solid transparent",
+                      width: 64,
+                      height: 64,
+                      borderRadius: "50%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 32,
+                      cursor: "pointer",
+                      padding: 0,
+                      boxShadow: isSelected ? "0 0 16px rgba(82, 54, 255, 0.5)" : "var(--shadow-md)",
+                      transition: "transform 0.2s, border-color 0.2s, box-shadow 0.2s"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = "scale(1.08)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = "scale(1)";
+                    }}
+                    title={`เลือกรูปประจำตัว ${preset.id}`}
+                  >
+                    {preset.emoji}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="modal-footer" style={{ borderTop: "none", padding: 0 }}>
+              <button
+                type="button"
+                className="btn btn-secondary ripple-btn"
+                onClick={() => setPresetModalOpen(false)}
+                style={{ height: 40, fontSize: 13, borderRadius: "12px" }}
+              >
+                ยกเลิก
+              </button>
+            </div>
           </div>
         </div>
       )}
