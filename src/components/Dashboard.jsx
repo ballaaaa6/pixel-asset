@@ -395,7 +395,8 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
             type: lot.type || "BUY",
             qty: lot.qty,
             price: lot.price,
-            date: lot.date
+            date: lot.date,
+            time: lot.time
           });
         }
       });
@@ -405,42 +406,113 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
 
   // Unique lot purchase dates for markers
   const lotMarkers = useMemo(() => {
-    if (!displayedData || displayedData.length < 2) return [];
-    const startIdx = zoomRange ? zoomRange.start : 0;
-    const endIdx = zoomRange ? zoomRange.end : history.length - 1;
+    if (!displayedData || displayedData.length < 2 || !assets || !history || history.length < 2) return [];
 
-    return Object.keys(transactionsByIdx)
-      .map(idxStr => {
-        const idx = parseInt(idxStr, 10);
-        if (idx < startIdx || idx > endIdx) return null;
+    const displayStart = new Date(displayedData[0].date).getTime();
+    const displayEnd = new Date(displayedData[displayedData.length - 1].date).getTime();
 
-        const targetDate = history[idx].date;
+    // 1. Map each lot to its closest displayed data index if within viewport
+    const rawMarkers = [];
+    assets.forEach(asset => {
+      (asset.lots || []).forEach(lot => {
+        if (!lot || !lot.date) return;
+        const lotTime = new Date(lot.date + "T" + (lot.time || "00:00") + ":00.000Z").getTime();
+
+        // STRICT VIEWPORT BOUNDARY FILTER:
+        if (lotTime < displayStart || lotTime > displayEnd) return;
+
         let bestDisplayIdx = -1, bestDiff = Infinity;
-        displayedData.forEach((d, i) => {
-          const diff = Math.abs(new Date(d.date) - new Date(targetDate));
+        // Find nearest displayed point for coordinate mapping
+        displayedData.forEach((d, idx) => {
+          const diff = Math.abs(new Date(d.date).getTime() - lotTime);
           if (diff < bestDiff) {
             bestDiff = diff;
-            bestDisplayIdx = i;
+            bestDisplayIdx = idx;
           }
         });
 
-        if (bestDisplayIdx === -1) return null;
+        if (bestDisplayIdx !== -1) {
+          const isBuy = (lot.qty || 0) >= 0;
+          const x = PAD_L + (bestDisplayIdx / (displayedData.length - 1)) * iW;
+          rawMarkers.push({
+            x,
+            isBuy,
+            symbol: asset.symbol,
+            lot,
+            time: lotTime
+          });
+        }
+      });
+    });
 
-        const txs = transactionsByIdx[idx];
-        const primarySymbol = txs[0]?.symbol || "";
-        const x = PAD_L + (bestDisplayIdx / (displayedData.length - 1)) * iW;
+    // 2. Sort markers by screen coordinate X to group them correctly
+    rawMarkers.sort((a, b) => a.x - b.x);
 
-        // Determine color type: all buy = green, all sell = red, mix = orange
-        const buysCount = txs.filter(t => t.type ? (t.type === "BUY" || t.type === "buy") : (t.qty || 0) > 0).length;
-        const sellsCount = txs.filter(t => t.type ? (t.type === "SELL" || t.type === "sell") : (t.qty || 0) < 0).length;
-        let colorType = "mixed";
-        if (buysCount > 0 && sellsCount === 0) colorType = "buy";
-        else if (buysCount === 0 && sellsCount > 0) colorType = "sell";
+    // 3. Group markers dynamically based on screen proximity (< 18 pixels)
+    const grouped = [];
+    rawMarkers.forEach(m => {
+      if (grouped.length === 0) {
+        grouped.push({
+          xSum: m.x,
+          count: 1,
+          buysCount: m.isBuy ? 1 : 0,
+          sellsCount: !m.isBuy ? 1 : 0,
+          txs: [m]
+        });
+      } else {
+        const lastGroup = grouped[grouped.length - 1];
+        const avgX = lastGroup.xSum / lastGroup.count;
+        if (Math.abs(m.x - avgX) < 18) {
+          lastGroup.xSum += m.x;
+          lastGroup.count += 1;
+          if (m.isBuy) lastGroup.buysCount++;
+          else lastGroup.sellsCount++;
+          lastGroup.txs.push(m);
+        } else {
+          grouped.push({
+            xSum: m.x,
+            count: 1,
+            buysCount: m.isBuy ? 1 : 0,
+            sellsCount: !m.isBuy ? 1 : 0,
+            txs: [m]
+          });
+        }
+      }
+    });
 
-        return { idx, x, symbol: primarySymbol, txs, colorType };
-      })
-      .filter(Boolean);
-  }, [transactionsByIdx, history, displayedData, zoomRange, iW, PAD_L]);
+    // 4. Map groups to final markers
+    return grouped.map(group => {
+      const x = group.xSum / group.count;
+
+      // Determine color type: all buy = green, all sell = red, mix = orange
+      let colorType = "mixed";
+      if (group.buysCount > 0 && group.sellsCount === 0) colorType = "buy";
+      else if (group.buysCount === 0 && group.sellsCount > 0) colorType = "sell";
+
+      const uniqueSymbols = Array.from(new Set(group.txs.map(t => t.symbol)));
+      let label = "";
+      if (uniqueSymbols.length === 1) {
+        label = uniqueSymbols[0].slice(0, 1);
+      } else {
+        label = String(group.txs.length);
+      }
+
+      return {
+        x,
+        colorType,
+        label,
+        symbol: uniqueSymbols.length === 1 ? uniqueSymbols[0] : "*",
+        txs: group.txs.map(t => ({
+          symbol: t.symbol,
+          type: t.lot.type || (t.lot.qty >= 0 ? "BUY" : "SELL"),
+          qty: Math.abs(t.lot.qty),
+          price: t.lot.price,
+          date: t.lot.date,
+          time: t.lot.time
+        }))
+      };
+    });
+  }, [assets, displayedData, history, iW, PAD_L]);
 
   const { pts, costPts, yMin, yMax, isUp, color } = useMemo(() => {
     if (!displayedData || displayedData.length < 2) return { pts: [], costPts: [], yMin: 0, yMax: 1, isUp: true, color: "var(--gain)" };
@@ -470,6 +542,24 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
 
     return { pts, costPts, yMin, yMax, isUp, color, toY };
   }, [displayedData, iH, iW, range]);
+
+  const findClosestPtByDate = (targetDateStr) => {
+    if (!pts || pts.length === 0 || !targetDateStr) return null;
+    const targetTime = new Date(targetDateStr).getTime();
+    let bestPt = pts[0];
+    let bestDiff = Infinity;
+    for (let i = 0; i < pts.length; i++) {
+      const pt = pts[i];
+      if (!pt) continue;
+      const ptTime = new Date(pt.date).getTime();
+      const diff = Math.abs(ptTime - targetTime);
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        bestPt = pt;
+      }
+    }
+    return bestPt;
+  };
 
   const linePath = useMemo(() => smoothPath(pts), [pts]);
   const costLinePath = useMemo(() => stepPath(costPts), [costPts]);
@@ -1064,16 +1154,14 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
 
           {/* Range selection diff highlight */}
           {isDiffActive && diffStartIdx !== null && diffEndIdx !== null && diffStartIdx !== diffEndIdx && (() => {
-            const currentStart = zoomRange ? zoomRange.start : 0;
-            const dispStartIdx = diffStartIdx - currentStart;
-            const dispEndIdx = diffEndIdx - currentStart;
+            const ptA = findClosestPtByDate(history[diffStartIdx]?.date);
+            const ptB = findClosestPtByDate(history[diffEndIdx]?.date);
 
-            if (dispStartIdx >= 0 && dispStartIdx < displayedData.length &&
-                dispEndIdx >= 0 && dispEndIdx < displayedData.length && pts[dispStartIdx] && pts[dispEndIdx]) {
-              const xA = pts[dispStartIdx].x;
-              const xB = pts[dispEndIdx].x;
-              const yA = pts[dispStartIdx].y;
-              const yB = pts[dispEndIdx].y;
+            if (ptA && ptB) {
+              const xA = ptA.x;
+              const xB = ptB.x;
+              const yA = ptA.y;
+              const yB = ptB.y;
 
               return (
                 <g style={{ pointerEvents: "none" }}>
@@ -1166,16 +1254,22 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
           {/* Lot Purchase markers on timeline */}
           {lotMarkers.map((m, i) => {
             const markerColor = m.colorType === "buy" ? "#16A34A" : m.colorType === "sell" ? "#DC2626" : "#F59E0B";
+            const isMultiple = m.txs.length > 1;
+            const badgeW = isMultiple ? Math.max(16, m.label.length * 6 + 10) : 15;
             return (
               <g key={i}>
                 <line x1={m.x} y1={PAD_T} x2={m.x} y2={H - PAD_B}
                   stroke={markerColor} strokeWidth="1.5" strokeDasharray="5 4" opacity="0.8" />
-                <circle cx={m.x} cy={PAD_T + 10} r="7.5" fill={markerColor} style={{ cursor: "pointer" }} />
+                {isMultiple ? (
+                  <rect x={m.x - badgeW / 2} y={PAD_T + 2.5} width={badgeW} height={15} rx="7.5" fill={markerColor} style={{ cursor: "pointer" }} />
+                ) : (
+                  <circle cx={m.x} cy={PAD_T + 10} r="7.5" fill={markerColor} style={{ cursor: "pointer" }} />
+                )}
                 <text x={m.x} y={PAD_T + 10} textAnchor="middle" fontSize="8" fill="white" fontWeight="900" fontFamily="Outfit,sans-serif" dominantBaseline="middle" style={{ cursor: "pointer", pointerEvents: "none" }}>
-                  {m.symbol.slice(0, 1)}
+                  {m.label}
                 </text>
                 <title>
-                  {m.txs.map(t => `${t.type === "BUY" ? "ซื้อ" : "ขาย"} ${t.symbol} ${t.qty.toLocaleString()} หุ้น @ ${fmt.usd(t.price)}`).join("\n")}
+                  {m.txs.map(t => `${t.type === "BUY" ? "ซื้อ" : "ขาย"} ${t.symbol} ${t.qty.toLocaleString()} หุ้น @ ${fmt.usd(t.price)}${t.time ? ` · ${t.time} น.` : ""}`).join("\n")}
                 </title>
               </g>
             );
@@ -1292,7 +1386,7 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
                     <span style={{ fontSize: 10, color: "#F59E0B", fontWeight: 800, display: "flex", alignItems: "center", gap: 4 }}>🛒 ธุรกรรมในวันนี้:</span>
                     {txs.map((tx, idx) => (
                       <span key={idx} style={{ fontSize: 10, color: "#FFF", opacity: 0.9 }}>
-                        • {tx.type === "BUY" ? "ซื้อ" : "ขาย"} {tx.symbol} {tx.qty.toLocaleString()} หุ้น @ {fmt.usd(tx.price)}
+                        • {tx.type === "BUY" ? "ซื้อ" : "ขาย"} {tx.symbol} {tx.qty.toLocaleString()} หุ้น @ {fmt.usd(tx.price)}{tx.time ? ` · ${tx.time} น.` : ""}
                       </span>
                     ))}
                   </div>
@@ -1303,12 +1397,10 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
         })()}
         {/* Floating Diff / Comparison Overlay Box */}
         {isDiffActive && diffStartIdx !== null && diffEndIdx !== null && diffStartIdx !== diffEndIdx && (() => {
-          const currentStart = zoomRange ? zoomRange.start : 0;
-          const dispStartIdx = diffStartIdx - currentStart;
-          const dispEndIdx = diffEndIdx - currentStart;
+          const ptA = findClosestPtByDate(history[diffStartIdx]?.date);
+          const ptB = findClosestPtByDate(history[diffEndIdx]?.date);
 
-          if (dispStartIdx >= 0 && dispStartIdx < displayedData.length &&
-              dispEndIdx >= 0 && dispEndIdx < displayedData.length && pts[dispStartIdx] && pts[dispEndIdx]) {
+          if (ptA && ptB) {
             const pA = history[diffStartIdx];
             const pB = history[diffEndIdx];
             if (!pA || !pB) return null;
@@ -1328,11 +1420,11 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
               timeStr = `${(diffDays / 30.4).toFixed(1)} เดือน`;
             }
 
-            const xA = pts[dispStartIdx].x;
-            const xB = pts[dispEndIdx].x;
+            const xA = ptA.x;
+            const xB = ptB.x;
             const centerPct = ((xA + xB) / 2 / W) * 100;
-            const yA = pts[dispStartIdx].y;
-            const yB = pts[dispEndIdx].y;
+            const yA = ptA.y;
+            const yB = ptB.y;
             const topPos = Math.min(yA, yB) - 50;
 
             const localFmtDate = (dateStr) => {

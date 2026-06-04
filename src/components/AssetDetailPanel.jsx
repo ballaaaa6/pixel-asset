@@ -296,7 +296,8 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
         type: lot.type || (lot.qty >= 0 ? "BUY" : "SELL"),
         qty: Math.abs(lot.qty),
         price: lot.price,
-        date: lot.date
+        date: lot.date,
+        time: lot.time
       });
     });
     return map;
@@ -514,37 +515,38 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
     // Sort lots chronologically to ensure correct sequence numbering
     const sortedLots = [...lots]
       .filter(lot => lot && lot.date)
-      .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-    const startIdx = zoomRange ? zoomRange.start : 0;
-    const endIdx = zoomRange ? zoomRange.end : candles.length - 1;
-    const limitStartDate = tf === "ตั้งแต่ซื้อ" ? sortedLots[0]?.date : candles[0].date.split("T")[0];
-    const limitEndDate = candles[candles.length - 1].date.split("T")[0];
-
-    // 1. Map each lot to its closest candle, verifying boundary range
-    const rawMarkers = [];
-    sortedLots.forEach((lot, i) => {
-      const lotDateStr = lot.date;
-
-      // STRICT TIMEFRAME BOUNDARY FILTER:
-      // Hide transaction if it's strictly outside the active timeframe range.
-      if (lotDateStr < limitStartDate || lotDateStr > limitEndDate) return;
-
-      let bestIdx = -1, bestDiff = Infinity;
-      const targetTime = new Date(lotDateStr + "T00:00:00.000Z").getTime();
-
-      // Find nearest candle in original candles
-      candles.forEach((c, idx) => {
-        const cTime = new Date(c.date).getTime();
-        const diff = Math.abs(cTime - targetTime);
-        if (diff < bestDiff) { bestDiff = diff; bestIdx = idx; }
+      .sort((a, b) => {
+        const tA = new Date(a.date + "T" + (a.time || "00:00") + ":00.000Z").getTime();
+        const tB = new Date(b.date + "T" + (b.time || "00:00") + ":00.000Z").getTime();
+        return tA - tB;
       });
 
-      // Display marker if nearest candle is in current viewport
-      if (bestIdx >= startIdx && bestIdx <= endIdx) {
+    const displayStart = new Date(interpolatedData[0].date).getTime();
+    const displayEnd = new Date(interpolatedData[interpolatedData.length - 1].date).getTime();
+
+    // 1. Map each lot to its closest interpolated data index if within viewport
+    const rawMarkers = [];
+    sortedLots.forEach((lot, i) => {
+      const lotTime = new Date(lot.date + "T" + (lot.time || "00:00") + ":00.000Z").getTime();
+
+      // STRICT VIEWPORT BOUNDARY FILTER:
+      if (lotTime < displayStart || lotTime > displayEnd) return;
+
+      let bestDisplayIdx = -1, bestDiff = Infinity;
+      // Find nearest interpolated point for coordinate mapping
+      interpolatedData.forEach((d, idx) => {
+        const diff = Math.abs(new Date(d.date).getTime() - lotTime);
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          bestDisplayIdx = idx;
+        }
+      });
+
+      if (bestDisplayIdx !== -1) {
         const isBuy = (lot.qty || 0) >= 0;
+        const x = PAD_L + (bestDisplayIdx / (interpolatedData.length - 1)) * iW;
         rawMarkers.push({
-          idx: bestIdx,
+          x,
           num: i + 1,
           isBuy,
           lot,
@@ -553,37 +555,47 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
       }
     });
 
-    // 2. Group rawMarkers by unique index (bestIdx) to prevent overlap on same day/candle
-    const groupedMap = {};
+    // 2. Sort markers by screen coordinate X to group them correctly
+    rawMarkers.sort((a, b) => a.x - b.x);
+
+    // 3. Group markers dynamically based on screen proximity (< 18 pixels)
+    const groupedMarkers = [];
     rawMarkers.forEach(m => {
-      if (!groupedMap[m.idx]) {
-        groupedMap[m.idx] = {
-          idx: m.idx,
-          nums: [],
-          buysCount: 0,
-          sellsCount: 0,
-          txs: []
-        };
+      if (groupedMarkers.length === 0) {
+        groupedMarkers.push({
+          xSum: m.x,
+          count: 1,
+          nums: [m.num],
+          buysCount: m.isBuy ? 1 : 0,
+          sellsCount: !m.isBuy ? 1 : 0,
+          txs: [m]
+        });
+      } else {
+        const lastGroup = groupedMarkers[groupedMarkers.length - 1];
+        const avgX = lastGroup.xSum / lastGroup.count;
+        if (Math.abs(m.x - avgX) < 18) {
+          lastGroup.xSum += m.x;
+          lastGroup.count += 1;
+          lastGroup.nums.push(m.num);
+          if (m.isBuy) lastGroup.buysCount++;
+          else lastGroup.sellsCount++;
+          lastGroup.txs.push(m);
+        } else {
+          groupedMarkers.push({
+            xSum: m.x,
+            count: 1,
+            nums: [m.num],
+            buysCount: m.isBuy ? 1 : 0,
+            sellsCount: !m.isBuy ? 1 : 0,
+            txs: [m]
+          });
+        }
       }
-      groupedMap[m.idx].nums.push(m.num);
-      if (m.isBuy) groupedMap[m.idx].buysCount++;
-      else groupedMap[m.idx].sellsCount++;
-      groupedMap[m.idx].txs.push(m);
     });
 
-    // 3. Map groups to final markers with screen coordinate X and consolidated details
-    return Object.values(groupedMap).map(group => {
-      const targetDate = candles[group.idx].date;
-      let bestDisplayIdx = -1, bestDiff = Infinity;
-      interpolatedData.forEach((d, i) => {
-        const diff = Math.abs(new Date(d.date) - new Date(targetDate));
-        if (diff < bestDiff) {
-          bestDiff = diff;
-          bestDisplayIdx = i;
-        }
-      });
-      
-      const x = PAD_L + (bestDisplayIdx / (interpolatedData.length - 1)) * iW;
+    // 4. Map groups to final markers
+    return groupedMarkers.map(group => {
+      const x = group.xSum / group.count;
 
       // Determine color type: all buy = green, all sell = red, mix = orange
       let colorType = "mixed";
@@ -613,9 +625,27 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
         txs: group.txs
       };
     });
-  }, [lots, candles, interpolatedData, zoomRange, PAD_L, iW, isThai, exchangeRate, tf]);
+  }, [lots, candles, interpolatedData, PAD_L, iW, isThai, exchangeRate]);
 
   const displayedCandles = interpolatedData;
+
+  const findClosestPtByDate = (targetDateStr) => {
+    if (!pts || pts.length === 0 || !targetDateStr) return null;
+    const targetTime = new Date(targetDateStr).getTime();
+    let bestPt = pts[0];
+    let bestDiff = Infinity;
+    for (let i = 0; i < pts.length; i++) {
+      const pt = pts[i];
+      if (!pt) continue;
+      const ptTime = new Date(pt.date).getTime();
+      const diff = Math.abs(ptTime - targetTime);
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        bestPt = pt;
+      }
+    }
+    return bestPt;
+  };
 
   const stateRef = useRef();
   stateRef.current = {
@@ -1099,16 +1129,14 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
 
         {/* Range selection diff highlight */}
         {isDiffActive && diffStartIdx !== null && diffEndIdx !== null && diffStartIdx !== diffEndIdx && (() => {
-          const currentStart = zoomRange ? zoomRange.start : 0;
-          const dispStartIdx = diffStartIdx - currentStart;
-          const dispEndIdx = diffEndIdx - currentStart;
+          const ptA = findClosestPtByDate(candles[diffStartIdx]?.date);
+          const ptB = findClosestPtByDate(candles[diffEndIdx]?.date);
 
-          if (dispStartIdx >= 0 && dispStartIdx < displayedCandles.length &&
-              dispEndIdx >= 0 && dispEndIdx < displayedCandles.length && pts[dispStartIdx] && pts[dispEndIdx]) {
-            const xA = pts[dispStartIdx].x;
-            const xB = pts[dispEndIdx].x;
-            const yA = pts[dispStartIdx].y;
-            const yB = pts[dispEndIdx].y;
+          if (ptA && ptB) {
+            const xA = ptA.x;
+            const xB = ptB.x;
+            const yA = ptA.y;
+            const yB = ptB.y;
 
             return (
               <g style={{ pointerEvents: "none" }}>
@@ -1327,7 +1355,7 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
                   </span>
                   {txs.map((tx, idx) => (
                     <span key={idx} style={{ fontSize: 10, color: "#FFF", opacity: 0.9 }}>
-                      • {tx.type === "BUY" ? "ซื้อ" : "ขาย"} {fmtQty(tx.qty)} {isCashAsset ? asset.symbol : "หุ้น"} @ {isThai ? fmtTHB(tx.price) : fmtUSD(tx.price)} (ครั้งที่ {tx.num})
+                      • {tx.type === "BUY" ? "ซื้อ" : "ขาย"} {fmtQty(tx.qty)} {isCashAsset ? asset.symbol : "หุ้น"} @ {isThai ? fmtTHB(tx.price) : fmtUSD(tx.price)} (ครั้งที่ {tx.num}){tx.time ? ` · ${tx.time} น.` : ""}
                     </span>
                   ))}
                 </div>
@@ -1343,12 +1371,10 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
 
       {/* Floating Diff / Comparison Overlay Box */}
       {isDiffActive && diffStartIdx !== null && diffEndIdx !== null && diffStartIdx !== diffEndIdx && (() => {
-        const currentStart = zoomRange ? zoomRange.start : 0;
-        const dispStartIdx = diffStartIdx - currentStart;
-        const dispEndIdx = diffEndIdx - currentStart;
+        const ptA = findClosestPtByDate(candles[diffStartIdx]?.date);
+        const ptB = findClosestPtByDate(candles[diffEndIdx]?.date);
 
-        if (dispStartIdx >= 0 && dispStartIdx < displayedCandles.length &&
-            dispEndIdx >= 0 && dispEndIdx < displayedCandles.length && pts[dispStartIdx] && pts[dispEndIdx]) {
+        if (ptA && ptB) {
           const pA = candles[diffStartIdx];
           const pB = candles[diffEndIdx];
           if (!pA || !pB) return null;
@@ -1369,11 +1395,11 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
             timeStr = `${(diffDays / 30.4).toFixed(1)} เดือน`;
           }
 
-          const xA = pts[dispStartIdx].x;
-          const xB = pts[dispEndIdx].x;
+          const xA = ptA.x;
+          const xB = ptB.x;
           const centerPct = ((xA + xB) / 2 / W) * 100;
-          const yA = pts[dispStartIdx].y;
-          const yB = pts[dispEndIdx].y;
+          const yA = ptA.y;
+          const yB = ptB.y;
           const topPos = Math.min(yA, yB) - 50;
 
           return (
