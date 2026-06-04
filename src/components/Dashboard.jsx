@@ -1642,7 +1642,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                       }}
                     />
 
-                    {/* Hover Tint Overlay with View & Presets Buttons */}
+                    {/* Hover Tint Overlay with View Button */}
                     {profilePic && (
                       <div
                         style={{
@@ -1656,7 +1656,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          gap: 8,
                           opacity: avatarHovered ? 1 : 0,
                           transition: "opacity 0.2s ease-in-out",
                           pointerEvents: avatarHovered ? "auto" : "none",
@@ -1670,8 +1669,8 @@ export default function Dashboard({ user, onLogout, showToast }) {
                             background: "rgba(255, 255, 255, 0.25)",
                             border: "none",
                             color: "white",
-                            width: 30,
-                            height: 30,
+                            width: 32,
+                            height: 32,
                             borderRadius: "50%",
                             display: "flex",
                             alignItems: "center",
@@ -1690,36 +1689,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                           }}
                           title="ดูรูปภาพโปรไฟล์"
                         >
-                          <Eye size={15} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setPresetModalOpen(true)}
-                          style={{
-                            background: "rgba(255, 255, 255, 0.25)",
-                            border: "none",
-                            color: "white",
-                            width: 30,
-                            height: 30,
-                            borderRadius: "50%",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            cursor: "pointer",
-                            transition: "background 0.2s, transform 0.2s",
-                            backdropFilter: "blur(4px)"
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = "rgba(255, 255, 255, 0.4)";
-                            e.currentTarget.style.transform = "scale(1.1)";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = "rgba(255, 255, 255, 0.25)";
-                            e.currentTarget.style.transform = "scale(1)";
-                          }}
-                          title="เลือกรูปภาพสำเร็จรูป (Presets)"
-                        >
-                          <Sparkles size={15} />
+                          <Eye size={16} />
                         </button>
                       </div>
                     )}
@@ -1765,39 +1735,41 @@ export default function Dashboard({ user, onLogout, showToast }) {
                       </button>
                     )}
 
-                    {/* Bottom-Left Sparkles Button (to open Presets Grid Modal) */}
-                    <button
-                      type="button"
-                      onClick={() => setPresetModalOpen(true)}
-                      style={{
-                        position: "absolute",
-                        bottom: 0,
-                        left: 0,
-                        background: "linear-gradient(135deg, #8B5CF6, #EC4899)",
-                        color: "white",
-                        width: 28,
-                        height: 28,
-                        borderRadius: "50%",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        cursor: "pointer",
-                        boxShadow: "var(--shadow-md)",
-                        border: "2px solid white",
-                        zIndex: 8,
-                        padding: 0,
-                        transition: "transform 0.2s"
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = "scale(1.15)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = "scale(1)";
-                      }}
-                      title="เลือกรูปภาพสำเร็จรูป (Presets)"
-                    >
-                      <Sparkles size={14} />
-                    </button>
+                    {/* Bottom-Left Sparkles Button (to open Presets Grid Modal) - only visible if avatar is empty */}
+                    {!profilePic && (
+                      <button
+                        type="button"
+                        onClick={() => setPresetModalOpen(true)}
+                        style={{
+                          position: "absolute",
+                          bottom: 0,
+                          left: 0,
+                          background: "linear-gradient(135deg, #8B5CF6, #EC4899)",
+                          color: "white",
+                          width: 28,
+                          height: 28,
+                          borderRadius: "50%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: "pointer",
+                          boxShadow: "var(--shadow-md)",
+                          border: "2px solid white",
+                          zIndex: 8,
+                          padding: 0,
+                          transition: "transform 0.2s"
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = "scale(1.15)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = "scale(1)";
+                        }}
+                        title="เลือกรูปภาพสำเร็จรูป (Presets)"
+                      >
+                        <Sparkles size={14} />
+                      </button>
+                    )}
 
                     {/* Bottom-Right Plus Button (to upload file) */}
                     <label
