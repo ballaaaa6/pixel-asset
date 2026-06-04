@@ -3003,7 +3003,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
 
       // If we are looking for today's price (or a future date), use the live price if available
       const todayStr = new Date().toISOString().split("T")[0];
-      if (targetDateStr.startsWith(todayStr)) {
+      if (!isShortTF && targetDateStr.startsWith(todayStr)) {
         const livePrice = prices[sym.toUpperCase()]?.price;
         if (livePrice != null && livePrice > 0) {
           return livePrice;
