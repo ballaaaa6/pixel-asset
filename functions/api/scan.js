@@ -50,7 +50,9 @@ CRITICAL TRANSCRIPTION DIRECTIONS:
    - "มี.ค." = มีนาคม (March). Has 'ม' with a loop vowel symbol 'ี' on top, and ends with 'ค'.
    Be extremely careful not to confuse "ก.ค." (July) with "ม.ค." (January) or "มิ.ย." (June) with "ม.ค." (January).
 
-2. NO FILLER: Output Raw JSON only. No markdown, no explanation. Start with '{', end with '}'.`;
+2. NO CALCULATION OR MATH: Do NOT perform any mathematical division or calculation yourself. Transcribe the exact numbers visible in the image. For "qty_table", do NOT divide "bold_amount" by "actual_price" to calculate it; copy the exact digits printed next to or under the "จำนวนหุ้น" / "จำนวนหน่วย" header.
+
+3. NO FILLER: Output Raw JSON only. No markdown, no explanation. Start with '{', end with '}'.`;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
