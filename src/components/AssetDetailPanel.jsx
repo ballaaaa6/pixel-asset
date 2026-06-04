@@ -116,12 +116,14 @@ const getDynamicDateFormat = (dateIso, visibleDurationMs, hasMultipleYears = fal
   const d = new Date(dateIso);
   const oneHour = 60 * 60 * 1000;
   const oneDay = 24 * oneHour;
-  const sevenDays = 7 * oneDay;
+  const tenDays = 10 * oneDay;
   const sixMonths = 180 * oneDay;
+
+  const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0;
 
   if (visibleDurationMs <= oneDay) {
     return d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
-  } else if (visibleDurationMs <= sevenDays) {
+  } else if (visibleDurationMs <= tenDays || hasTime) {
     return d.toLocaleDateString("th-TH", { day: "numeric", month: "short" }) + " " + d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
   } else if (visibleDurationMs <= sixMonths) {
     return d.toLocaleDateString("th-TH", { day: "numeric", month: "short" });
@@ -202,10 +204,10 @@ function smoothPath(pts) {
     const p1 = pts[i];
     const p2 = pts[i + 1];
     const p3 = pts[Math.min(i + 2, pts.length - 1)];
-    const cp1x = p1.x + (p2.x - p0.x) * 0.12;
-    const cp1y = p1.y + (p2.y - p0.y) * 0.12;
-    const cp2x = p2.x - (p3.x - p1.x) * 0.12;
-    const cp2y = p2.y - (p3.y - p1.y) * 0.12;
+    const cp1x = p1.x + (p2.x - p0.x) * 0.22;
+    const cp1y = p1.y + (p2.y - p0.y) * 0.22;
+    const cp2x = p2.x - (p3.x - p1.x) * 0.22;
+    const cp2y = p2.y - (p3.y - p1.y) * 0.22;
     d += ` C ${cp1x.toFixed(2)},${cp1y.toFixed(2)} ${cp2x.toFixed(2)},${cp2y.toFixed(2)} ${p2.x.toFixed(2)},${p2.y.toFixed(2)}`;
   }
   return d;
@@ -554,13 +556,16 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
   /* ── X-axis tick labels ── */
   const xTicks = useMemo(() => {
     if (!interpolatedData || interpolatedData.length < 2) return [];
-    const count = Math.min(6, interpolatedData.length);
-    const step = Math.floor(interpolatedData.length / count);
+    const isShortTF = tf === "1D" || tf === "5D" || tf === "1W";
+    const isMobile = typeof window !== "undefined" && window.innerWidth <= 768;
+    const maxTicks = isMobile ? (isShortTF ? 3 : 5) : (isShortTF ? 8 : 12);
+    const count = Math.min(maxTicks, interpolatedData.length);
+    const step = Math.floor((interpolatedData.length - 1) / Math.max(count - 1, 1));
     return Array.from({ length: count }, (_, i) => {
-      const idx = Math.min(i * step, interpolatedData.length - 1);
+      const idx = Math.min(i === count - 1 ? interpolatedData.length - 1 : i * step, interpolatedData.length - 1);
       return { idx, x: PAD_L + (idx / (interpolatedData.length - 1)) * iW, date: interpolatedData[idx].date };
     });
-  }, [interpolatedData, PAD_L, iW]);
+  }, [interpolatedData, PAD_L, iW, tf]);
 
   /* ── Filter active points (excluding nulls before first purchase) ── */
   const activePts = useMemo(() => pts.filter(Boolean), [pts]);

@@ -119,12 +119,14 @@ const getDynamicDateFormat = (dateIso, visibleDurationMs, hasMultipleYears = fal
   const d = new Date(dateIso);
   const oneHour = 60 * 60 * 1000;
   const oneDay = 24 * oneHour;
-  const sevenDays = 7 * oneDay;
+  const tenDays = 10 * oneDay;
   const sixMonths = 180 * oneDay;
+
+  const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0;
 
   if (visibleDurationMs <= oneDay) {
     return d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
-  } else if (visibleDurationMs <= sevenDays) {
+  } else if (visibleDurationMs <= tenDays || hasTime) {
     return d.toLocaleDateString("th-TH", { day: "numeric", month: "short" }) + " " + d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
   } else if (visibleDurationMs <= sixMonths) {
     return d.toLocaleDateString("th-TH", { day: "numeric", month: "short" });
@@ -202,10 +204,10 @@ function smoothPath(pts) {
     const p1 = pts[i];
     const p2 = pts[i + 1];
     const p3 = pts[i + 2] || p2;
-    const cp1x = p1.x + (p2.x - p0.x) * 0.15;
-    const cp1y = p1.y + (p2.y - p0.y) * 0.15;
-    const cp2x = p2.x - (p3.x - p1.x) * 0.15;
-    const cp2y = p2.y - (p3.y - p1.y) * 0.15;
+    const cp1x = p1.x + (p2.x - p0.x) * 0.22;
+    const cp1y = p1.y + (p2.y - p0.y) * 0.22;
+    const cp2x = p2.x - (p3.x - p1.x) * 0.22;
+    const cp2y = p2.y - (p3.y - p1.y) * 0.22;
     d += ` C ${cp1x.toFixed(2)},${cp1y.toFixed(2)} ${cp2x.toFixed(2)},${cp2y.toFixed(2)} ${p2.x},${p2.y}`;
   }
   return d;
@@ -1104,10 +1106,12 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
   const totalChange = endVal - startVal;
   const totalChangePct = startVal > 0 ? (totalChange / startVal) * 100 : 0;
 
-  // Axis labels — fewer ticks on mobile to avoid overflow
+  // Axis labels — fewer ticks on mobile to avoid overflow, dynamically scale up ticks to maximize resolution
   const dateLabels = (() => {
     if (displayedData.length <= 1) return [];
-    const count = Math.min(isMobile ? 3 : 5, displayedData.length);
+    const isShortTF = range === "1D" || range === "5D" || range === "1W";
+    const maxTicks = isMobile ? (isShortTF ? 3 : 5) : (isShortTF ? 8 : 12);
+    const count = Math.min(maxTicks, displayedData.length);
     const step = Math.floor((displayedData.length - 1) / Math.max(count - 1, 1));
     return Array.from({ length: count }, (_, i) => {
       const idx = Math.min(i === count - 1 ? displayedData.length - 1 : i * step, displayedData.length - 1);
