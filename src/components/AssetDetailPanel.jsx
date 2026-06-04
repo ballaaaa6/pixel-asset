@@ -629,16 +629,15 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
 
   const displayedCandles = interpolatedData;
 
-  const findClosestPtByDate = (targetDateStr) => {
-    if (!pts || pts.length === 0 || !targetDateStr) return null;
-    const targetTime = new Date(targetDateStr).getTime();
+  const findClosestPtByTimestamp = (ts) => {
+    if (!pts || pts.length === 0 || ts == null) return null;
     let bestPt = pts[0];
     let bestDiff = Infinity;
     for (let i = 0; i < pts.length; i++) {
       const pt = pts[i];
       if (!pt) continue;
       const ptTime = new Date(pt.date).getTime();
-      const diff = Math.abs(ptTime - targetTime);
+      const diff = Math.abs(ptTime - ts);
       if (diff < bestDiff) {
         bestDiff = diff;
         bestPt = pt;
@@ -677,20 +676,11 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
       } else {
         const relX = (mouseX - PAD_L) / iW;
         const idx = Math.max(0, Math.min(Math.round(relX * (displayedCandles.length - 1)), displayedCandles.length - 1));
-        
-        let originalIdx = (zoomRange ? zoomRange.start : 0);
-        let bestDiff = Infinity;
-        candles.forEach((h, i) => {
-          const diff = Math.abs(new Date(h.date) - new Date(displayedCandles[idx].date));
-          if (diff < bestDiff) {
-            bestDiff = diff;
-            originalIdx = i;
-          }
-        });
+        const ts = new Date(displayedCandles[idx].date).getTime();
 
         setIsDiffActive(true);
-        updateDiffStartIdx(originalIdx);
-        updateDiffEndIdx(originalIdx);
+        updateDiffStartIdx(ts);
+        updateDiffEndIdx(ts);
         setDragStart({ x: mouseX, type: "diff" });
         setHovered(null);
       }
@@ -707,18 +697,9 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
         const boundedX = Math.max(PAD_L, Math.min(W - PAD_R, mouseXInSvg));
         const relX = (boundedX - PAD_L) / iW;
         const idx = Math.max(0, Math.min(Math.round(relX * (displayedCandles.length - 1)), displayedCandles.length - 1));
-        
-        let originalIdx = (zoomRange ? zoomRange.start : 0);
-        let bestDiff = Infinity;
-        candles.forEach((h, i) => {
-          const diff = Math.abs(new Date(h.date) - new Date(displayedCandles[idx].date));
-          if (diff < bestDiff) {
-            bestDiff = diff;
-            originalIdx = i;
-          }
-        });
+        const ts = new Date(displayedCandles[idx].date).getTime();
 
-        updateDiffEndIdx(originalIdx);
+        updateDiffEndIdx(ts);
         setHovered(null);
       } else if (dragStart.type === "pan") {
         const deltaX = mouseXInSvg - dragStart.x;
@@ -1129,8 +1110,8 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
 
         {/* Range selection diff highlight */}
         {isDiffActive && diffStartIdx !== null && diffEndIdx !== null && diffStartIdx !== diffEndIdx && (() => {
-          const ptA = findClosestPtByDate(candles[diffStartIdx]?.date);
-          const ptB = findClosestPtByDate(candles[diffEndIdx]?.date);
+          const ptA = findClosestPtByTimestamp(diffStartIdx);
+          const ptB = findClosestPtByTimestamp(diffEndIdx);
 
           if (ptA && ptB) {
             const xA = ptA.x;
@@ -1371,12 +1352,21 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
 
       {/* Floating Diff / Comparison Overlay Box */}
       {isDiffActive && diffStartIdx !== null && diffEndIdx !== null && diffStartIdx !== diffEndIdx && (() => {
-        const ptA = findClosestPtByDate(candles[diffStartIdx]?.date);
-        const ptB = findClosestPtByDate(candles[diffEndIdx]?.date);
+        const ptA = findClosestPtByTimestamp(diffStartIdx);
+        const ptB = findClosestPtByTimestamp(diffEndIdx);
 
         if (ptA && ptB) {
-          const pA = candles[diffStartIdx];
-          const pB = candles[diffEndIdx];
+          const findClosestCandle = (ts) => {
+            if (!candles || candles.length === 0) return null;
+            let best = candles[0], bestDiff = Infinity;
+            candles.forEach(c => {
+              const diff = Math.abs(new Date(c.date).getTime() - ts);
+              if (diff < bestDiff) { bestDiff = diff; best = c; }
+            });
+            return best;
+          };
+          const pA = findClosestCandle(diffStartIdx);
+          const pB = findClosestCandle(diffEndIdx);
           if (!pA || !pB) return null;
 
           const isThai = asset?.symbol?.endsWith(".BK");

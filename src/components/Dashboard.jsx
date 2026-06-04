@@ -543,16 +543,15 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
     return { pts, costPts, yMin, yMax, isUp, color, toY };
   }, [displayedData, iH, iW, range]);
 
-  const findClosestPtByDate = (targetDateStr) => {
-    if (!pts || pts.length === 0 || !targetDateStr) return null;
-    const targetTime = new Date(targetDateStr).getTime();
+  const findClosestPtByTimestamp = (ts) => {
+    if (!pts || pts.length === 0 || ts == null) return null;
     let bestPt = pts[0];
     let bestDiff = Infinity;
     for (let i = 0; i < pts.length; i++) {
       const pt = pts[i];
       if (!pt) continue;
       const ptTime = new Date(pt.date).getTime();
-      const diff = Math.abs(ptTime - targetTime);
+      const diff = Math.abs(ptTime - ts);
       if (diff < bestDiff) {
         bestDiff = diff;
         bestPt = pt;
@@ -629,20 +628,11 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
       } else {
         const relX = (mouseX - PAD_L) / iW;
         const idx = Math.max(0, Math.min(Math.round(relX * (displayedData.length - 1)), displayedData.length - 1));
-        
-        let originalIdx = (zoomRange ? zoomRange.start : 0);
-        let bestDiff = Infinity;
-        history.forEach((h, i) => {
-          const diff = Math.abs(new Date(h.date) - new Date(displayedData[idx].date));
-          if (diff < bestDiff) {
-            bestDiff = diff;
-            originalIdx = i;
-          }
-        });
+        const ts = new Date(displayedData[idx].date).getTime();
 
         setIsDiffActive(true);
-        updateDiffStartIdx(originalIdx);
-        updateDiffEndIdx(originalIdx);
+        updateDiffStartIdx(ts);
+        updateDiffEndIdx(ts);
         setDragStart({ x: mouseX, type: "diff" });
         setHovered(null);
       }
@@ -659,18 +649,9 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
         const boundedX = Math.max(PAD_L, Math.min(W - PAD_R, mouseXInSvg));
         const relX = (boundedX - PAD_L) / iW;
         const idx = Math.max(0, Math.min(Math.round(relX * (displayedData.length - 1)), displayedData.length - 1));
-        
-        let originalIdx = (zoomRange ? zoomRange.start : 0);
-        let bestDiff = Infinity;
-        history.forEach((h, i) => {
-          const diff = Math.abs(new Date(h.date) - new Date(displayedData[idx].date));
-          if (diff < bestDiff) {
-            bestDiff = diff;
-            originalIdx = i;
-          }
-        });
+        const ts = new Date(displayedData[idx].date).getTime();
 
-        updateDiffEndIdx(originalIdx);
+        updateDiffEndIdx(ts);
         setHovered(null);
       } else if (dragStart.type === "pan") {
         const deltaX = mouseXInSvg - dragStart.x;
@@ -1154,8 +1135,8 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
 
           {/* Range selection diff highlight */}
           {isDiffActive && diffStartIdx !== null && diffEndIdx !== null && diffStartIdx !== diffEndIdx && (() => {
-            const ptA = findClosestPtByDate(history[diffStartIdx]?.date);
-            const ptB = findClosestPtByDate(history[diffEndIdx]?.date);
+            const ptA = findClosestPtByTimestamp(diffStartIdx);
+            const ptB = findClosestPtByTimestamp(diffEndIdx);
 
             if (ptA && ptB) {
               const xA = ptA.x;
@@ -1397,12 +1378,21 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
         })()}
         {/* Floating Diff / Comparison Overlay Box */}
         {isDiffActive && diffStartIdx !== null && diffEndIdx !== null && diffStartIdx !== diffEndIdx && (() => {
-          const ptA = findClosestPtByDate(history[diffStartIdx]?.date);
-          const ptB = findClosestPtByDate(history[diffEndIdx]?.date);
+          const ptA = findClosestPtByTimestamp(diffStartIdx);
+          const ptB = findClosestPtByTimestamp(diffEndIdx);
 
           if (ptA && ptB) {
-            const pA = history[diffStartIdx];
-            const pB = history[diffEndIdx];
+            const findClosestHistoryPoint = (ts) => {
+              if (!history || history.length === 0) return null;
+              let best = history[0], bestDiff = Infinity;
+              history.forEach(h => {
+                const diff = Math.abs(new Date(h.date).getTime() - ts);
+                if (diff < bestDiff) { bestDiff = diff; best = h; }
+              });
+              return best;
+            };
+            const pA = findClosestHistoryPoint(diffStartIdx);
+            const pB = findClosestHistoryPoint(diffEndIdx);
             if (!pA || !pB) return null;
 
             const valA = pA.value;
