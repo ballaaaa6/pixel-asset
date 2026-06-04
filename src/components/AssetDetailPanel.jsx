@@ -112,7 +112,7 @@ const getAssetFullName = (symbol, name, category) => {
   return `${symUpper} Asset`;
 };
 
-const getDynamicDateFormat = (dateIso, visibleDurationMs, hasMultipleYears = false) => {
+const getDynamicDateFormat = (dateIso, visibleDurationMs, hasMultipleYears = false, isTooltip = false) => {
   const d = new Date(dateIso);
   const oneHour = 60 * 60 * 1000;
   const oneDay = 24 * oneHour;
@@ -123,9 +123,13 @@ const getDynamicDateFormat = (dateIso, visibleDurationMs, hasMultipleYears = fal
 
   if (visibleDurationMs <= oneDay) {
     return d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
-  } else if (visibleDurationMs <= tenDays || hasTime) {
+  }
+
+  if (isTooltip && hasTime) {
     return d.toLocaleDateString("th-TH", { day: "numeric", month: "short" }) + " " + d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
-  } else if (visibleDurationMs <= sixMonths) {
+  }
+
+  if (visibleDurationMs <= sixMonths) {
     return d.toLocaleDateString("th-TH", { day: "numeric", month: "short" });
   } else {
     return d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: hasMultipleYears ? "2-digit" : undefined });
@@ -1455,7 +1459,7 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
             pointerEvents: "none"
           }}>
             <div style={{ fontSize: 10, opacity: 0.75, marginBottom: 2 }}>
-              {getDynamicDateFormat(hovered.date, visibleDurationMs, hasMultipleYears)}
+              {getDynamicDateFormat(hovered.date, visibleDurationMs, hasMultipleYears, true)}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>

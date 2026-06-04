@@ -115,7 +115,7 @@ export const getAssetFullName = (symbol, name, category) => {
 };
 
 
-const getDynamicDateFormat = (dateIso, visibleDurationMs, hasMultipleYears = false) => {
+const getDynamicDateFormat = (dateIso, visibleDurationMs, hasMultipleYears = false, isTooltip = false) => {
   const d = new Date(dateIso);
   const oneHour = 60 * 60 * 1000;
   const oneDay = 24 * oneHour;
@@ -126,9 +126,13 @@ const getDynamicDateFormat = (dateIso, visibleDurationMs, hasMultipleYears = fal
 
   if (visibleDurationMs <= oneDay) {
     return d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
-  } else if (visibleDurationMs <= tenDays || hasTime) {
+  }
+
+  if (isTooltip && hasTime) {
     return d.toLocaleDateString("th-TH", { day: "numeric", month: "short" }) + " " + d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
-  } else if (visibleDurationMs <= sixMonths) {
+  }
+
+  if (visibleDurationMs <= sixMonths) {
     return d.toLocaleDateString("th-TH", { day: "numeric", month: "short" });
   } else {
     return d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: hasMultipleYears ? "2-digit" : undefined });
@@ -391,7 +395,7 @@ const SparklineChart = React.memo(function SparklineChart({ closes }) {
 /* ═══════════════════════════════════════════════════════════════
    PORTFOLIO LINE CHART (with hover tooltip)
 ═══════════════════════════════════════════════════════════════ */
-function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate }) {
+function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate, prices }) {
   const svgRef = useRef(null);
   const [hovered, setHovered] = useState(null); // { idx, originalIdx, x, y, value, date }
   const [dims, setDims] = useState({ w: 800, h: 350 });
@@ -1534,7 +1538,7 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
               pointerEvents: "none"
             }}>
               <div style={{ fontSize: 10, opacity: 0.75, marginBottom: 2 }}>
-                {getDynamicDateFormat(hovered.date, visibleDurationMs, hasMultipleYears)}
+                {getDynamicDateFormat(hovered.date, visibleDurationMs, hasMultipleYears, true)}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
@@ -4277,6 +4281,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                 onRangeChange={handleRangeChange}
                 assets={assets}
                 exchangeRate={exchangeRate}
+                prices={prices}
               />
             </div>
 
