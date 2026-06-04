@@ -3064,18 +3064,20 @@ export default function Dashboard({ user, onLogout, showToast }) {
     const isBatch = Array.isArray(formData);
     const transactions = isBatch ? formData : [formData];
 
-    // Sort transactions by date & time ascending (oldest first), prioritizing BUY over SELL if identical
+    // Sort transactions: BUYs first, then SELLs. Within each type, sort chronologically by date & time.
     const sortedTx = [...transactions].sort((a, b) => {
+      const isABuy = a.transactionType === "BUY";
+      const isBBuy = b.transactionType === "BUY";
+      if (isABuy !== isBBuy) {
+        return isABuy ? -1 : 1; // BUYs first
+      }
+      // Same transaction type: sort chronologically
       const dtA = new Date(`${a.date || "1970-01-01"}T${a.time || "00:00"}`);
       const dtB = new Date(`${b.date || "1970-01-01"}T${b.time || "00:00"}`);
-      if (dtA.getTime() !== dtB.getTime()) {
-        return dtA - dtB;
-      }
-      // Same date & time: process BUY first so we have the shares before we try to SELL them
-      if (a.transactionType === "BUY" && b.transactionType === "SELL") return -1;
-      if (a.transactionType === "SELL" && b.transactionType === "BUY") return 1;
-      return 0;
+      return dtA - dtB;
     });
+
+    const skippedTxs = [];
 
     try {
       let updatedAssets = [...assets];
@@ -3090,14 +3092,17 @@ export default function Dashboard({ user, onLogout, showToast }) {
 
         if (!sym) {
           if (!isBatch) showToast("เลือกสินทรัพย์ก่อนนะครับ", "error");
+          else skippedTxs.push({ tx, reason: "ไม่พบสัญลักษณ์สินทรัพย์" });
           continue;
         }
         if (isNaN(newQty) || newQty <= 0) {
           if (!isBatch) showToast("ใส่จำนวนให้ถูกต้อง", "error");
+          else skippedTxs.push({ tx: { symbol: sym, ...tx }, reason: "จำนวนหุ้นไม่ถูกต้อง" });
           continue;
         }
         if (isNaN(newPrice) || newPrice < 0) {
           if (!isBatch) showToast("ใส่ราคาทุนให้ถูกต้อง", "error");
+          else skippedTxs.push({ tx: { symbol: sym, ...tx }, reason: "ราคาทุนไม่ถูกต้อง" });
           continue;
         }
 
@@ -3107,21 +3112,29 @@ export default function Dashboard({ user, onLogout, showToast }) {
         if (isSell) {
           if (existingIdx < 0) {
             // Block in ALL cases — cannot sell what you don't own
-            showToast(
-              `❌ ไม่สามารถขาย ${sym} ได้ เพราะไม่มี ${sym} ในพอร์ตโฟลิโอ\nกรุณาเพิ่มรายการซื้อก่อน`,
-              "error"
-            );
-            if (!isBatch) return;
-            continue; // skip this tx in batch mode
+            if (!isBatch) {
+              showToast(
+                `❌ ไม่สามารถขาย ${sym} ได้ เพราะไม่มี ${sym} ในพอร์ตโฟลิโอ\nกรุณาเพิ่มรายการซื้อก่อน`,
+                "error"
+              );
+              return;
+            } else {
+              skippedTxs.push({ tx: { symbol: sym, ...tx }, reason: "ไม่มีสินทรัพย์นี้ในพอร์ตโฟลิโอ" });
+              continue; // skip this tx in batch mode
+            }
           } else {
             const existing = updatedAssets[existingIdx];
             if (newQty > existing.qty) {
-              showToast(
-                `❌ ขาย ${sym} ไม่ได้ — จำนวนที่ขาย (${fmt.qty(newQty)}) มากกว่าที่ถืออยู่ (${fmt.qty(existing.qty)} หน่วย)`,
-                "error"
-              );
-              if (!isBatch) return;
-              continue; // skip this tx in batch mode
+              if (!isBatch) {
+                showToast(
+                  `❌ ขาย ${sym} ไม่ได้ — จำนวนที่ขาย (${fmt.qty(newQty)}) มากกว่าที่ถืออยู่ (${fmt.qty(existing.qty)} หน่วย)`,
+                  "error"
+                );
+                return;
+              } else {
+                skippedTxs.push({ tx: { symbol: sym, ...tx }, reason: `จำนวนหุ้นไม่เพียงพอ (ขาย ${fmt.qty(newQty)} แต่ในพอร์ตมี ${fmt.qty(existing.qty)})` });
+                continue; // skip this tx in batch mode
+              }
             }
           }
         }
@@ -3139,6 +3152,9 @@ export default function Dashboard({ user, onLogout, showToast }) {
           if (duplicateLot) {
             const confirmMsg = `⚠️ ตรวจพบธุรกรรมที่อาจซ้ำซ้อน:\nมีรายการ ${isSell ? "ขาย" : "ซื้อ"} ${sym} จำนวน ${newQty} หุ้น @ $${newPrice} วันที่ ${buyDate} ${tx.time ? "เวลา " + tx.time + " น." : ""} อยู่ในระบบแล้ว\n\nคุณต้องการบันทึกธุรกรรมนี้เพิ่มอีกรายการใช่หรือไม่?`;
             if (!confirm(confirmMsg)) {
+              if (isBatch) {
+                skippedTxs.push({ tx: { symbol: sym, ...tx }, reason: "ผู้ใช้ยกเลิกเนื่องจากพบธุรกรรมซ้ำซ้อน" });
+              }
               continue; // Skip this transaction
             }
           }
@@ -3205,7 +3221,13 @@ export default function Dashboard({ user, onLogout, showToast }) {
       fetchSparklines(updatedAssets, chartRange);
 
       if (isBatch) {
-        showToast(`✅ นำเข้าธุรกรรมทั้งหมด ${sortedTx.length} รายการสำเร็จ!`, "success");
+        if (skippedTxs.length > 0) {
+          const successCount = sortedTx.length - skippedTxs.length;
+          const errorDetails = skippedTxs.map(s => `- ${s.tx.symbol} (${s.tx.transactionType === "BUY" ? "ซื้อ" : "ขาย"} · ${s.tx.qty} หน่วย): ${s.reason}`).join("\n");
+          alert(`⚠️ นำเข้าธุรกรรมสำเร็จ ${successCount}/${sortedTx.length} รายการ\n\nรายการที่ถูกข้ามเนื่องจากข้อผิดพลาด:\n${errorDetails}`);
+        } else {
+          showToast(`✅ นำเข้าธุรกรรมทั้งหมด ${sortedTx.length} รายการสำเร็จ!`, "success");
+        }
       }
     } catch (err) {
       showToast("บันทึกไม่สำเร็จ: " + err.message, "error");
