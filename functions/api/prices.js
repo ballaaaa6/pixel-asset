@@ -55,8 +55,8 @@ export async function onRequestGet(context) {
         "YTD": { range: "ytd", interval: "1d"  },
         "1Y":  { range: "1y",  interval: "1d"  },
         "2Y":  { range: "2y",  interval: "1d"  },
-        "5Y":  { range: "5y",  interval: "1wk" },
-        "MAX": { range: "max", interval: "1wk" },
+        "5Y":  { range: "5y",  interval: "1d"  },
+        "MAX": { range: "max", interval: "1d"  },
       };
       const { range, interval } = tfMap[tf] || tfMap["1M"];
 
@@ -225,8 +225,8 @@ export async function onRequestGet(context) {
         "YTD": { range: "ytd", interval: "1d"  },
         "1Y":  { range: "1y",  interval: "1d"  },
         "2Y":  { range: "2y",  interval: "1d"  },
-        "5Y":  { range: "5y",  interval: "1wk" },
-        "MAX": { range: "max", interval: "1wk" },
+        "5Y":  { range: "5y",  interval: "1d"  },
+        "MAX": { range: "max", interval: "1d"  },
       };
       const { range, interval } = tfMap[tf] || tfMap["1M"];
 
