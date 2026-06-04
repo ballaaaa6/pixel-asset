@@ -1,0 +1,26 @@
+# Cursor AI Coding Rules & Instructions
+
+This configuration governs coding style, project conventions, and agent instructions for the US Stock & Asset Tracker codebase.
+
+---
+
+## 1. System Instruction for Documentation Updates (CRITICAL)
+
+Every time code is modified, a new feature is added, or any logic is successfully fixed in each chat session, the AI Agent is strictly required to review and update the information in PROJECT_STATE.md and PROJECT_CONTEXT.md to reflect the latest status and accurate codebase state automatically before completing the task.
+
+---
+
+## 2. Technical Framework & Conventions
+
+- **Tech Stack**: React (v18) + Vite + Cloudflare Pages Functions & KV.
+- **Styling**: Vanilla CSS only. Do not use Tailwind CSS, styled-components, or utility classes from other frameworks unless explicitly requested by the user. Modify and scale class declarations directly in `src/index.css`.
+- **No Placeholder Assets**: Avoid writing placeholder graphics or stock images. For demo views or placeholder cards, request image generation or render SVG shapes directly.
+- **Maintain Comments**: Preserve existing codebase documentation, comments, and docstrings unless they conflict with the requested changes.
+
+---
+
+## 3. Communication Guidelines
+
+- **File Referencing**: When mentioning files in chat responses or walkthrough summaries, always provide absolute clickable links using the `file:///` scheme (e.g. `[Dashboard.jsx](file:///d:/antigravity/us%20stock%20tracker/src/components/Dashboard.jsx)`).
+- **Plan Verification**: Always create or update `implementation_plan.md` and present it to the user for feedback and approval before starting any code-modifying activities.
+- **Cloud Synchronization**: Compile and build the project successfully using `npm run build` after any logic modifications, then commit and push changes immediately to the remote cloud repository.

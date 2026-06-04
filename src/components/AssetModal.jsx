@@ -905,7 +905,9 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
                           />
                         </div>
                         <div className="form-group" style={{ marginBottom: 0 }}>
-                          <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: 3 }}>โบรกเกอร์</label>
+                          <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: 3 }}>
+                            {item.type === "fiat" ? "ธนาคาร" : "โบรกเกอร์"}
+                          </label>
                           <input type="text" className="form-input" style={{ height: 32, padding: "0 8px", fontSize: 12 }}
                             value={item.broker || ""} onChange={e => {
                               const updated = [...scannedQueue];
@@ -1346,8 +1348,14 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
             </div>
 
             <div className="form-group" style={{ marginTop: 14, marginBottom: 0 }}>
-              <label className="form-label">โบรกเกอร์ <span style={{ fontSize: 10, color: "var(--text-faint)" }}>(เช่น Dime!, Webull, etc.)</span></label>
-              <input type="text" className="form-input" placeholder="พิมพ์โบรกเกอร์ที่ซื้อขาย"
+              <label className="form-label">
+                {type === "fiat" ? "ธนาคาร" : "โบรกเกอร์"}{" "}
+                <span style={{ fontSize: 10, color: "var(--text-faint)" }}>
+                  {type === "fiat" ? "(เช่น กสิกรไทย, SCB, etc.)" : "(เช่น Dime!, Webull, etc.)"}
+                </span>
+              </label>
+              <input type="text" className="form-input"
+                placeholder={type === "fiat" ? "พิมพ์ธนาคารที่ฝากเงิน" : "พิมพ์โบรกเกอร์ที่ซื้อขาย"}
                 value={broker} onChange={e => setBroker(e.target.value)} />
             </div>
 
