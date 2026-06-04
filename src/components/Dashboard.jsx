@@ -29,6 +29,45 @@ import PortfolioChart from "./charts/PortfolioChart";
 
 const CATEGORY_LABELS = { stock: "หุ้น", crypto: "คริปโต", gold: "ทองคำ/น้ำมัน", fiat: "เงินสด" };
 
+const PRESET_AVATARS = [
+  {
+    id: "bull",
+    emoji: "📈",
+    bg: "linear-gradient(135deg, #3B82F6 0%, #10B981 100%)",
+    svg: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><defs><linearGradient id="bull-g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%233B82F6"/><stop offset="100%" stop-color="%2310B981"/></linearGradient></defs><rect width="100" height="100" rx="50" fill="url(%23bull-g)"/><text x="50%" y="65%" font-size="50" text-anchor="middle" font-family="sans-serif">📈</text></svg>`
+  },
+  {
+    id: "bear",
+    emoji: "🐻",
+    bg: "linear-gradient(135deg, #8B5CF6 0%, #EF4444 100%)",
+    svg: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><defs><linearGradient id="bear-g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%238B5CF6"/><stop offset="100%" stop-color="%23EF4444"/></linearGradient></defs><rect width="100" height="100" rx="50" fill="url(%23bear-g)"/><text x="50%" y="68%" font-size="50" text-anchor="middle" font-family="sans-serif">🐻</text></svg>`
+  },
+  {
+    id: "lion",
+    emoji: "🦁",
+    bg: "linear-gradient(135deg, #F59E0B 0%, #EF4444 100%)",
+    svg: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><defs><linearGradient id="lion-g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%23F59E0B"/><stop offset="100%" stop-color="%23EF4444"/></linearGradient></defs><rect width="100" height="100" rx="50" fill="url(%23lion-g)"/><text x="50%" y="68%" font-size="50" text-anchor="middle" font-family="sans-serif">🦁</text></svg>`
+  },
+  {
+    id: "koala",
+    emoji: "🐨",
+    bg: "linear-gradient(135deg, #0D9488 0%, #06B6D4 100%)",
+    svg: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><defs><linearGradient id="koala-g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%230D9488"/><stop offset="100%" stop-color="%2306B6D4"/></linearGradient></defs><rect width="100" height="100" rx="50" fill="url(%23koala-g)"/><text x="50%" y="68%" font-size="50" text-anchor="middle" font-family="sans-serif">🐨</text></svg>`
+  },
+  {
+    id: "unicorn",
+    emoji: "🦄",
+    bg: "linear-gradient(135deg, #6366F1 0%, #EC4899 100%)",
+    svg: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><defs><linearGradient id="uni-g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%236366F1"/><stop offset="100%" stop-color="%23EC4899"/></linearGradient></defs><rect width="100" height="100" rx="50" fill="url(%23uni-g)"/><text x="50%" y="68%" font-size="50" text-anchor="middle" font-family="sans-serif">🦄</text></svg>`
+  },
+  {
+    id: "fox",
+    emoji: "🦊",
+    bg: "linear-gradient(135deg, #8B5CF6 0%, #D946EF 100%)",
+    svg: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><defs><linearGradient id="fox-g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%238B5CF6"/><stop offset="100%" stop-color="%23D946EF"/></linearGradient></defs><rect width="100" height="100" rx="50" fill="url(%23fox-g)"/><text x="50%" y="68%" font-size="50" text-anchor="middle" font-family="sans-serif">🦊</text></svg>`
+  }
+];
+
 export default function Dashboard({ user, onLogout, showToast }) {
   const [hideValues, setHideValues] = useState(() => {
     return localStorage.getItem("hide_portfolio_values") === "true";
@@ -198,13 +237,41 @@ export default function Dashboard({ user, onLogout, showToast }) {
   const handleAvatarUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      showToast("ขนาดไฟล์ต้องไม่เกิน 2MB", "error");
+    if (file.size > 10 * 1024 * 1024) {
+      showToast("ขนาดไฟล์ต้องไม่เกิน 10MB", "error");
       return;
     }
     const reader = new FileReader();
     reader.onloadend = () => {
-      setProfilePic(reader.result);
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let width = img.width;
+        let height = img.height;
+        const MAX_DIM = 300;
+
+        if (width > MAX_DIM || height > MAX_DIM) {
+          if (width > height) {
+            height = Math.round((height * MAX_DIM) / width);
+            width = MAX_DIM;
+          } else {
+            width = Math.round((width * MAX_DIM) / height);
+            height = MAX_DIM;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.7);
+        setProfilePic(compressedDataUrl);
+      };
+      img.onerror = () => {
+        showToast("ไม่สามารถประมวลผลไฟล์รูปภาพนี้ได้", "error");
+      };
+      img.src = reader.result;
     };
     reader.readAsDataURL(file);
   };
@@ -1696,7 +1763,48 @@ export default function Dashboard({ user, onLogout, showToast }) {
                       />
                     </label>
                   </div>
-                  <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-muted)", textAlign: "center" }}>รองรับไฟล์รูปภาพ JPG, PNG, WebP (ไม่เกิน 2MB)</span>
+                  <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-muted)", textAlign: "center" }}>รองรับไฟล์รูปภาพ JPG, PNG, WebP (ไม่เกิน 10MB)</span>
+
+                  {/* Preset Avatars Row */}
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, marginTop: 4 }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)" }}>หรือเลือกรูปภาพสำเร็จรูป (Presets):</span>
+                    <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                      {PRESET_AVATARS.map((preset) => {
+                        const isSelected = profilePic === preset.svg;
+                        return (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => setProfilePic(preset.svg)}
+                            style={{
+                              background: preset.bg,
+                              border: isSelected ? "2.5px solid var(--primary)" : "2.5px solid transparent",
+                              width: 32,
+                              height: 32,
+                              borderRadius: "50%",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontSize: 16,
+                              cursor: "pointer",
+                              padding: 0,
+                              boxShadow: isSelected ? "0 0 8px rgba(82, 54, 255, 0.4)" : "var(--shadow-xs)",
+                              transition: "transform 0.2s, border-color 0.2s, box-shadow 0.2s"
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.transform = "scale(1.15)";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.transform = "scale(1)";
+                            }}
+                            title={`เลือกรูปประจำตัว ${preset.id}`}
+                          >
+                            {preset.emoji}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Nickname Input */}
