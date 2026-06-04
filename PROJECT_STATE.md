@@ -17,13 +17,23 @@ This document records the current features, pending roadmap items, and immediate
   - **Neutral Pre-Purchase line**: Any price coordinates prior to the first transaction are rendered strictly in a neutral grey color (`#94A3B8`). Supports assets with 1 or more transactions.
   - Interactive date zooming and date range selection highlighting.
 
-- **Dynamic Form Input (`AssetModal.jsx`)**:
+- **Dynamic Form Input & Settings (`AssetModal.jsx`)**:
   - **Broker vs. Bank Context-Switching**: When adding/editing a Cash/Fiat asset, the input dynamically alters its labeling to "Bank (e.g. KBank, SCB, etc.)" and helper placeholders update to bank-related text. For stock, crypto, and commodity classes, it correctly displays "Broker (e.g. Dime!, Webull, etc.)".
   - Chronological transaction lists (lots) with modification logs.
+  - Removed quick preset recommendations for stock search queries to keep the UI clean.
 
-- **Receipt Processing Engine (OCR Scanner)**:
+- **Portfolio Breakdown & Actions (P&L Breakdown Modal)**:
+  - **Dynamic Broker/Bank Linking**: Each asset row in the detailed P&L Breakdown modal renders its corresponding broker/bank badge (e.g. Dime!, KBank), cleanly separating holdings of the same symbol across different accounts.
+  - **Realized P&L Clear Action**: Re-consolidates historical transaction lots down to a single starting BUY lot matching the current quantity and weighted average cost. This resets accumulated past realized gains/losses to 0 without affecting the current portfolio valuation or cost basis.
+  - **Permanent Delete Action (With Safety Checks)**: Allows permanent removal of an asset from the portfolio. Enforces a safety rule preventing deletion if the current holding quantity is greater than 0 (`qty > 0`) to prevent data corruption between the main board and breakdown panels.
+
+- **Display Suffix Hiding (Dynamic Symbol Clean)**:
+  - Added a global formatter `getDisplaySymbol` to hide exchange suffixes (such as `.BK` for Thai stocks, `.HK`, etc.) in frontend UI listings (main board, P&L breakdown table, dropdowns, and details panel) while safely maintaining the original symbols in the backend/KV store for pricing proxy synchronization.
+
+- **Receipt Processing Engine & Auto-mapping**:
   - Multi-file receipt uploader utilizing client-side canvas cropping (Tier 1) and full-image scans (Tier 2).
-  - Auto-fills trade symbol, quantities, prices, action types, and default broker/bank value ("Dime!") for both single files and batch queues.
+  - Auto-fills trade symbol, quantities, prices, action types, and default broker/bank value ("Dime!").
+  - **Dynamic Auto-mapping Fallback**: When OCR parses a plain symbol (e.g., `"PTT"`), the frontend executes a debounced background check against the Yahoo Finance search API (`/api/prices?q=...`) to auto-resolve it to the correct regional symbol (e.g. `PTT.BK`) before loading it into the batch queue.
 
 - **Backend & Database**:
   - Cloudflare Pages Functions serverless endpoints.
@@ -34,7 +44,7 @@ This document records the current features, pending roadmap items, and immediate
 ## 2. Pending Features & Ongoing Enhancements
 
 - **Real-Time Data Pull Optimizations**:
-  - Standardizing price queries to handle international markets and ticker suffixes (e.g., Thai Stocks with `.BK` suffix) cleanly without forcing suffixes in user search input.
+  - Standardizing price queries to handle international markets cleanly.
   - Implementing local memory caching or session storage for Proxy Yahoo Finance queries to reduce API rate-limiting issues.
 
 - **Authentication Improvements**:
@@ -45,5 +55,5 @@ This document records the current features, pending roadmap items, and immediate
 ## 3. Next Steps (Roadmap)
 
 1. **Deploy Production Environment**: Continuously compile files with `npm run build` and sync changes to GitHub / Cloudflare Pages.
-2. **Multi-Currency Support**: Improve auto-conversion calculations for portfolios holding mixed currencies (e.g. THB cash holdings alongside USD stocks) on the home dashboard.
+2. **Multi-Currency Support**: Improve auto-conversion calculations for portfolios holding mixed currencies on the home dashboard.
 3. **Advanced Portfolio Analytics**: Integrate calculation indicators like Sharpe Ratio or asset covariance matrix directly into the stats panel.

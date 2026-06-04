@@ -20,6 +20,15 @@ const fmt = {
   date: (s) => s ? new Date(s).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" }) : "—",
 };
 
+export const getDisplaySymbol = (symbol) => {
+  if (!symbol) return "";
+  const parts = symbol.split(".");
+  if (parts.length > 1 && parts[parts.length - 1].length <= 3) {
+    return parts.slice(0, -1).join(".");
+  }
+  return symbol;
+};
+
 const getDynamicDateFormat = (dateIso, visibleDurationMs, hasMultipleYears = false) => {
   const d = new Date(dateIso);
   const oneHour = 60 * 60 * 1000;
@@ -1805,7 +1814,9 @@ function PnLDetailsModal({
   totalUnrealizedUSD,
   totalGainUSD,
   totalGainPct,
-  initialCapitalUSD
+  initialCapitalUSD,
+  onClearAsset,
+  onDeleteAsset
 }) {
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -2047,12 +2058,13 @@ function PnLDetailsModal({
                 <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)", textAlign: "right" }}>รับรู้แล้ว (Realized)</th>
                 <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)", textAlign: "right" }}>ยังไม่รับรู้ (Unrealized)</th>
                 <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)", textAlign: "right" }}>ผลตอบแทนรวม (USD)</th>
+                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)", textAlign: "center" }}>จัดการ</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>
+                  <td colSpan={8} style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>
                     ไม่พบรายการสินทรัพย์
                   </td>
                 </tr>
@@ -2064,11 +2076,25 @@ function PnLDetailsModal({
                   return (
                     <tr key={item.id || item.symbol} style={{ borderTop: "1px solid var(--border)", background: idx % 2 === 0 ? "#FFFFFF" : "#F8FAFC" }}>
                       <td style={{ padding: "10px 12px", fontWeight: 700 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <span style={{ fontSize: 13 }}>{item.symbol}</span>
+                        <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
+                          <span style={{ fontSize: 13 }}>{getDisplaySymbol(item.symbol)}</span>
                           <span className={`badge-type ${item.category || "stock"}`} style={{ fontSize: 9, padding: "1px 4px", borderRadius: 4 }}>
-                            {item.category || "stock"}
+                            {item.category === "gold" ? (item.symbol === "CL=F" ? "น้ำมัน" : "ทองคำ") : (CATEGORY_LABELS[item.category] || item.category || "stock")}
                           </span>
+                          {item.broker && (
+                            <span style={{
+                              fontSize: 10,
+                              fontWeight: 800,
+                              color: "var(--primary)",
+                              background: "var(--primary-light)",
+                              padding: "1px 6px",
+                              borderRadius: 4,
+                              border: "1px solid rgba(82,54,255,0.15)",
+                              whiteSpace: "nowrap"
+                            }}>
+                              {item.broker}
+                            </span>
+                          )}
                         </div>
                         <div style={{ fontSize: 11, fontWeight: 500, color: "var(--text-muted)", marginTop: 2 }}>{item.name}</div>
                       </td>
@@ -2110,6 +2136,45 @@ function PnLDetailsModal({
                           ({totalPnLTHB >= 0 ? "+" : ""}{fmt.thb(totalPnLTHB)})
                         </div>
                         <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)" }}>({item.totalPnL >= 0 ? "▲" : "▼"}{fmt.pct(item.totalPnLPct)})</div>
+                      </td>
+                      <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                        <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
+                          <button
+                            onClick={() => onClearAsset(item.id)}
+                            style={{
+                              padding: "4px 8px",
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: "#D97706",
+                              background: "#FEF3C7",
+                              border: "1.5px solid #F59E0B",
+                              borderRadius: 6,
+                              cursor: "pointer",
+                              transition: "all 0.2s ease"
+                            }}
+                            title="ล้างกำไรสะสมในอดีต (คงจำนวนหุ้นปัจจุบัน)"
+                          >
+                            ล้างประวัติ
+                          </button>
+                          <button
+                            onClick={() => onDeleteAsset(item.id)}
+                            style={{
+                              padding: "4px 8px",
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: "#DC2626",
+                              background: "#FEE2E2",
+                              border: "1.5px solid #EF4444",
+                              borderRadius: 6,
+                              cursor: isSoldOut ? "pointer" : "not-allowed",
+                              opacity: isSoldOut ? 1 : 0.4,
+                              transition: "all 0.2s ease"
+                            }}
+                            title={isSoldOut ? "ลบสินทรัพย์ออกจากพอร์ต" : "ไม่สามารถลบได้เนื่องจากยังมีหุ้นเหลืออยู่"}
+                          >
+                            ลบ
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -2435,6 +2500,67 @@ export default function Dashboard({ user, onLogout, showToast }) {
   const prevPricesRef = useRef({});
   const assetsRef = useRef([]);
   assetsRef.current = assets;
+
+  const handleClearAsset = async (assetId) => {
+    const asset = assets.find(a => a.id === assetId);
+    if (!asset) return;
+
+    const displaySym = asset.broker ? `${getDisplaySymbol(asset.symbol)} (${asset.broker})` : getDisplaySymbol(asset.symbol);
+    const confirmMsg = `คุณแน่ใจหรือไม่ที่จะล้างประวัติธุรกรรมในอดีตของ ${displaySym}? \n\nการดำเนินการนี้จะรีเซ็ตกำไรสะสมที่รับรู้แล้ว (Realized P&L) ให้กลายเป็น 0 โดยจะคงเหลือเฉพาะหุ้นที่ถืออยู่ปัจจุบันจำนวน ${asset.qty} หน่วย ที่ราคาทุนเฉลี่ย $${(asset.avgCost ?? 0).toFixed(2)} เท่านั้น`;
+    if (!confirm(confirmMsg)) return;
+
+    const updatedAssets = assets.map(a => {
+      if (a.id === assetId) {
+        if (a.qty <= 0) {
+          return { ...a, lots: [], qty: 0, avgCost: 0 };
+        }
+        const resetLot = {
+          id: `${Date.now()}-reset`,
+          date: new Date().toISOString().split("T")[0],
+          time: "00:00",
+          qty: a.qty,
+          price: a.avgCost ?? a.avgPrice ?? 0,
+          broker: a.broker
+        };
+        return {
+          ...a,
+          lots: [resetLot]
+        };
+      }
+      return a;
+    }).filter(a => a.qty > 0 || (a.lots && a.lots.length > 0));
+
+    await savePortfolio(updatedAssets);
+    await fetchPrices(updatedAssets);
+    fetchSparklines(updatedAssets, chartRange);
+    showToast(`ล้างประวัติในอดีตของ ${displaySym} สำเร็จ`, "success");
+  };
+
+  const handleDeleteAsset = async (param) => {
+    const assetId = typeof param === "string" ? param : param?.id;
+    const asset = assets.find(a => a.id === assetId);
+    if (!asset) return;
+
+    const displaySym = asset.broker ? `${getDisplaySymbol(asset.symbol)} (${asset.broker})` : getDisplaySymbol(asset.symbol);
+
+    if (asset.qty > 0) {
+      alert(`❌ ไม่สามารถลบ ${displaySym} ได้เนื่องจากคุณยังมีจำนวนที่ถือครองอยู่ (${asset.qty} หน่วย)\n\nกรุณาทำธุรกรรมขายออกให้หมดก่อนลบสินทรัพย์`);
+      return;
+    }
+
+    const confirmMsg = `คุณแน่ใจหรือไม่ที่จะลบสินทรัพย์ ${displaySym} ออกจากพอร์ตโฟลิโออย่างถาวร?`;
+    if (!confirm(confirmMsg)) return;
+
+    const updatedAssets = assets.filter(a => a.id !== assetId);
+    try {
+      await savePortfolio(updatedAssets);
+      await fetchPrices(updatedAssets);
+      fetchSparklines(updatedAssets, chartRange);
+      showToast(`ลบสินทรัพย์ ${displaySym} ออกเรียบร้อย`, "success");
+    } catch (err) {
+      showToast("ลบไม่สำเร็จ: " + err.message, "error");
+    }
+  };
 
   const savePortfolio = async (updatedAssets) => {
     setAssets(updatedAssets);
@@ -3556,19 +3682,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
     }
   };
 
-  /* ── DELETE ASSET ── */
-  const handleDeleteAsset = async (assetToDelete) => {
-    if (!confirm(`ลบ ${assetToDelete.symbol} ออกจากพอร์ตใช่ไหม?`)) return;
-    const updated = assets.filter(a => a.id !== assetToDelete.id);
-    try {
-      await savePortfolio(updated);
-      showToast(`🗑️ ลบ ${assetToDelete.symbol} เรียบร้อย`, "success");
-      fetchSparklines(updated, chartRange);
-    } catch (err) {
-      showToast("ลบไม่สำเร็จ: " + err.message, "error");
-    }
-  };
-
   /* ── EXPORT / IMPORT ── */
   const handleExport = () => {
     const blob = new Blob([JSON.stringify({ assets, exportedAt: new Date().toISOString() }, null, 2)], { type: "application/json" });
@@ -4037,7 +4150,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                                   <AssetLogo symbol={asset.symbol} category={asset.category} />
                                   <div>
                                     <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 4 }}>
-                                      <span className="asset-symbol">{asset.symbol}</span>
+                                      <span className="asset-symbol">{getDisplaySymbol(asset.symbol)}</span>
                                       <span className={`badge-type ${asset.category || "stock"}`}>
                                         {asset.category === "gold" ? (asset.symbol === "CL=F" ? "น้ำมัน" : "ทองคำ") : (CATEGORY_LABELS[asset.category] || asset.category || "stock")}
                                       </span>
@@ -4209,7 +4322,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                               <AssetLogo symbol={asset.symbol} category={asset.category} />
                               <div>
                                 <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
-                                  <span className="asset-symbol">{asset.symbol}</span>
+                                  <span className="asset-symbol">{getDisplaySymbol(asset.symbol)}</span>
                                   <span className={`badge-type ${asset.category || "stock"}`}>
                                     {asset.category === "gold" ? (asset.symbol === "CL=F" ? "น้ำมัน" : "ทองคำ") : (CATEGORY_LABELS[asset.category] || asset.category || "stock")}
                                   </span>
@@ -4335,6 +4448,8 @@ export default function Dashboard({ user, onLogout, showToast }) {
           totalGainUSD={totalGainUSD}
           totalGainPct={totalGainPct}
           initialCapitalUSD={initialCapitalUSD}
+          onClearAsset={handleClearAsset}
+          onDeleteAsset={handleDeleteAsset}
         />
       )}
 

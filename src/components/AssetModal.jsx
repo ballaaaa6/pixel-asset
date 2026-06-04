@@ -2,6 +2,15 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { X, Search, Save, Plus, Trash2, ChevronDown, ChevronUp, History } from "lucide-react";
 import { buildDimeReceiptPrompt, getDimeReceiptSchema, validateParsedReceipt } from "../utils/ocrParser.js";
 
+const getDisplaySymbol = (symbol) => {
+  if (!symbol) return "";
+  const parts = symbol.split(".");
+  if (parts.length > 1 && parts[parts.length - 1].length <= 3) {
+    return parts.slice(0, -1).join(".");
+  }
+  return symbol;
+};
+
 /* ─── Global Currencies List (165+ สกุลเงินทั่วโลก) ─── */
 const CURRENCIES = [
   { code: "THB", name: "Thai Baht (บาท 🇹🇭)" },
@@ -341,6 +350,28 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
           }, idx);
 
           if (validated) {
+            // Auto-map symbol from Yahoo Finance to get full suffix (e.g. PTT -> PTT.BK)
+            if (validated.category === "stock" || validated.category === "gold") {
+              try {
+                const checkRes = await fetch(`/api/prices?q=${encodeURIComponent(validated.symbol)}`);
+                if (checkRes.ok) {
+                  const suggestions = await checkRes.json();
+                  if (suggestions && suggestions.length > 0) {
+                    const matched = suggestions.find(s => 
+                      s.symbol.toUpperCase() === validated.symbol.toUpperCase() ||
+                      s.symbol.toUpperCase().startsWith(validated.symbol.toUpperCase() + ".")
+                    );
+                    if (matched) {
+                      validated.symbol = matched.symbol;
+                      validated.name = matched.name;
+                    }
+                  }
+                }
+              } catch (err) {
+                console.warn("Failed to auto-map OCR symbol:", err);
+              }
+            }
+
             newScannedItems.push({
               id: `${Date.now()}-workers-ai-${idx}`,
               symbol:          validated.symbol,
@@ -1133,7 +1164,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
                     borderRadius: 16, padding: "10px 14px"
                   }}>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 800, color: "var(--primary)", fontSize: 15 }}>{symbol}</div>
+                      <div style={{ fontWeight: 800, color: "var(--primary)", fontSize: 15 }}>{getDisplaySymbol(symbol)}</div>
                       <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>{name}</div>
                     </div>
                     {!editingAsset && (
@@ -1186,7 +1217,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
                           <div key={item.symbol} className="suggestion-item"
                             onMouseDown={(e) => { e.preventDefault(); pickSuggestion(item); }}>
                             <div className="suggestion-left">
-                              <span className="suggestion-symbol">{item.symbol}</span>
+                              <span className="suggestion-symbol">{getDisplaySymbol(item.symbol)}</span>
                               <span className="suggestion-name">{item.name}</span>
                             </div>
                             <div className="suggestion-right">
@@ -1203,17 +1234,6 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
                 {/* Quick presets */}
                 {!editingAsset && !confirmed && (
                   <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {type === "stock" && (
-                      <>
-                        {[["AAPL","Apple Inc."],["NVDA","NVIDIA Corp."],["TSLA","Tesla Inc."],["PTT.BK","PTT ปตท."]].map(([s,n]) => (
-                          <button key={s} type="button" className="ripple-btn"
-                            style={{ height: 28, borderRadius: 8, padding: "0 10px", fontSize: 11, fontWeight: 700, background: "#F1F5F9", border: "1px solid var(--border)", cursor: "pointer", fontFamily: "inherit" }}
-                            onMouseDown={(e) => { e.preventDefault(); applyPreset(s, n); }}>
-                            {s}
-                          </button>
-                        ))}
-                      </>
-                    )}
                     {type === "crypto" && (
                       <>
                         {[["BTC-USD","Bitcoin"],["ETH-USD","Ethereum"],["SOL-USD","Solana"],["BNB-USD","BNB"]].map(([s,n]) => (

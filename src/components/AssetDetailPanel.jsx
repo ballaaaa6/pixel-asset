@@ -18,6 +18,15 @@ const fmtDate = (iso, tf, hasMultipleYears = false) => {
 };
 const fmtDateShort = (iso) => new Date(iso).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
 
+const getDisplaySymbol = (symbol) => {
+  if (!symbol) return "";
+  const parts = symbol.split(".");
+  if (parts.length > 1 && parts[parts.length - 1].length <= 3) {
+    return parts.slice(0, -1).join(".");
+  }
+  return symbol;
+};
+
 const getDynamicDateFormat = (dateIso, visibleDurationMs, hasMultipleYears = false) => {
   const d = new Date(dateIso);
   const oneHour = 60 * 60 * 1000;
@@ -1802,7 +1811,7 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, historica
             <AssetLogo symbol={asset.symbol} category={asset.category} style={{ width: 48, height: 48, borderRadius: 16, fontSize: 16, flexShrink: 0 }} />
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 20, fontWeight: 900, color: "var(--text-main)" }}>{asset.symbol}</span>
+                <span style={{ fontSize: 20, fontWeight: 900, color: "var(--text-main)" }}>{getDisplaySymbol(asset.symbol)}</span>
                 <span className={`badge-type ${asset.category || "stock"}`}>
                   {asset.category === "gold" ? (asset.symbol === "CL=F" ? "น้ำมัน" : "ทองคำ") : (asset.category || "stock")}
                 </span>

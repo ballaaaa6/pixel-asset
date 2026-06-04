@@ -57,9 +57,22 @@ The application models portfolios dynamically at multiple levels, which forms th
    - **Cash/Fiat (`fiat`)**: Tracks liquid currency reserves (e.g., THB, USD) deposited in various banks.
 3. **Broker/Bank Tier (Sub-Asset Level)**: Under each asset class, transactions and current holdings are grouped by **Broker** (for stocks/commodities/crypto, e.g., Dime!, Webull, Binance) or **Bank** (for cash/fiat, e.g., KBank, SCB, Bangkok Bank). This allows sub-portfolio analysis by tracking which broker or bank holds each individual share or deposit.
 
+### P&L Reset & Removal Mappings
+The system provides two core portfolio administrative operations within the P&L Breakdown modal to manage account history:
+- **Clear Asset History**: Consolidates the transaction lots of an active asset into a single, clean starting BUY transaction at the current average price and holding quantity. This effectively resets accumulated Realized Gains/Losses (closed trades history) to 0 without affecting the asset's active cost basis or current holdings valuation.
+- **Delete Asset holding**: Permanently deletes the asset record and its corresponding transaction lists from the user's portfolio. To ensure data integrity, the system strictly enforces a safety constraint preventing deletion if the asset has a remaining positive balance (`qty > 0`).
+
 ---
 
-## 4. Optical Character Recognition (OCR) 2-Tier Sequence
+## 4. UI Symbol Clean-up & Display Suffix Hiding
+
+To improve user experience and readability, the application introduces a global symbol clean-up mechanism:
+- **Logic**: Suffixes required by data providers like Yahoo Finance (e.g. `.BK` for Bangkok Stock Exchange, `.HK` for Hong Kong, etc.) can make symbol labels look cluttered.
+- **Implementation**: The application uses the `getDisplaySymbol` utility to strip exchange suffixes before rendering ticker names in the user interface (e.g., displaying `PTT.BK` as `PTT`). The full suffix is safely maintained in the backend storage (Cloudflare KV) to guarantee correct pricing calculations and API synchronization.
+
+---
+
+## 5. Optical Character Recognition (OCR) 2-Tier Sequence & Auto-mapping
 
 To parser trade receipts (particularly from Dime! App), the application employs a highly optimized **2-Tier OCR Engine**:
 
@@ -67,9 +80,10 @@ To parser trade receipts (particularly from Dime! App), the application employs 
 graph TD
     Receipt[Dime! Receipt Image] --> Tier1[Tier 1: HTML5 Canvas Cropper]
     Tier1 -->|Segment Image into 3 Bands| OCR1[Extract Key Rectangles]
-    OCR1 -->|Success: Qty, Symbol, Price found| Process[Deliver Validated Result]
+    OCR1 -->|Success: Qty, Symbol, Price found| Automap[Dynamic Auto-mapping check]
     OCR1 -->|Fail: Fields missing| Tier2[Tier 2: Full-Image Scan]
-    Tier2 -->|Run standard Tesseract on whole image| Process
+    Tier2 -->|Run standard Tesseract on whole image| Automap
+    Automap -->|Resolve Base Symbol to Yahoo Symbol| Process[Deliver Validated Result]
 ```
 
 ### Tier 1: HTML5 Canvas Cropping & Split OCR
@@ -83,3 +97,7 @@ graph TD
 ### Tier 2: Full-Image Tesseract Scan (Fallback)
 - **Logic**: Used as a fallback if the canvas division fails or crucial data fields (Symbol, Quantity, Price) are not retrieved during Tier 1.
 - **Execution**: Runs OCR on the full unmodified image and employs regular expression patterns to match values across the text.
+
+### Dynamic Auto-mapping Check (Yahoo Finance Matcher)
+- **Logic**: Extracted symbols from trade receipts are often raw ticker symbols (e.g. `"PTT"`) without exchange suffixes, which fails Yahoo Finance pricing queries.
+- **Execution**: Upon successful OCR parsing, if a symbol lacks its suffix, the frontend sends a debounced query to the proxy autocomplete endpoint (`/api/prices?q=symbol`). It checks for suggestions starting with the base symbol (e.g. mapping `PTT` to `PTT.BK`) and automatically attaches the correct suffix to the transaction before queueing it.
