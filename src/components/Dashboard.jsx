@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   Plus, RefreshCw, LogOut, TrendingUp, TrendingDown,
-  Trash2, Download, Upload, PieChart, Star, BarChart2, Pencil, X, Settings
+  Trash2, Download, Upload, PieChart, Star, BarChart2, Pencil, X, Settings,
+  Eye, EyeOff
 } from "lucide-react";
 import AssetModal from "./AssetModal";
 import AssetDetailPanel from "./AssetDetailPanel";
@@ -9,11 +10,13 @@ import AssetDetailPanel from "./AssetDetailPanel";
 /* ═══════════════════════════════════════════════════════════════
    UTILITY FUNCTIONS
 ═══════════════════════════════════════════════════════════════ */
+let hideValuesGlobal = false;
+
 const fmt = {
-  usd:  (n) => n == null ? "—" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: n < 1 ? 4 : 2 }).format(n),
-  thb:  (n) => n == null ? "—" : "฿" + new Intl.NumberFormat("th-TH", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n),
+  usd:  (n) => hideValuesGlobal ? "****" : (n == null ? "—" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: n < 1 ? 4 : 2 }).format(n)),
+  thb:  (n, decimals = 0) => hideValuesGlobal ? "****" : (n == null ? "—" : "฿" + new Intl.NumberFormat("th-TH", { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(n)),
   pct:  (n) => n == null ? "—" : (n >= 0 ? "+" : "") + n.toFixed(2) + "%",
-  qty:  (n) => n == null ? "—" : new Intl.NumberFormat("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 6 }).format(n),
+  qty:  (n) => hideValuesGlobal ? "****" : (n == null ? "—" : new Intl.NumberFormat("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 6 }).format(n)),
   date: (s) => s ? new Date(s).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" }) : "—",
 };
 
@@ -1957,6 +1960,17 @@ function KPIRow({ totalUSD, totalTHB, todayChange, todayChangeTHB, todayChangePc
    MAIN DASHBOARD COMPONENT
 ═══════════════════════════════════════════════════════════════ */
 export default function Dashboard({ user, onLogout, showToast }) {
+  const [hideValues, setHideValues] = useState(() => {
+    return localStorage.getItem("hide_portfolio_values") === "true";
+  });
+
+  hideValuesGlobal = hideValues;
+
+  useEffect(() => {
+    localStorage.setItem("hide_portfolio_values", hideValues ? "true" : "false");
+    hideValuesGlobal = hideValues;
+  }, [hideValues]);
+
   const [assets, setAssets]               = useState([]);
   const [prices, setPrices]               = useState({});
   const [sparklines, setSparklines]       = useState({});   // { SYM: { dates, closes } }
@@ -3544,7 +3558,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                       <span style={{ opacity: 0.8, fontSize: 12 }}>({fmt.pct(totalGainPct)})</span>
                       <span style={{ opacity: 0.5 }}>|</span>
                       <span>
-                        {totalGainTHB >= 0 ? "▲" : "▼"} {"฿" + new Intl.NumberFormat("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.abs(totalGainTHB))}
+                        {totalGainTHB >= 0 ? "▲" : "▼"} {fmt.thb(Math.abs(totalGainTHB), 2)}
                       </span>
                     </div>
                   )}
@@ -3566,7 +3580,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                   <span className="hero-meta-label">ต้นทุนรวม</span>
                   <span className="hero-meta-value" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
                     <span>{fmt.usd(totalCostUSD)}</span>
-                    <span style={{ fontSize: 11, color: "rgba(255, 255, 255, 0.9)", fontWeight: 600 }}>({ "฿" + new Intl.NumberFormat("th-TH", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(totalCostUSD * exchangeRate) })</span>
+                    <span style={{ fontSize: 11, color: "rgba(255, 255, 255, 0.9)", fontWeight: 600 }}>({fmt.thb(totalCostUSD * exchangeRate, 0)})</span>
                   </span>
                 </div>
               </div>
@@ -3622,7 +3636,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
                   <span style={{ fontSize: 14, fontWeight: 800, color: todayChangeUSD >= 0 ? "#6EE7B7" : "#FCA5A5" }}>
                     {todayChangeUSD >= 0 ? "+" : ""}{fmt.usd(todayChangeUSD)}{" "}
                     <span style={{ fontSize: 11, opacity: 0.85, fontWeight: 700 }}>
-                      ({todayChangeUSD >= 0 ? "+" : ""}{"฿" + new Intl.NumberFormat("th-TH", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(todayChangeUSD * exchangeRate)})
+                      ({todayChangeUSD >= 0 ? "+" : ""}{fmt.thb(todayChangeUSD * exchangeRate, 0)})
                     </span>
                   </span>
                 </div>
@@ -3673,6 +3687,14 @@ export default function Dashboard({ user, onLogout, showToast }) {
                   </div>
                 </div>
                 <div className="action-buttons">
+                  <button
+                    className="btn-icon ripple-btn"
+                    onClick={() => setHideValues(prev => !prev)}
+                    title={hideValues ? "แสดงข้อมูลเงิน" : "ซ่อนข้อมูลเงิน"}
+                    style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+                  >
+                    {hideValues ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
                   <button
                     className={`btn-icon ripple-btn${refreshing ? " spin" : ""}`}
                     onClick={() => fetchPrices(assets)}
@@ -4021,6 +4043,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
           exchangeRate={exchangeRate}
           historicalRates={historicalRates}
           onClose={() => setSelectedAsset(null)}
+          hideValues={hideValues}
         />
       )}
 

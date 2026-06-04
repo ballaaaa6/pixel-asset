@@ -4,10 +4,12 @@ import { X, TrendingUp, TrendingDown, RefreshCw, ShoppingCart, Calendar, History
 /* ══════════════════════════════════════════════════════
    FORMATTERS
 ══════════════════════════════════════════════════════ */
-const fmtUSD  = (n) => n == null ? "—" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: n != null && Math.abs(n) < 1 ? 4 : 2 }).format(n);
-const fmtTHB  = (n) => n == null ? "—" : new Intl.NumberFormat("th-TH", { style: "currency", currency: "THB", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+let hideValuesGlobal = false;
+
+const fmtUSD  = (n) => hideValuesGlobal ? "****" : (n == null ? "—" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: n != null && Math.abs(n) < 1 ? 4 : 2 }).format(n));
+const fmtTHB  = (n) => hideValuesGlobal ? "****" : (n == null ? "—" : new Intl.NumberFormat("th-TH", { style: "currency", currency: "THB", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n));
 const fmtPct  = (n) => n == null ? "—" : (n >= 0 ? "+" : "") + n.toFixed(2) + "%";
-const fmtQty  = (n) => n == null ? "—" : new Intl.NumberFormat("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 6 }).format(n);
+const fmtQty  = (n) => hideValuesGlobal ? "****" : (n == null ? "—" : new Intl.NumberFormat("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 6 }).format(n));
 const fmtDate = (iso, tf, hasMultipleYears = false) => {
   const d = new Date(iso);
   if (tf === "1D") return d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
@@ -132,7 +134,8 @@ const getCurrencyTicker = (symbol) => {
 /* ══════════════════════════════════════════════════════
    MAIN ASSET DETAIL CHART
 ══════════════════════════════════════════════════════ */
-function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset }) {
+function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, hideValues }) {
+  hideValuesGlobal = hideValues;
   const containerRef = useRef(null);
   const [hovered, setHovered] = useState(null);
   const [dims, setDims] = useState({ w: 600, h: 280 });
@@ -213,13 +216,25 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
       const targetDateOnly = dateStr.split("T")[0];
       const lotsBeforeOrOn = sortedLots.filter(lot => lot && lot.date && lot.date <= targetDateOnly);
 
-      if (lotsBeforeOrOn.length === 0) {
-        return { qty: 0, cost: 0 };
-      }
+      let runningQty = 0;
+      let runningAvgCost = 0;
 
-      const totalQty = lotsBeforeOrOn.reduce((sum, l) => sum + (l.qty || 0), 0);
-      const totalCost = lotsBeforeOrOn.reduce((sum, l) => sum + (l.qty || 0) * (l.price || 0), 0);
-      return { qty: totalQty, cost: totalCost };
+      lotsBeforeOrOn.forEach(lot => {
+        const lotQty = lot.qty || 0;
+        const lotPrice = lot.price || 0;
+
+        if (lotQty > 0) {
+          const oldCost = runningQty * runningAvgCost;
+          const newCost = oldCost + (lotQty * lotPrice);
+          runningQty += lotQty;
+          runningAvgCost = runningQty > 0 ? newCost / runningQty : 0;
+        } else if (lotQty < 0) {
+          const sellQty = Math.abs(lotQty);
+          runningQty = Math.max(0, runningQty - sellQty);
+        }
+      });
+
+      return { qty: runningQty, cost: runningQty * runningAvgCost, avgCost: runningAvgCost };
     };
 
     const isCashAsset = asset?.type === "fiat" || asset?.category === "fiat";
@@ -257,9 +272,9 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
       let costUSD = 0;
       if (stats.qty > 0) {
         if (isCashAsset) {
-          costUSD = stats.cost / stats.qty;
+          costUSD = stats.avgCost;
         } else {
-          costUSD = isThai ? (stats.cost / stats.qty) / exchangeRate : (stats.cost / stats.qty);
+          costUSD = isThai ? stats.avgCost / exchangeRate : stats.avgCost;
         }
       } else {
         costUSD = isThai ? avgCost / exchangeRate : avgCost;
@@ -1176,7 +1191,8 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset })
 ══════════════════════════════════════════════════════ */
 const TF_OPTIONS = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "5Y", "ตั้งแต่ซื้อ"];
 
-export default function AssetDetailPanel({ asset, price, exchangeRate, historicalRates, onClose }) {
+export default function AssetDetailPanel({ asset, price, exchangeRate, historicalRates, onClose, hideValues }) {
+  hideValuesGlobal = hideValues;
   const [tf, setTf]         = useState("1M");
   const [chartData, setChartData] = useState(null);
   const [loading, setLoading]     = useState(false);
@@ -1455,60 +1471,57 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, historica
 
         {/* ── Header ── */}
         <div className="asset-detail-header">
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <AssetLogo symbol={asset.symbol} category={asset.category} style={{ width: 48, height: 48, borderRadius: 16, fontSize: 16 }} />
-            <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, minWidth: 0 }}>
+            <AssetLogo symbol={asset.symbol} category={asset.category} style={{ width: 48, height: 48, borderRadius: 16, fontSize: 16, flexShrink: 0 }} />
+            <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 <span style={{ fontSize: 20, fontWeight: 900, color: "var(--text-main)" }}>{asset.symbol}</span>
                 <span className={`badge-type ${asset.category || "stock"}`}>{asset.category || "stock"}</span>
               </div>
-              <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>{asset.name}</div>
+              <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{asset.name}</div>
             </div>
           </div>
-          <button className="btn-close ripple-btn" onClick={onClose} style={{ width: 36, height: 36 }}>
-            <X size={18} />
-          </button>
-        </div>
 
-        {/* ── Price Summary Bar ── */}
-        <div className="asset-detail-price-bar">
-          {isCashAsset ? (
-            <div>
-              <div style={{ fontSize: 28, fontWeight: 900, color: "var(--text-main)", lineHeight: 1 }}>
-                {fmtQty(asset.qty)} {asset.symbol}
-              </div>
-              <div style={{ fontSize: 13, color: "var(--text-faint)", marginTop: 4 }}>
-                ≈ {fmtUSD(valueUSD)}
-              </div>
-              <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 2 }}>
-                ({fmtTHB(valueUSD * exchangeRate)})
-              </div>
-            </div>
-          ) : (
-            <>
-              <div>
-                <div style={{ fontSize: 28, fontWeight: 900, color: "var(--text-main)", lineHeight: 1 }}>
-                  {fmtUSD(priceUSD)}
+          {/* Price/Change info */}
+          <div style={{ display: "flex", alignItems: "center", gap: 16, marginRight: 8, flexShrink: 0 }}>
+            {isCashAsset ? (
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 20, fontWeight: 900, color: "var(--text-main)", lineHeight: 1.1 }}>
+                  {fmtQty(asset.qty)} {asset.symbol}
                 </div>
                 <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 2 }}>
-                  ({fmtTHB(priceUSD * exchangeRate)})
+                  ≈ {fmtUSD(valueUSD)} <span style={{ fontSize: 11 }}>({fmtTHB(valueUSD * exchangeRate)})</span>
                 </div>
               </div>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: 18, fontWeight: 800, color: isUp ? "var(--gain)" : "var(--loss)" }}>
-                  {isUp ? "▲" : "▼"} {fmtPct(changePct)}
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 20, fontWeight: 900, color: "var(--text-main)", lineHeight: 1.1 }}>
+                    {fmtUSD(priceUSD)}
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 2 }}>
+                    {fmtTHB(priceUSD * exchangeRate)}
+                  </div>
                 </div>
-                <div style={{ fontSize: 12, color: "var(--text-faint)" }}>วันนี้</div>
+                <div style={{ textAlign: "right", background: isUp ? "#DCFCE7" : "#FEE2E2", padding: "4px 8px", borderRadius: 8 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: isUp ? "var(--gain)" : "var(--loss)", display: "flex", alignItems: "center", gap: 2 }}>
+                    {isUp ? "▲" : "▼"} {fmtPct(changePct)}
+                  </div>
+                </div>
               </div>
-            </>
-          )}
+            )}
+          </div>
+
+          <button className="btn-close ripple-btn" onClick={onClose} style={{ width: 36, height: 36, flexShrink: 0 }}>
+            <X size={18} />
+          </button>
         </div>
 
         {/* ── KPI Mini Grid ── */}
         <div className="asset-detail-kpi-grid" style={{ gridTemplateColumns: isCashAsset ? "repeat(2, 1fr)" : "repeat(4, 1fr)" }}>
           <div className="asset-detail-kpi">
             <div className="asset-detail-kpi-label">จำนวนถือ</div>
-            <div className="asset-detail-kpi-val">{fmtQty(asset.qty)} {asset.symbol}</div>
+            <div className="asset-detail-kpi-val">{fmtQty(asset.qty)}</div>
           </div>
           {!isCashAsset && (
             <div className="asset-detail-kpi">
@@ -1627,6 +1640,7 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, historica
                 isThai={isThai}
                 exchangeRate={exchangeRate}
                 asset={asset}
+                hideValues={hideValues}
               />
             ) : null}
           </div>
@@ -1665,7 +1679,7 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, historica
                 border: "1px solid var(--border)",
                 borderRadius: 14,
                 overflowY: "auto",
-                maxHeight: "220px"
+                maxHeight: "340px"
               }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                   <thead>
