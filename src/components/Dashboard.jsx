@@ -1,2481 +1,41 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import {
-  Plus, RefreshCw, LogOut, TrendingUp, TrendingDown,
-  Trash2, Download, Upload, PieChart, Star, BarChart2, Pencil, X, Settings,
-  Eye, EyeOff
-} from "lucide-react";
+import { Plus, RefreshCw, LogOut, Trash2, Download, Upload, PieChart, Pencil, X, Settings, Eye, EyeOff } from "lucide-react";
 import AssetModal from "./AssetModal";
 import AssetDetailPanel from "./AssetDetailPanel";
 
-/* ═══════════════════════════════════════════════════════════════
-   UTILITY FUNCTIONS
-═══════════════════════════════════════════════════════════════ */
-let hideValuesGlobal = false;
+import { 
+  fmtUSD, 
+  fmtTHB, 
+  fmtPct, 
+  fmtQty, 
+  fmtDate 
+} from "../utils/formatters";
+
+import { 
+  getDisplaySymbol, 
+  getAssetFullName, 
+  getCurrencyTicker, 
+  getCurrencyPriceUSD, 
+  getRealizedPnL 
+} from "../utils/assetHelpers";
+
+import DashboardHeader from "./dashboard/DashboardHeader";
+import KPIRow from "./dashboard/KPIRow";
+import PortfolioSummary from "./dashboard/PortfolioSummary";
+import DonutChart from "./dashboard/DonutChart";
+import AssetTable from "./dashboard/AssetTable";
+import PnLDetailsModal from "./dashboard/PnLDetailsModal";
+import PortfolioChart from "./charts/PortfolioChart";
 
-const fmt = {
-  usd:  (n) => hideValuesGlobal ? "****" : (n == null ? "—" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: n < 1 ? 4 : 2 }).format(n)),
-  thb:  (n, decimals = 0) => hideValuesGlobal ? "****" : (n == null ? "—" : "฿" + new Intl.NumberFormat("th-TH", { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(n)),
-  pct:  (n) => n == null ? "—" : (n >= 0 ? "+" : "") + n.toFixed(2) + "%",
-  qty:  (n) => hideValuesGlobal ? "****" : (n == null ? "—" : new Intl.NumberFormat("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 6 }).format(n)),
-  date: (s) => s ? new Date(s).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" }) : "—",
-};
-
-export const getDisplaySymbol = (symbol) => {
-  if (!symbol) return "";
-  const parts = symbol.split(".");
-  if (parts.length > 1 && parts[parts.length - 1].length <= 3) {
-    return parts.slice(0, -1).join(".");
-  }
-  return symbol;
-};
-
-export const ASSET_NAME_MAP = {
-  "MU": "Micron Technology, Inc.",
-  "AAPL": "Apple Inc.",
-  "TSLA": "Tesla, Inc.",
-  "NVDA": "NVIDIA Corporation",
-  "MSFT": "Microsoft Corporation",
-  "AMZN": "Amazon.com, Inc.",
-  "GOOGL": "Alphabet Inc.",
-  "GOOG": "Alphabet Inc.",
-  "META": "Meta Platforms, Inc.",
-  "NFLX": "Netflix, Inc.",
-  "AMD": "Advanced Micro Devices, Inc.",
-  "INTC": "Intel Corporation",
-  "BABA": "Alibaba Group Holding Limited",
-  "ASML": "ASML Holding N.V.",
-  "TSM": "Taiwan Semiconductor Manufacturing Company, Limited",
-  "DIS": "The Walt Disney Company",
-  "NKE": "NIKE, Inc.",
-  "JPM": "JPMorgan Chase & Co.",
-  "V": "Visa Inc.",
-  "MA": "Mastercard Incorporated",
-  "WMT": "Walmart Inc.",
-  "PG": "The Procter & Gamble Company",
-  "KO": "The Coca-Cola Company",
-  "PEP": "PepsiCo, Inc.",
-  "COST": "Costco Wholesale Corporation",
-  "AVGO": "Broadcom Inc.",
-  "QCOM": "Qualcomm Incorporated",
-  "TXN": "Texas Instruments Incorporated",
-  "ADBE": "Adobe Inc.",
-  "CRM": "Salesforce, Inc.",
-  "ORCL": "Oracle Corporation",
-  "ACN": "Accenture plc",
-  "MCD": "McDonald's Corporation",
-  "SBUX": "Starbucks Corporation",
-  "CAT": "Caterpillar Inc.",
-  "GE": "General Electric Company",
-  "F": "Ford Motor Company",
-  "GM": "General Motors Company",
-  "XOM": "Exxon Mobil Corporation",
-  "CVX": "Chevron Corporation",
-  "GC=F": "Spot Gold (ทองคำตลาดโลก)",
-  "CL=F": "Crude Oil (น้ำมันดิบตลาดโลก)",
-  "OIL": "Crude Oil (น้ำมันดิบตลาดโลก)",
-  "GOLD": "Spot Gold (ทองคำตลาดโลก)",
-  "PTT.BK": "PTT Public Company Limited",
-  "CPALL.BK": "CP ALL Public Company Limited",
-  "AOT.BK": "Airports of Thailand Public Company Limited",
-  "BDMS.BK": "Bangkok Dusit Medical Services Public Company Limited",
-  "KBANK.BK": "Kasikornbank Public Company Limited",
-  "SCB.BK": "SCB X Public Company Limited",
-  "ADVANC.BK": "Advanced Info Service Public Company Limited",
-  "GULF.BK": "Gulf Energy Development Public Company Limited",
-  "PTTEP.BK": "PTT Exploration and Production Public Company Limited",
-  "INTUCH.BK": "Intouch Holdings Public Company Limited",
-  "BDMS": "Bangkok Dusit Medical Services Public Company Limited",
-  "KBANK": "Kasikornbank Public Company Limited",
-  "SCB": "SCB X Public Company Limited",
-  "THB": "Thai Baht (เงินบาทไทย ฿)",
-  "USD": "US Dollar (ดอลลาร์สหรัฐ $)",
-  "EUR": "Euro (ยูโร 🇪🇺)",
-  "GBP": "British Pound (ปอนด์สหราชอาณาจักร 🇬🇧)",
-  "JPY": "Japanese Yen (เยนญี่ปุ่น 🇯🇵)",
-  "SGD": "Singapore Dollar (ดอลลาร์สิงคโปร์ 🇸🇬)",
-  "HKD": "Hong Kong Dollar (ดอลลาร์ฮ่องกง 🇭🇰)",
-  "AUD": "Australian Dollar (ดอลลาร์ออสเตรเลีย 🇦🇺)"
-};
-
-export const getAssetFullName = (symbol, name, category) => {
-  const symUpper = (symbol || "").toUpperCase();
-  if (ASSET_NAME_MAP[symUpper]) return ASSET_NAME_MAP[symUpper];
-  if (symUpper.endsWith(".BK")) {
-    const base = symUpper.replace(".BK", "");
-    if (!name || name === symbol || name === base) {
-      return `${base} Public Company Limited`;
-    }
-  }
-  if (category === "gold") {
-    if (symUpper === "CL=F") return "Crude Oil (น้ำมันดิบตลาดโลก)";
-    return "Spot Gold (ทองคำตลาดโลก)";
-  }
-  if (name && name.toUpperCase() !== symUpper) return name;
-  return `${symUpper} Asset`;
-};
-
-
-const getDynamicDateFormat = (dateIso, visibleDurationMs, hasMultipleYears = false, isTooltip = false) => {
-  const d = new Date(dateIso);
-  const oneHour = 60 * 60 * 1000;
-  const oneDay = 24 * oneHour;
-  const tenDays = 10 * oneDay;
-  const sixMonths = 180 * oneDay;
-
-  const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0;
-
-  if (visibleDurationMs <= oneDay) {
-    return d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
-  }
-
-  if (isTooltip && hasTime) {
-    return d.toLocaleDateString("th-TH", { day: "numeric", month: "short" }) + " " + d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
-  }
-
-  if (visibleDurationMs <= sixMonths) {
-    return d.toLocaleDateString("th-TH", { day: "numeric", month: "short" });
-  } else {
-    return d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: hasMultipleYears ? "2-digit" : undefined });
-  }
-};
-
-const interpolateData = (data, visibleDurationMs) => {
-  if (!data || data.length < 2) return data;
-  
-  let intervalMs = 0;
-  const oneMin = 60 * 1000;
-  const oneHour = 60 * oneMin;
-  const oneDay = 24 * oneHour;
-
-  if (visibleDurationMs < 6 * oneHour) {
-    intervalMs = 1 * oneMin;
-  } else if (visibleDurationMs < 24 * oneHour) {
-    intervalMs = 5 * oneMin;
-  } else if (visibleDurationMs < 3 * oneDay) {
-    intervalMs = 15 * oneMin;
-  } else if (visibleDurationMs < 10 * oneDay) {
-    intervalMs = 1 * oneHour;
-  } else if (visibleDurationMs < 45 * oneDay) {
-    intervalMs = 4 * oneHour;
-  } else if (visibleDurationMs < 180 * oneDay) {
-    intervalMs = 12 * oneHour;
-  } else {
-    return data;
-  }
-
-  const interpolated = [];
-  
-  for (let i = 0; i < data.length - 1; i++) {
-    const p1 = data[i];
-    const p2 = data[i + 1];
-    
-    const t1 = new Date(p1.date).getTime();
-    const t2 = new Date(p2.date).getTime();
-    const diff = t2 - t1;
-    
-    interpolated.push(p1);
-    
-    if (diff > intervalMs) {
-      const steps = Math.floor(diff / intervalMs);
-      for (let s = 1; s < steps; s++) {
-        const t = t1 + s * intervalMs;
-        const ratio = (t - t1) / diff;
-        
-        // Linear interpolation for value
-        const val = p1.value + (p2.value - p1.value) * ratio;
-        const cost = p1.cost != null ? p1.cost : null;
-        
-        interpolated.push({
-          date: new Date(t).toISOString(),
-          value: val,
-          cost: cost
-        });
-      }
-    }
-  }
-  
-  interpolated.push(data[data.length - 1]);
-  return interpolated;
-};
-
-
-/* Smooth Bezier Curve Path for SVG */
-function smoothPath(pts) {
-  if (!pts || pts.length < 2) return "";
-  let d = `M ${pts[0].x},${pts[0].y}`;
-  for (let i = 0; i < pts.length - 1; i++) {
-    const p0 = pts[i - 1] || pts[i];
-    const p1 = pts[i];
-    const p2 = pts[i + 1];
-    const p3 = pts[i + 2] || p2;
-    const cp1x = p1.x + (p2.x - p0.x) * 0.22;
-    const cp1y = p1.y + (p2.y - p0.y) * 0.22;
-    const cp2x = p2.x - (p3.x - p1.x) * 0.22;
-    const cp2y = p2.y - (p3.y - p1.y) * 0.22;
-    d += ` C ${cp1x.toFixed(2)},${cp1y.toFixed(2)} ${cp2x.toFixed(2)},${cp2y.toFixed(2)} ${p2.x},${p2.y}`;
-  }
-  return d;
-}
-
-/* Step-like historical Cost line (Dashed) */
-function stepPath(pts) {
-  if (!pts || pts.length < 2) return "";
-  let d = `M ${pts[0].x.toFixed(2)},${pts[0].y.toFixed(2)}`;
-  for (let i = 0; i < pts.length - 1; i++) {
-    const nextX = pts[i + 1].x;
-    const nextY = pts[i + 1].y;
-    d += ` L ${nextX.toFixed(2)},${pts[i].y.toFixed(2)} L ${nextX.toFixed(2)},${nextY.toFixed(2)}`;
-  }
-  return d;
-}
-
-/* Smooth data points using a moving average filter */
-function smoothPoints(points, toY) {
-  if (!points || points.length < 5) return points;
-  const windowSize = points.length > 50 ? 5 : 3;
-  const half = Math.floor(windowSize / 2);
-  return points.map((pt, idx) => {
-    if (!pt || pt.value == null) return pt;
-    if (idx < half || idx >= points.length - half) return pt;
-    let sum = 0;
-    let count = 0;
-    for (let w = -half; w <= half; w++) {
-      const neighbor = points[idx + w];
-      if (neighbor && neighbor.value != null) {
-        sum += neighbor.value;
-        count++;
-      }
-    }
-    if (count === 0) return pt;
-    return { ...pt, y: toY(sum / count) };
-  });
-}
-
-
-/* ═══════════════════════════════════════════════════════════════
-   ASSET LOGO with multi-source fallback
-═══════════════════════════════════════════════════════════════ */
-function AssetLogo({ symbol, category, style }) {
-  const [srcIndex, setSrcIndex] = useState(0);
-  const sym = symbol ? symbol.split(".")[0].toUpperCase() : "";
-
-  // Build ordered list of logo sources to try
-  const sources = useMemo(() => {
-    if (!sym) return [];
-    const cat = category || "stock";
-
-    if (cat === "fiat") {
-      const code = ({
-        THB:"th",USD:"us",EUR:"eu",JPY:"jp",GBP:"gb",AUD:"au",CAD:"ca",
-        SGD:"sg",CHF:"ch",CNY:"cn",HKD:"hk",KRW:"kr",INR:"in",NZD:"nz",
-        SEK:"se",NOK:"no",DKK:"dk",MYR:"my",IDR:"id",PHP:"ph",VND:"vn",
-        TWD:"tw",BRL:"br",RUB:"ru",ZAR:"za",TRY:"tr",MXN:"mx"
-      })[sym] || sym.slice(0,2).toLowerCase();
-      return [`https://flagcdn.com/w80/${code}.png`];
-    }
-
-    if (cat === "crypto") {
-      return [
-        `https://assets.coincap.io/assets/icons/${sym.toLowerCase()}@2x.png`,
-        `https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons/128/color/${sym.toLowerCase()}.png`,
-        `https://www.google.com/s2/favicons?sz=128&domain=${sym.toLowerCase()}.org`
-      ];
-    }
-
-    if (cat === "gold" || sym === "XAU" || sym === "GLD" || sym === "IAU" || sym === "CL" || (symbol && symbol.toUpperCase() === "CL=F")) {
-      if (sym === "CL" || (symbol && symbol.toUpperCase() === "CL=F")) {
-        return [`https://images.financialmodelingprep.com/symbol/USO.png`];
-      }
-      return [`https://images.financialmodelingprep.com/symbol/GLD.png`];
-    }
-
-    // Stock: try Financial Modeling Prep (free, no token needed), then logo.dev, then TradingView, then Google favicon
-    return [
-      `https://images.financialmodelingprep.com/symbol/${sym}.png`,
-      `https://img.logo.dev/ticker/${sym}?token=pk_R4dEIaKTRG-i8tSiILBNZA&size=128&format=png`,
-      `https://s3-symbol-logo.tradingview.com/stock/${sym.toLowerCase()}.svg`,
-      `https://www.google.com/s2/favicons?sz=128&domain=${sym.toLowerCase()}.com`
-    ];
-  }, [sym, category]);
-
-  // Reset when symbol changes
-  useEffect(() => { setSrcIndex(0); }, [sym, category]);
-
-  if (!sources.length || srcIndex >= sources.length) {
-    // Final fallback: colourful text initials
-    return (
-      <div className={`asset-icon-wrapper ${category || "stock"}`} style={style}>
-        {sym.slice(0, 2)}
-      </div>
-    );
-  }
-
-  return (
-    <img
-      src={sources[srcIndex]}
-      alt={sym}
-      onError={() => setSrcIndex(i => i + 1)}
-      style={{
-        width: 38, height: 38, borderRadius: 12,
-        objectFit: "contain", background: "#FFFFFF",
-        padding: 4, border: "1px solid var(--border)",
-        boxShadow: "var(--shadow-xs)", flexShrink: 0,
-        ...style
-      }}
-    />
-  );
-}
-
-
-const getCurrencyTicker = (symbol) => {
-  if (symbol === "USD") return "USD";
-  if (["EUR", "GBP", "AUD", "NZD"].includes(symbol)) {
-    return `${symbol}USD=X`;
-  }
-  return `${symbol}=X`;
-};
-
-const getCurrencyPriceUSD = (symbol, prices, exchangeRate) => {
-  if (symbol === "USD") return 1.0;
-  const ticker = getCurrencyTicker(symbol);
-  const pData = prices[ticker];
-  const priceVal = pData?.price;
-  if (priceVal != null && priceVal > 0) {
-    if (["EUR", "GBP", "AUD", "NZD"].includes(symbol)) {
-      return priceVal;
-    }
-    return 1.0 / priceVal;
-  }
-  if (symbol === "THB") return 1.0 / (exchangeRate || 35.0);
-  return 1.0;
-};
-
-function getPoints(values, W, H, padX = 0, padY = 10) {
-  if (!values || values.length < 2) return [];
-  const clean = values.filter(v => v != null && isFinite(v));
-  if (clean.length < 2) return [];
-  const min = Math.min(...clean);
-  const max = Math.max(...clean);
-  const range = max - min || 1;
-  const iW = W - padX * 2;
-  const iH = H - padY * 2;
-  return values.map((v, i) => ({
-    x: padX + (i / (values.length - 1)) * iW,
-    y: padY + ((max - (v ?? min)) / range) * iH,
-  }));
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   SPARKLINE MINI CHART
-═══════════════════════════════════════════════════════════════ */
-const SparklineChart = React.memo(function SparklineChart({ closes }) {
-  const W = 70, H = 32;
-  if (!closes || closes.length < 3) {
-    return (
-      <div className="sparkline-cell skeleton" style={{ borderRadius: 6 }} />
-    );
-  }
-  const pts = getPoints(closes, W, H, 2, 4);
-  const isUp = closes[closes.length - 1] >= closes[0];
-  const color = isUp ? "var(--gain)" : "var(--loss)";
-  const fill = isUp ? "rgba(0,185,138,0.12)" : "rgba(255,75,85,0.12)";
-  const linePath = smoothPath(pts);
-  const first = pts[0], last = pts[pts.length - 1];
-  const fillPath = linePath + ` L ${last.x},${H} L ${first.x},${H} Z`;
-
-  return (
-    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="sparkline-svg">
-      <path d={fillPath} fill={fill} />
-      <path d={linePath} fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx={last.x} cy={last.y} r="2.5" fill={color} />
-    </svg>
-  );
-});
-
-/* ═══════════════════════════════════════════════════════════════
-   PORTFOLIO LINE CHART (with hover tooltip)
-═══════════════════════════════════════════════════════════════ */
-function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate, prices }) {
-  const svgRef = useRef(null);
-  const [hovered, setHovered] = useState(null); // { idx, originalIdx, x, y, value, date }
-  const [dims, setDims] = useState({ w: 800, h: 350 });
-  const [zoomRange, setZoomRange] = useState(null); // { start: number, end: number }
-  const [dragStart, setDragStart] = useState(null); // { x, type: "zoom" | "pan" | "diff", startZoom }
-  const [dragEnd, setDragEnd] = useState(null); // { x }
-  const [diffStartIdx, setDiffStartIdx] = useState(null);
-  const [diffEndIdx, setDiffEndIdx] = useState(null);
-  const [isDiffActive, setIsDiffActive] = useState(false);
-  const touchRef = useRef({ lastX: 0, lastY: 0, type: null, startDist: 0, startZoom: null, isPinching: false, centerX: 0 });
-  const lastTouchTime = useRef(0);
-
-  const diffStartIdxRef = useRef(null);
-  const diffEndIdxRef = useRef(null);
-
-  const updateDiffStartIdx = (val) => {
-    setDiffStartIdx(val);
-    diffStartIdxRef.current = val;
-  };
-
-  const updateDiffEndIdx = (val) => {
-    setDiffEndIdx(val);
-    diffEndIdxRef.current = val;
-  };
-
-
-  useEffect(() => {
-    setZoomRange(null);
-  }, [history, range]);
-
-  // Responsive resizing
-  useEffect(() => {
-    const obs = new ResizeObserver(entries => {
-      const e = entries[0];
-      if (e) {
-        const isMobile = e.contentRect.width < 500;
-        setDims({
-          w: e.contentRect.width,
-          h: isMobile
-            ? Math.min(500, Math.max(320, e.contentRect.width * 0.88))
-            : Math.min(550, Math.max(420, e.contentRect.width * 0.70))
-        });
-      }
-    });
-    if (svgRef.current) obs.observe(svgRef.current);
-    return () => obs.disconnect();
-  }, [history]);
-
-  const W = dims.w;
-  const H = dims.h;
-
-  const isMobile = W < 500;
-  const PAD_L = isMobile ? 30 : 42;
-  const PAD_R = isMobile ? 12 : 24;
-  const PAD_T = isMobile ? 4 : 6;
-  const PAD_B = isMobile ? 18 : 24;
-
-  const iW = W - PAD_L - PAD_R;
-  const iH = H - PAD_T - PAD_B;
-
-  const RANGES = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "5Y", "MAX"];
-
-  const rawDisplayedData = useMemo(() => {
-    if (!history) return [];
-    if (!zoomRange) return history;
-    return history.slice(zoomRange.start, zoomRange.end + 1);
-  }, [history, zoomRange]);
-
-  const visibleDurationMs = useMemo(() => {
-    if (!rawDisplayedData || rawDisplayedData.length < 2) return 0;
-    const firstTime = new Date(rawDisplayedData[0].date).getTime();
-    const lastTime = new Date(rawDisplayedData[rawDisplayedData.length - 1].date).getTime();
-    return lastTime - firstTime;
-  }, [rawDisplayedData]);
-
-  const displayedData = useMemo(() => {
-    const interpolated = interpolateData(rawDisplayedData, visibleDurationMs);
-    if (!interpolated || interpolated.length < 2) return interpolated;
-
-    // Pre-map each lot of each asset to its closest index in interpolated for exact marker alignment
-    const assetLotsWithMappedIdx = assets.map(asset => {
-      const isThai = asset.symbol.toUpperCase().endsWith(".BK");
-      const isCashAsset = asset.type === "fiat" || asset.category === "fiat";
-      
-      const rawLots = asset.lots && asset.lots.length > 0
-        ? asset.lots
-        : [{ id: "virtual", date: "1970-01-01", time: "00:00", qty: asset.qty, price: (asset.avgCost ?? asset.avgPrice ?? 0) }];
-        
-      const mappedLots = rawLots.map(lot => {
-        if (!lot || !lot.date) return null;
-        
-        // Construct full ISO/timestamp for the lot
-        const lotTime = new Date(lot.date + "T" + (lot.time || "00:00") + ":00.000Z").getTime();
-        
-        // Find closest index in interpolated
-        let bestIdx = 0;
-        let bestDiff = Infinity;
-        interpolated.forEach((d, idx) => {
-          const dTime = new Date(d.date).getTime();
-          const diff = Math.abs(dTime - lotTime);
-          if (diff < bestDiff) {
-            bestDiff = diff;
-            bestIdx = idx;
-          }
-        });
-        
-        return {
-          ...lot,
-          mappedIdx: bestIdx
-        };
-      }).filter(Boolean);
-      
-      return {
-        ...asset,
-        lots: mappedLots,
-        isThai,
-        isCashAsset
-      };
-    });
-
-    // Recalculate cost for each point in interpolated
-    return interpolated.map((d, idx) => {
-      let totalCostUSD = 0;
-      let hasPurchasedAny = false;
-
-      assetLotsWithMappedIdx.forEach(asset => {
-        const lotsBeforeOrOn = asset.lots.filter(lot => lot.mappedIdx <= idx);
-        if (lotsBeforeOrOn.length === 0) return; // not purchased yet
-        
-        hasPurchasedAny = true;
-
-        const costUSD = lotsBeforeOrOn.reduce((sum, l) => {
-          let priceUSD = asset.isThai ? (l.price || 0) / exchangeRate : (l.price || 0);
-          if (asset.isCashAsset) {
-            if (asset.symbol === "USD") {
-              priceUSD = 1.0;
-            } else {
-              priceUSD = l.price || getCurrencyPriceUSD(asset.symbol, prices, exchangeRate);
-            }
-          }
-          return sum + (l.qty || 0) * priceUSD;
-        }, 0);
-
-        totalCostUSD += costUSD;
-      });
-
-      return {
-        ...d,
-        cost: hasPurchasedAny ? totalCostUSD : null
-      };
-    });
-  }, [rawDisplayedData, visibleDurationMs, assets, prices, exchangeRate]);
-
-  const hasMultipleYears = useMemo(() => {
-    if (!rawDisplayedData || rawDisplayedData.length < 2) return false;
-    const firstYear = new Date(rawDisplayedData[0].date).getFullYear();
-    const lastYear = new Date(rawDisplayedData[rawDisplayedData.length - 1].date).getFullYear();
-    return firstYear !== lastYear;
-  }, [rawDisplayedData]);
-
-  // Group transaction lots by history index
-  const transactionsByIdx = useMemo(() => {
-    if (!assets || !history || history.length < 2) return {};
-    const map = {};
-    const startStr = history[0].date.split("T")[0];
-    const endStr = history[history.length - 1].date.split("T")[0];
-
-    assets.forEach(asset => {
-      (asset.lots || []).forEach(lot => {
-        if (!lot || !lot.date) return;
-        const lotDateStr = lot.date;
-
-        // Strict boundary check: transaction must be within history bounds
-        if (lotDateStr < startStr || lotDateStr > endStr) return;
-
-        // Find closest date in history
-        let bestIdx = -1, bestDiff = Infinity;
-
-        // Exact string match on date first
-        bestIdx = history.findIndex(h => h.date.split("T")[0] === lotDateStr);
-
-        if (bestIdx === -1) {
-          const targetTime = new Date(lotDateStr + "T00:00:00.000Z").getTime();
-          history.forEach((h, i) => {
-            const hTime = new Date(h.date).getTime();
-            const diff = Math.abs(hTime - targetTime);
-            if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
-          });
-        } else {
-          bestDiff = 0;
-        }
-
-        if (bestIdx >= 0) {
-          if (!map[bestIdx]) map[bestIdx] = [];
-          map[bestIdx].push({
-            symbol: asset.symbol,
-            type: lot.type || "BUY",
-            qty: lot.qty,
-            price: lot.price,
-            date: lot.date,
-            time: lot.time
-          });
-        }
-      });
-    });
-    return map;
-  }, [assets, history]);
-
-  // Unique lot purchase dates for markers
-  const lotMarkers = useMemo(() => {
-    if (!displayedData || displayedData.length < 2 || !assets || !history || history.length < 2) return [];
-
-    const displayStart = new Date(displayedData[0].date).getTime();
-    const displayEnd = new Date(displayedData[displayedData.length - 1].date).getTime();
-
-    // 1. Map each lot to its closest displayed data index if within viewport
-    const rawMarkers = [];
-    assets.forEach(asset => {
-      (asset.lots || []).forEach(lot => {
-        if (!lot || !lot.date) return;
-        const lotTime = new Date(lot.date + "T" + (lot.time || "00:00") + ":00.000Z").getTime();
-
-        // STRICT VIEWPORT BOUNDARY FILTER:
-        if (lotTime < displayStart || lotTime > displayEnd) return;
-
-        let bestDisplayIdx = -1, bestDiff = Infinity;
-        // Find nearest displayed point for coordinate mapping
-        displayedData.forEach((d, idx) => {
-          const diff = Math.abs(new Date(d.date).getTime() - lotTime);
-          if (diff < bestDiff) {
-            bestDiff = diff;
-            bestDisplayIdx = idx;
-          }
-        });
-
-        if (bestDisplayIdx !== -1) {
-          const isBuy = (lot.qty || 0) >= 0;
-          const x = PAD_L + (bestDisplayIdx / (displayedData.length - 1)) * iW;
-          rawMarkers.push({
-            x,
-            isBuy,
-            symbol: asset.symbol,
-            lot,
-            time: lotTime
-          });
-        }
-      });
-    });
-
-    // 2. Sort markers by screen coordinate X to group them correctly
-    rawMarkers.sort((a, b) => a.x - b.x);
-
-    // 3. Group markers dynamically based on screen proximity (< 18 pixels)
-    const grouped = [];
-    rawMarkers.forEach(m => {
-      if (grouped.length === 0) {
-        grouped.push({
-          xSum: m.x,
-          count: 1,
-          buysCount: m.isBuy ? 1 : 0,
-          sellsCount: !m.isBuy ? 1 : 0,
-          txs: [m]
-        });
-      } else {
-        const lastGroup = grouped[grouped.length - 1];
-        const avgX = lastGroup.xSum / lastGroup.count;
-        if (Math.abs(m.x - avgX) < 18) {
-          lastGroup.xSum += m.x;
-          lastGroup.count += 1;
-          if (m.isBuy) lastGroup.buysCount++;
-          else lastGroup.sellsCount++;
-          lastGroup.txs.push(m);
-        } else {
-          grouped.push({
-            xSum: m.x,
-            count: 1,
-            buysCount: m.isBuy ? 1 : 0,
-            sellsCount: !m.isBuy ? 1 : 0,
-            txs: [m]
-          });
-        }
-      }
-    });
-
-    // 4. Map groups to final markers
-    return grouped.map(group => {
-      const x = group.xSum / group.count;
-
-      // Determine color type: all buy = green, all sell = red, mix = orange
-      let colorType = "mixed";
-      if (group.buysCount > 0 && group.sellsCount === 0) colorType = "buy";
-      else if (group.buysCount === 0 && group.sellsCount > 0) colorType = "sell";
-
-      const uniqueSymbols = Array.from(new Set(group.txs.map(t => t.symbol)));
-      let label = "";
-      if (uniqueSymbols.length === 1) {
-        label = uniqueSymbols[0].slice(0, 1);
-      } else {
-        label = String(group.txs.length);
-      }
-
-      return {
-        x,
-        colorType,
-        label,
-        symbol: uniqueSymbols.length === 1 ? uniqueSymbols[0] : "*",
-        txs: group.txs.map(t => ({
-          symbol: t.symbol,
-          type: t.lot.type || (t.lot.qty >= 0 ? "BUY" : "SELL"),
-          qty: Math.abs(t.lot.qty),
-          price: t.lot.price,
-          date: t.lot.date,
-          time: t.lot.time
-        }))
-      };
-    });
-  }, [assets, displayedData, history, iW, PAD_L]);
-
-  const { pts, costPts, yMin, yMax, isUp, color, renderPts } = useMemo(() => {
-    if (!displayedData || displayedData.length < 2) return { pts: [], costPts: [], yMin: 0, yMax: 1, isUp: true, color: "var(--gain)", renderPts: [] };
-
-    const vals = displayedData.map(h => h.value);
-    const costs = displayedData.map(h => h.cost || 0);
-
-    const isShortTF = range === "1D" || range === "5D" || range === "1W";
-    const dataMin = isShortTF ? Math.min(...vals) : Math.min(...vals, ...costs.filter(c => c > 0));
-    const dataMax = isShortTF ? Math.max(...vals) : Math.max(...vals, ...costs);
-    const rangeVal = dataMax - dataMin || dataMin * 0.02 || 1;
-
-    // Adaptive padding (shows movement clearly)
-    const pad = rangeVal * 0.05;
-    const yMin = Math.max(0, dataMin - pad);
-    const yMax = dataMax + pad;
-    const yRange = yMax - yMin;
-
-    const toY = (v) => PAD_T + ((yMax - v) / yRange) * iH;
-    const toX = (i) => PAD_L + (i / (displayedData.length - 1)) * iW;
-
-    const pts = displayedData.map((h, i) => ({ x: toX(i), y: toY(h.value), value: h.value, date: h.date }));
-    const costPts = displayedData.map((h, i) => ({ x: toX(i), y: toY(h.cost || 0), cost: h.cost || 0, date: h.date }));
-
-    const renderPts = smoothPoints(pts, toY);
-
-    const isUp = vals[vals.length - 1] >= vals[0];
-    const color = isUp ? "var(--gain)" : "var(--loss)";
-
-    return { pts, costPts, yMin, yMax, isUp, color, renderPts };
-  }, [displayedData, iH, iW, range]);
-
-  const findClosestPtByTimestamp = (ts) => {
-    if (!pts || pts.length === 0 || ts == null) return null;
-    let bestPt = pts[0];
-    let bestDiff = Infinity;
-    for (let i = 0; i < pts.length; i++) {
-      const pt = pts[i];
-      if (!pt) continue;
-      const ptTime = new Date(pt.date).getTime();
-      const diff = Math.abs(ptTime - ts);
-      if (diff < bestDiff) {
-        bestDiff = diff;
-        bestPt = pt;
-      }
-    }
-    return bestPt;
-  };
-
-  const linePath = useMemo(() => smoothPath(renderPts), [renderPts]);
-  const costLinePath = useMemo(() => stepPath(costPts), [costPts]);
-
-  // Gain & Loss fill paths
-  const fillValueArea = useMemo(() => {
-    if (!linePath || renderPts.length < 2) return "";
-    const first = renderPts[0], last = renderPts[renderPts.length - 1];
-    const bottomY = H - PAD_B;
-    return linePath + ` L ${last.x},${bottomY} L ${first.x},${bottomY} Z`;
-  }, [linePath, renderPts, H, PAD_B]);
-
-  const fillCostArea = useMemo(() => {
-    if (!costLinePath || costPts.length < 2) return "";
-    const first = costPts[0], last = costPts[costPts.length - 1];
-    const bottomY = H - PAD_B;
-    return costLinePath + ` L ${last.x},${bottomY} L ${first.x},${bottomY} Z`;
-  }, [costLinePath, costPts, H, PAD_B]);
-
-  // Clip path definitions using SVG path data
-  const clipAboveCostPath = useMemo(() => {
-    if (!costLinePath || costPts.length < 2) return "";
-    const first = costPts[0], last = costPts[costPts.length - 1];
-    return costLinePath + ` L ${last.x},0 L ${first.x},0 Z`;
-  }, [costLinePath, costPts]);
-
-  const clipBelowCostPath = useMemo(() => {
-    if (!costLinePath || costPts.length < 2) return "";
-    const first = costPts[0], last = costPts[costPts.length - 1];
-    const bottomY = H - PAD_B;
-    return costLinePath + ` L ${last.x},${bottomY} L ${first.x},${bottomY} Z`;
-  }, [costLinePath, costPts, H, PAD_B]);
-
-  const clipAboveValuePath = useMemo(() => {
-    if (!linePath || renderPts.length < 2) return "";
-    const first = renderPts[0], last = renderPts[renderPts.length - 1];
-    return linePath + ` L ${last.x},0 L ${first.x},0 Z`;
-  }, [linePath, renderPts]);
-
-  const stateRef = useRef();
-  stateRef.current = {
-    history,
-    zoomRange,
-    displayedData,
-    W,
-    H,
-    iW,
-    iH,
-    PAD_L,
-    PAD_R,
-    PAD_T,
-    PAD_B,
-    diffStartIdx,
-    diffEndIdx,
-    pts,
-    costPts,
-    isDiffActive
-  };
-
-  const handleMouseDown = (e) => {
-    if (e.button !== 0) return;
-    const rect = svgRef.current.getBoundingClientRect();
-    const mouseX = ((e.clientX - rect.left) / rect.width) * W;
-    if (mouseX >= PAD_L && mouseX <= W - PAD_R) {
-      if (e.shiftKey && zoomRange) {
-        setDragStart({ x: mouseX, type: "pan", startZoom: { ...zoomRange } });
-      } else {
-        const relX = (mouseX - PAD_L) / iW;
-        const idx = Math.max(0, Math.min(Math.round(relX * (displayedData.length - 1)), displayedData.length - 1));
-        const ts = new Date(displayedData[idx].date).getTime();
-
-        setIsDiffActive(true);
-        updateDiffStartIdx(ts);
-        updateDiffEndIdx(ts);
-        setDragStart({ x: mouseX, type: "diff" });
-        setHovered(null);
-      }
-    }
-  };
-
-  const handleMouseMove = useCallback((e) => {
-    if (!svgRef.current || pts.length < 2) return;
-    const rect = svgRef.current.getBoundingClientRect();
-    const mouseXInSvg = ((e.clientX - rect.left) / rect.width) * W;
-
-    if (dragStart) {
-      if (dragStart.type === "diff") {
-        const boundedX = Math.max(PAD_L, Math.min(W - PAD_R, mouseXInSvg));
-        const relX = (boundedX - PAD_L) / iW;
-        const idx = Math.max(0, Math.min(Math.round(relX * (displayedData.length - 1)), displayedData.length - 1));
-        const ts = new Date(displayedData[idx].date).getTime();
-
-        updateDiffEndIdx(ts);
-        setHovered(null);
-      } else if (dragStart.type === "pan") {
-        const deltaX = mouseXInSvg - dragStart.x;
-        const len = history.length;
-        const currentStart = dragStart.startZoom.start;
-        const currentEnd = dragStart.startZoom.end;
-        const rangeSize = currentEnd - currentStart;
-        const stepSize = iW / Math.max(1, rangeSize);
-
-        const indexShift = Math.round(-deltaX / stepSize);
-
-        if (indexShift !== 0) {
-          let newStart = currentStart + indexShift;
-          let newEnd = currentEnd + indexShift;
-          if (newStart < 0) {
-            newStart = 0;
-            newEnd = newStart + rangeSize;
-          }
-          if (newEnd >= len) {
-            newEnd = len - 1;
-            newStart = Math.max(0, newEnd - rangeSize);
-          }
-          setZoomRange({ start: newStart, end: newEnd });
-        }
-        setHovered(null);
-      }
-      return;
-    }
-
-    if (isDiffActive) return;
-
-    const relX = (mouseXInSvg - PAD_L) / iW;
-    const idx = Math.max(0, Math.min(Math.round(relX * (displayedData.length - 1)), displayedData.length - 1));
-    if (displayedData[idx]) {
-      let originalIdx = 0;
-      let bestDiff = Infinity;
-      history.forEach((h, i) => {
-        const diff = Math.abs(new Date(h.date) - new Date(displayedData[idx].date));
-        if (diff < bestDiff) {
-          bestDiff = diff;
-          originalIdx = i;
-        }
-      });
-
-      setHovered({
-        idx,
-        originalIdx,
-        x: renderPts[idx]?.x || pts[idx].x,
-        y: renderPts[idx]?.y || pts[idx].y,
-        costY: costPts[idx]?.y,
-        value: displayedData[idx].value,
-        cost: displayedData[idx].cost || 0,
-        date: displayedData[idx].date
-      });
-    }
-  }, [renderPts, pts, costPts, displayedData, iW, W, dragStart, zoomRange, history, isDiffActive]);
-
-  const handleMouseUp = () => {
-    if (dragStart && dragStart.type === "diff") {
-      if (diffStartIdxRef.current === diffEndIdxRef.current) {
-        setIsDiffActive(false);
-        updateDiffStartIdx(null);
-        updateDiffEndIdx(null);
-      }
-    }
-    setDragStart(null);
-    setDragEnd(null);
-  };
-
-  const handleMouseLeave = () => {
-    setHovered(null);
-    setDragStart(null);
-    setDragEnd(null);
-  };
-
-  // Combined programmatic event listeners to control passive behavior and enable vertical scrolling
-  useEffect(() => {
-    const el = svgRef.current;
-    if (!el) return;
-
-    const getLatest = () => stateRef.current;
-
-    const handleWheel = (e) => {
-      const { history, zoomRange, displayedData, W, iW, PAD_L } = getLatest();
-      if (!history || history.length < 2) return;
-      e.preventDefault();
-
-      const isZoomIn = e.deltaY < 0;
-      const len = history.length;
-      const currentStart = zoomRange ? zoomRange.start : 0;
-      const currentEnd = zoomRange ? zoomRange.end : len - 1;
-      const rangeSize = currentEnd - currentStart;
-
-      const rect = el.getBoundingClientRect();
-      const mouseXInSvg = ((e.clientX - rect.left) / rect.width) * W;
-      const relX = (mouseXInSvg - PAD_L) / iW;
-      const hoveredIdx = Math.max(0, Math.min(Math.round(relX * (displayedData.length - 1)), displayedData.length - 1));
-      
-      let centerIdx = currentStart;
-      let bestDiff = Infinity;
-      history.forEach((h, i) => {
-        const diff = Math.abs(new Date(h.date) - new Date(displayedData[hoveredIdx].date));
-        if (diff < bestDiff) {
-          bestDiff = diff;
-          centerIdx = i;
-        }
-      });
-
-      if (isZoomIn) {
-        if (rangeSize <= 2) return;
-        const cropSize = Math.max(1, Math.floor(rangeSize * 0.12));
-        const newRangeSize = Math.max(2, rangeSize - cropSize * 2);
-
-        let newStart = Math.round(centerIdx - relX * newRangeSize);
-        let newEnd = newStart + newRangeSize;
-
-        if (newStart < 0) {
-          newStart = 0;
-          newEnd = newRangeSize;
-        }
-        if (newEnd >= len) {
-          newEnd = len - 1;
-          newStart = Math.max(0, newEnd - newRangeSize);
-        }
-
-        setZoomRange({ start: newStart, end: newEnd });
-      } else {
-        if (!zoomRange) return;
-        const expandSize = Math.max(1, Math.floor(rangeSize * 0.12));
-        const newRangeSize = Math.min(len - 1, rangeSize + expandSize * 2);
-
-        let newStart = Math.round(centerIdx - relX * newRangeSize);
-        let newEnd = newStart + newRangeSize;
-
-        if (newStart < 0) {
-          newStart = 0;
-          newEnd = newRangeSize;
-        }
-        if (newEnd >= len) {
-          newEnd = len - 1;
-          newStart = Math.max(0, newEnd - newRangeSize);
-        }
-
-        if (newStart === 0 && newEnd === len - 1) {
-          setZoomRange(null);
-        } else {
-          setZoomRange({ start: newStart, end: newEnd });
-        }
-      }
-    };
-
-    const handleDblClick = (e) => {
-      e.preventDefault();
-      setZoomRange(null);
-    };
-
-    const handleTouchStart = (e) => {
-      const { history, zoomRange, displayedData, W, iW, PAD_L, PAD_R } = getLatest();
-      if (!history || history.length < 2) return;
-
-      if (e.touches.length === 1) {
-        const rect = el.getBoundingClientRect();
-        const touchX = ((e.touches[0].clientX - rect.left) / rect.width) * W;
-        if (touchX >= PAD_L && touchX <= W - PAD_R) {
-          const relX = (touchX - PAD_L) / iW;
-          const idx = Math.max(0, Math.min(Math.round(relX * (displayedData.length - 1)), displayedData.length - 1));
-          
-          let originalIdx = (zoomRange ? zoomRange.start : 0);
-          let bestDiff = Infinity;
-          history.forEach((h, i) => {
-            const diff = Math.abs(new Date(h.date) - new Date(displayedData[idx].date));
-            if (diff < bestDiff) {
-              bestDiff = diff;
-              originalIdx = i;
-            }
-          });
-
-          touchRef.current = {
-            startX: e.touches[0].clientX,
-            startY: e.touches[0].clientY,
-            lastX: e.touches[0].clientX,
-            lastY: e.touches[0].clientY,
-            type: null,
-            startIdx: originalIdx,
-            isPinching: false
-          };
-          setHovered(null);
-        }
-      } else if (e.touches.length === 2) {
-        const t1 = e.touches[0];
-        const t2 = e.touches[1];
-        const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
-        const initialZoom = zoomRange || { start: 0, end: history.length - 1 };
-        touchRef.current = {
-          startDist: dist,
-          startZoom: { ...initialZoom },
-          isPinching: true,
-          centerX: (t1.clientX + t2.clientX) / 2
-        };
-      }
-    };
-
-    const handleTouchMove = (e) => {
-      const { history, zoomRange, displayedData, W, iW, PAD_L, PAD_R } = getLatest();
-      if (!history || history.length < 2) return;
-      const ref = touchRef.current;
-      if (!ref) return;
-
-      if (e.touches.length === 1 && !ref.isPinching) {
-        const currentX = e.touches[0].clientX;
-        const currentY = e.touches[0].clientY;
-
-        if (ref.type === null) {
-          const dx = Math.abs(currentX - ref.startX);
-          const dy = Math.abs(currentY - ref.startY);
-          if (dx > 5 || dy > 5) {
-            if (dx > dy) {
-              ref.type = "diff";
-              setIsDiffActive(true);
-              updateDiffStartIdx(ref.startIdx);
-              updateDiffEndIdx(ref.startIdx);
-            } else {
-              ref.type = "scroll";
-            }
-          }
-        }
-
-        if (ref.type === "diff") {
-          const rect = el.getBoundingClientRect();
-          const touchX = ((currentX - rect.left) / rect.width) * W;
-          const boundedX = Math.max(PAD_L, Math.min(W - PAD_R, touchX));
-          const relX = (boundedX - PAD_L) / iW;
-          const idx = Math.max(0, Math.min(Math.round(relX * (displayedData.length - 1)), displayedData.length - 1));
-          
-          let originalIdx = (zoomRange ? zoomRange.start : 0);
-          let bestDiff = Infinity;
-          history.forEach((h, i) => {
-            const diff = Math.abs(new Date(h.date) - new Date(displayedData[idx].date));
-            if (diff < bestDiff) {
-              bestDiff = diff;
-              originalIdx = i;
-            }
-          });
-
-          updateDiffEndIdx(originalIdx);
-          setHovered(null);
-          e.preventDefault();
-        }
-      } else if (e.touches.length === 2 && ref.isPinching) {
-        const t1 = e.touches[0];
-        const t2 = e.touches[1];
-        const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
-
-        const ratio = ref.startDist / dist;
-        const len = history.length;
-        const startZoom = ref.startZoom;
-        const initialRangeSize = startZoom.end - startZoom.start;
-
-        let newRangeSize = Math.round(initialRangeSize * ratio);
-        newRangeSize = Math.max(2, Math.min(len - 1, newRangeSize));
-
-        const rect = el.getBoundingClientRect();
-        const relativeX = ((ref.centerX - rect.left) / rect.width);
-
-        let newStart = Math.round((startZoom.start + initialRangeSize * relativeX) - relativeX * newRangeSize);
-        let newEnd = newStart + newRangeSize;
-
-        if (newStart < 0) {
-          newStart = 0;
-          newEnd = newRangeSize;
-        }
-        if (newEnd >= len) {
-          newEnd = len - 1;
-          newStart = Math.max(0, newEnd - newRangeSize);
-        }
-
-        if (newStart === 0 && newEnd === len - 1) {
-          setZoomRange(null);
-        } else {
-          setZoomRange({ start: newStart, end: newEnd });
-        }
-        e.preventDefault();
-      }
-    };
-
-    const handleTouchEnd = (e) => {
-      const ref = touchRef.current;
-      if (ref) {
-        if (ref.type === "diff") {
-          if (diffStartIdxRef.current === diffEndIdxRef.current) {
-            setIsDiffActive(false);
-            updateDiffStartIdx(null);
-            updateDiffEndIdx(null);
-          }
-        } else if (ref.type === null) {
-          setIsDiffActive(false);
-          updateDiffStartIdx(null);
-          updateDiffEndIdx(null);
-        }
-      }
-      touchRef.current = { lastX: 0, startDist: 0, startZoom: null, isPinching: false, centerX: 0 };
-    };
-
-    const handleTouchStartWithDoubleTap = (e) => {
-      const now = Date.now();
-      if (now - lastTouchTime.current < 300) {
-        e.preventDefault();
-        setZoomRange(null);
-        return;
-      }
-      lastTouchTime.current = now;
-      handleTouchStart(e);
-    };
-
-    el.addEventListener("wheel", handleWheel, { passive: false });
-    el.addEventListener("dblclick", handleDblClick);
-    el.addEventListener("touchstart", handleTouchStartWithDoubleTap, { passive: false });
-    el.addEventListener("touchmove", handleTouchMove, { passive: false });
-    el.addEventListener("touchend", handleTouchEnd, { passive: false });
-
-    return () => {
-      el.removeEventListener("wheel", handleWheel);
-      el.removeEventListener("dblclick", handleDblClick);
-      el.removeEventListener("touchstart", handleTouchStartWithDoubleTap);
-      el.removeEventListener("touchmove", handleTouchMove);
-      el.removeEventListener("touchend", handleTouchEnd);
-    };
-  }, [history]);
-
-
-  if (!history || history.length < 2) {
-    return (
-      <div ref={svgRef}>
-        <div className="chart-card-header">
-          <span className="card-section-title" style={{ marginBottom: 0 }}>📈 มูลค่าพอร์ต</span>
-          <div className="chart-range-tabs">
-            {RANGES.map(r => (
-              <button key={r} className={`chart-range-tab${range === r ? " active" : ""}`} onClick={() => onRangeChange(r)}>{r}</button>
-            ))}
-          </div>
-        </div>
-        <div className="chart-empty">
-          <BarChart2 size={36} strokeWidth={1.5} />
-          <p style={{ fontSize: 13, textAlign: "center" }}>เพิ่มสินทรัพย์และรอดึงข้อมูลประวัติราคา<br/>กราฟจะแสดงมูลค่าพอร์ตย้อนหลัง</p>
-        </div>
-      </div>
-    );
-  }
-
-  const startVal = displayedData[0]?.value || 0;
-  const endVal = displayedData[displayedData.length - 1]?.value || 0;
-  const totalChange = endVal - startVal;
-  const totalChangePct = startVal > 0 ? (totalChange / startVal) * 100 : 0;
-
-  // Axis labels — fewer ticks on mobile to avoid overflow, dynamically scale up ticks to maximize resolution
-  const dateLabels = (() => {
-    if (displayedData.length <= 1) return [];
-    const isShortTF = range === "1D" || range === "5D" || range === "1W";
-    const maxTicks = isMobile ? (isShortTF ? 3 : 5) : (isShortTF ? 8 : 12);
-    const count = Math.min(maxTicks, displayedData.length);
-    const step = Math.floor((displayedData.length - 1) / Math.max(count - 1, 1));
-    return Array.from({ length: count }, (_, i) => {
-      const idx = Math.min(i === count - 1 ? displayedData.length - 1 : i * step, displayedData.length - 1);
-      return { idx, x: PAD_L + (idx / (displayedData.length - 1)) * iW, date: displayedData[idx].date };
-    });
-  })();
-
-  const yTicks = (() => {
-    if (yMax === yMin) return [];
-    const rangeVal = yMax - yMin;
-    const rawStep = rangeVal / 5;
-    const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
-    const step = Math.ceil(rawStep / magnitude) * magnitude || 10;
-    const ticks = [];
-    const start = Math.ceil(yMin / step) * step;
-    for (let v = start; v <= yMax + step * 0.01; v += step) {
-      const y = PAD_T + ((yMax - v) / (yMax - yMin)) * iH;
-      if (y >= PAD_T - 4 && y <= H - PAD_B + 4) {
-        ticks.push({ v, y });
-      }
-    }
-    return ticks;
-  })();
-
-  const latestCost = displayedData[displayedData.length - 1]?.cost || 0;
-  const latestVal = displayedData[displayedData.length - 1]?.value || 0;
-  const pnlPercent = latestCost > 0 ? ((latestVal - latestCost) / latestCost) * 100 : 0;
-
-  return (
-    <div>
-      <div className="chart-card-header">
-        <div>
-          <span className="card-section-title" style={{ marginBottom: 0 }}>📈 มูลค่าพอร์ต & ต้นทุนรวม</span>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)" }}>
-              {range} ประสิทธิภาพ:
-            </span>
-            <span style={{ fontSize: 12, fontWeight: 800, color: totalChange >= 0 ? "var(--gain)" : "var(--loss)" }}>
-              {totalChange >= 0 ? "▲" : "▼"} {fmt.usd(Math.abs(totalChange))} ({fmt.pct(totalChangePct)})
-            </span>
-            {latestCost > 0 && (
-              <span style={{ fontSize: 11, fontWeight: 600, background: pnlPercent >= 0 ? "var(--gain-light)" : "var(--loss-light)", color: pnlPercent >= 0 ? "var(--gain)" : "var(--loss)", padding: "1px 6px", borderRadius: 6 }}>
-                กำไรสะสม: {fmt.pct(pnlPercent)}
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="chart-range-tabs">
-          {RANGES.map(r => (
-            <button key={r} className={`chart-range-tab${range === r ? " active" : ""}`} onClick={() => onRangeChange(r)}>{r}</button>
-          ))}
-        </div>
-      </div>
-
-      <div className="chart-area-wrapper" ref={svgRef}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseLeave}
-        onSelectStart={(e) => e.preventDefault()}
-        style={{
-          cursor: zoomRange ? (dragStart && dragStart.type === "pan" ? "grabbing" : "grab") : "crosshair",
-          position: "relative",
-          width: "100%",
-          touchAction: "pan-y",
-          userSelect: "none",
-          WebkitUserSelect: "none",
-          MozUserSelect: "none",
-          msUserSelect: "none"
-        }}>
-        <svg
-          viewBox={`0 0 ${W} ${H}`}
-          className="chart-svg"
-          style={{ height: H, display: "block" }}
-        >
-          <defs>
-            {/* Gradient for gain area (above cost) */}
-            <linearGradient id="portGainGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#00B98A" stopOpacity="0.25" />
-              <stop offset="100%" stopColor="#00B98A" stopOpacity="0.02" />
-            </linearGradient>
-            {/* Gradient for loss area (below cost) */}
-            <linearGradient id="portLossGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#FF4B55" stopOpacity="0.02" />
-              <stop offset="100%" stopColor="#FF4B55" stopOpacity="0.20" />
-            </linearGradient>
-
-            {/* Clipping path for Above Cost (Gain Zone) */}
-            {clipAboveCostPath && (
-              <clipPath id="portClipAboveCost">
-                <path d={clipAboveCostPath} />
-              </clipPath>
-            )}
-            {/* Clipping path for Below Cost (Loss Zone) */}
-            {clipBelowCostPath && (
-              <clipPath id="portClipBelowCost">
-                <path d={clipBelowCostPath} />
-              </clipPath>
-            )}
-            {/* Clipping path for Above Value */}
-            {clipAboveValuePath && (
-              <clipPath id="portClipAboveValue">
-                <path d={clipAboveValuePath} />
-              </clipPath>
-            )}
-            {/* Full Clip */}
-            <clipPath id="portClipFull">
-              <rect x={PAD_L} y={PAD_T} width={iW} height={iH} />
-            </clipPath>
-          </defs>
-
-          {/* Grid lines */}
-          {yTicks.map(({ v, y }, i) => (
-            <line key={i}
-              x1={PAD_L} y1={y}
-              x2={W - PAD_R} y2={y}
-              stroke="#F1F5F9" strokeWidth="1" strokeDasharray="4 4" />
-          ))}
-          {dateLabels.map(({ x }, i) => (
-            <line key={i} x1={x} y1={PAD_T} x2={x} y2={H - PAD_B}
-              stroke="#F8FAFC" strokeWidth="1" />
-          ))}
-
-          {/* Range selection diff highlight */}
-          {isDiffActive && diffStartIdx !== null && diffEndIdx !== null && diffStartIdx !== diffEndIdx && (() => {
-            const ptA = findClosestPtByTimestamp(diffStartIdx);
-            const ptB = findClosestPtByTimestamp(diffEndIdx);
-
-            if (ptA && ptB) {
-              const xA = ptA.x;
-              const xB = ptB.x;
-              const yA = ptA.y;
-              const yB = ptB.y;
-
-              return (
-                <g style={{ pointerEvents: "none" }}>
-                  <line x1={xA} y1={PAD_T} x2={xA} y2={H - PAD_B} stroke="var(--primary)" strokeWidth="1.5" strokeDasharray="3 3" opacity="0.6" />
-                  <line x1={xB} y1={PAD_T} x2={xB} y2={H - PAD_B} stroke="var(--primary)" strokeWidth="1.5" strokeDasharray="3 3" opacity="0.6" />
-                  <line x1={xA} y1={yA} x2={xB} y2={yB} stroke="var(--primary)" strokeWidth="2" strokeDasharray="4 4" opacity="0.8" />
-                  <circle cx={xA} cy={yA} r="6" fill="white" stroke="var(--primary)" strokeWidth="3" />
-                  <circle cx={xB} cy={yB} r="6" fill="white" stroke="var(--primary)" strokeWidth="3" />
-                </g>
-              );
-            }
-            return null;
-          })()}
-
-          {/* Fill Areas with Clipping */}
-          {costLinePath && fillValueArea && fillCostArea ? (
-            <>
-              {/* Gain Zone (Value > Cost): Green Fill */}
-              <path d={fillValueArea} fill="url(#portGainGrad)" clipPath="url(#portClipAboveCost)" />
-              {/* Loss Zone (Value < Cost): Red Fill */}
-              <path d={fillCostArea} fill="url(#portLossGrad)" clipPath="url(#portClipAboveValue)" />
-            </>
-          ) : (
-            fillValueArea && <path d={fillValueArea} fill={isUp ? "url(#portGainGrad)" : "url(#portLossGrad)"} clipPath="url(#portClipFull)" />
-          )}
-
-          {/* Step-like historical Cost line (Dashed) */}
-          {costLinePath && (
-            <path
-              d={costLinePath}
-              fill="none"
-              stroke="#5236FF"
-              strokeWidth="2.5"
-              strokeDasharray="6 4"
-              opacity="0.9"
-              clipPath="url(#portClipFull)"
-            />
-          )}
-
-          {/* Dual-color Price Value Line */}
-          {linePath && costLinePath ? (
-            <>
-              {/* Green Price Line when above Cost */}
-              <path
-                d={linePath}
-                fill="none"
-                stroke="#00B98A"
-                strokeWidth="3.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                clipPath="url(#portClipAboveCost)"
-              />
-              {/* Red Price Line when below Cost */}
-              <path
-                d={linePath}
-                fill="none"
-                stroke="#FF4B55"
-                strokeWidth="3.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                clipPath="url(#portClipBelowCost)"
-              />
-            </>
-          ) : (
-            linePath && (
-              <path
-                d={linePath}
-                fill="none"
-                stroke={color}
-                strokeWidth="3.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                clipPath="url(#portClipFull)"
-              />
-            )
-          )}
-
-          {/* Start dot */}
-          {pts.length > 0 && (
-            <circle cx={pts[0].x} cy={pts[0].y} r="4" fill={color} opacity="0.6" />
-          )}
-
-          {/* End dot */}
-          {pts.length > 1 && (
-            <circle cx={pts[pts.length-1].x} cy={pts[pts.length-1].y} r="5" fill={color}>
-              <animate attributeName="r" values="5;7;5" dur="2s" repeatCount="indefinite" />
-            </circle>
-          )}
-
-          {/* Lot Purchase markers on timeline */}
-          {lotMarkers.map((m, i) => {
-            const markerColor = m.colorType === "buy" ? "#16A34A" : m.colorType === "sell" ? "#DC2626" : "#F59E0B";
-            const isMultiple = m.txs.length > 1;
-            const badgeW = isMultiple ? Math.max(16, m.label.length * 6 + 10) : 15;
-            return (
-              <g key={i}>
-                <line x1={m.x} y1={PAD_T} x2={m.x} y2={H - PAD_B}
-                  stroke={markerColor} strokeWidth="1.5" strokeDasharray="5 4" opacity="0.8" />
-                {isMultiple ? (
-                  <rect x={m.x - badgeW / 2} y={PAD_T + 2.5} width={badgeW} height={15} rx="7.5" fill={markerColor} style={{ cursor: "pointer" }} />
-                ) : (
-                  <circle cx={m.x} cy={PAD_T + 10} r="7.5" fill={markerColor} style={{ cursor: "pointer" }} />
-                )}
-                <text x={m.x} y={PAD_T + 10} textAnchor="middle" fontSize="8" fill="white" fontWeight="900" fontFamily="Outfit,sans-serif" dominantBaseline="middle" style={{ cursor: "pointer", pointerEvents: "none" }}>
-                  {m.label}
-                </text>
-                <title>
-                  {m.txs.map(t => `${t.type === "BUY" ? "ซื้อ" : "ขาย"} ${t.symbol} ${t.qty.toLocaleString()} หุ้น @ ${fmt.usd(t.price)}${t.time ? ` · ${t.time} น.` : ""}`).join("\n")}
-                </title>
-              </g>
-            );
-          })}
-
-          {/* Hover vertical crosshair */}
-          {hovered && (
-            <line
-              x1={hovered.x} y1={PAD_T}
-              x2={hovered.x} y2={H - PAD_B}
-              stroke="#CBD5E1" strokeWidth="1.5" strokeDasharray="4 4"
-            />
-          )}
-
-          {/* Hover dots */}
-          {hovered && (
-            <>
-              <circle cx={hovered.x} cy={hovered.y} r="5"
-                fill="#FFFFFF" stroke={hovered.value >= hovered.cost ? "#00B98A" : "#FF4B55"} strokeWidth="2.5" />
-              {hovered.cost > 0 && (
-                <circle cx={hovered.x} cy={hovered.costY} r="4.5"
-                  fill="#FFFFFF" stroke="#5236FF" strokeWidth="2" />
-              )}
-            </>
-          )}
-
-          {/* Y-axis Labels */}
-          {yTicks.map(({ v, y }, i) => (
-            <text key={i} x={PAD_L - 8} y={y + 4} textAnchor="end" fontSize="12"
-              fill="var(--text-muted)" fontFamily="var(--font-family)" fontWeight="700">
-              {v >= 1000 ? (v / 1000).toFixed(1) + "k" : v.toFixed(v >= 100 ? 0 : 2)}
-            </text>
-          ))}
-
-          {dateLabels.map(({ x, date }, i) => (
-            <text key={i} x={x} y={H - PAD_B + 18} textAnchor="middle" fontSize="11"
-              fill="var(--text-muted)" fontFamily="var(--font-family)" fontWeight="700">
-              {getDynamicDateFormat(date, visibleDurationMs, hasMultipleYears)}
-            </text>
-          ))}
-
-          {/* Latest cost badge on the right end of the cost line */}
-          {costPts && costPts.length > 0 && (
-            <>
-              <rect
-                x={W - PAD_R - 80}
-                y={costPts[costPts.length - 1].y - 12}
-                width={80}
-                height={22}
-                rx="6"
-                fill="#5236FF"
-                opacity="0.95"
-              />
-              <text
-                x={W - PAD_R - 40}
-                y={costPts[costPts.length - 1].y + 4}
-                textAnchor="middle"
-                fontSize="11"
-                fill="white"
-                fontWeight="900"
-                fontFamily="var(--font-family)"
-              >
-                {fmt.usd(costPts[costPts.length - 1].cost)}
-              </text>
-            </>
-          )}
-        </svg>
-
-        {/* Hover Tooltip Box */}
-        {hovered && (() => {
-          const diff = hovered.value - hovered.cost;
-          const diffPct = hovered.cost > 0 ? (diff / hovered.cost) * 100 : 0;
-          const txs = transactionsByIdx[hovered.originalIdx];
-          return (
-            <div className="chart-tooltip-box" style={{
-              top: Math.max(10, Math.min(H - 180, hovered.y - 45)) + "px",
-              left: (hovered.x / W) * 100 + "%",
-              opacity: 1,
-              transform: hovered.x < W / 2 ? "translateX(15px)" : "translateX(calc(-100% - 15px))",
-              zIndex: 100,
-              pointerEvents: "none"
-            }}>
-              <div style={{ fontSize: 10, opacity: 0.75, marginBottom: 2 }}>
-                {getDynamicDateFormat(hovered.date, visibleDurationMs, hasMultipleYears, true)}
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                  <span style={{ fontSize: 10, color: "var(--text-faint)" }}>มูลค่า:</span>
-                  <span style={{ fontSize: 12, fontWeight: 800, color: "white" }}>{fmt.usd(hovered.value)}</span>
-                </div>
-                {hovered.cost > 0 && (
-                  <>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                      <span style={{ fontSize: 10, color: "var(--text-faint)" }}>ต้นทุน:</span>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: "#A5B4FC" }}>{fmt.usd(hovered.cost)}</span>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: 2, marginTop: 2 }}>
-                      <span style={{ fontSize: 10, color: "var(--text-faint)" }}>P&L:</span>
-                      <span style={{ fontSize: 11, fontWeight: 900, color: diff >= 0 ? "#6EE7B7" : "#FCA5A5" }}>
-                        {diff >= 0 ? "+" : ""}{fmt.usd(diff)} ({fmt.pct(diffPct)})
-                      </span>
-                    </div>
-                  </>
-                )}
-                {txs && txs.length > 0 && (
-                  <div style={{
-                    marginTop: 6,
-                    borderTop: "1px dashed rgba(255,255,255,0.2)",
-                    paddingTop: 6,
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 3
-                  }}>
-                    <span style={{ fontSize: 10, color: "#F59E0B", fontWeight: 800, display: "flex", alignItems: "center", gap: 4 }}>🛒 ธุรกรรมในวันนี้:</span>
-                    {txs.map((tx, idx) => (
-                      <span key={idx} style={{ fontSize: 10, color: "#FFF", opacity: 0.9 }}>
-                        • {tx.type === "BUY" ? "ซื้อ" : "ขาย"} {tx.symbol} {tx.qty.toLocaleString()} หุ้น @ {fmt.usd(tx.price)}{tx.time ? ` · ${tx.time} น.` : ""}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })()}
-        {/* Floating Diff / Comparison Overlay Box */}
-        {isDiffActive && diffStartIdx !== null && diffEndIdx !== null && diffStartIdx !== diffEndIdx && (() => {
-          const ptA = findClosestPtByTimestamp(diffStartIdx);
-          const ptB = findClosestPtByTimestamp(diffEndIdx);
-
-          if (ptA && ptB) {
-            const findClosestHistoryPoint = (ts) => {
-              if (!history || history.length === 0) return null;
-              let best = history[0], bestDiff = Infinity;
-              history.forEach(h => {
-                const diff = Math.abs(new Date(h.date).getTime() - ts);
-                if (diff < bestDiff) { bestDiff = diff; best = h; }
-              });
-              return best;
-            };
-            const pA = findClosestHistoryPoint(diffStartIdx);
-            const pB = findClosestHistoryPoint(diffEndIdx);
-            if (!pA || !pB) return null;
-
-            const valA = pA.value;
-            const valB = pB.value;
-            const diffVal = valB - valA;
-            const diffPct = valA > 0 ? (diffVal / valA) * 100 : 0;
-
-            const dateA = new Date(pA.date);
-            const dateB = new Date(pB.date);
-            const diffDays = Math.round(Math.abs(dateB - dateA) / (1000 * 60 * 60 * 24));
-            let timeStr = `${diffDays} วัน`;
-            if (diffDays >= 365) {
-              timeStr = `${(diffDays / 365).toFixed(1)} ปี`;
-            } else if (diffDays >= 30) {
-              timeStr = `${(diffDays / 30.4).toFixed(1)} เดือน`;
-            }
-
-            const xA = ptA.x;
-            const xB = ptB.x;
-            const centerPct = ((xA + xB) / 2 / W) * 100;
-            const yA = ptA.y;
-            const yB = ptB.y;
-            const topPos = Math.min(yA, yB) - 50;
-
-            const localFmtDate = (dateStr) => {
-              const d = new Date(dateStr);
-              return d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
-            };
-
-            return (
-              <div
-                className="chart-tooltip-box"
-                style={{
-                  position: "absolute",
-                  top: "10px",
-                  left: centerPct >= 50 ? "52px" : "auto",
-                  right: centerPct < 50 ? "12px" : "auto",
-                  opacity: 1,
-                  transform: "none",
-                  zIndex: 101,
-                  pointerEvents: "none",
-                  width: "220px",
-                  padding: "10px 14px",
-                  background: "rgba(15, 23, 42, 0.95)",
-                  border: "1px solid rgba(255,255,255,0.15)",
-                  boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.3)",
-                  borderRadius: "12px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "4px"
-                }}
-              >
-                <div style={{ fontSize: 11, color: "#94A3B8", fontWeight: 800, borderBottom: "1px solid rgba(255,255,255,0.1)", paddingBottom: 4, marginBottom: 2 }}>
-                  📊 เปรียบเทียบค่าส่วนต่าง
-                </div>
-                <div style={{ fontSize: 10, color: "#CBD5E1" }}>
-                  {localFmtDate(pA.date)} ➔ {localFmtDate(pB.date)} ({timeStr})
-                </div>
-
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 2 }}>
-                  <span style={{ color: "#94A3B8" }}>เริ่ม:</span>
-                  <span style={{ color: "white", fontWeight: 700 }}>{fmt.usd(valA)}</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
-                  <span style={{ color: "#94A3B8" }}>สิ้นสุด:</span>
-                  <span style={{ color: "white", fontWeight: 700 }}>{fmt.usd(valB)}</span>
-                </div>
-
-                <div style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontSize: 11,
-                  borderTop: "1px dashed rgba(255,255,255,0.15)",
-                  paddingTop: 4,
-                  marginTop: 2
-                }}>
-                  <span style={{ color: "#94A3B8" }}>ส่วนต่าง:</span>
-                  <span style={{
-                    fontWeight: 900,
-                    color: diffVal >= 0 ? "#10B981" : "#EF4444"
-                  }}>
-                    {diffVal >= 0 ? "+" : ""}{fmt.usd(diffVal)} ({diffVal >= 0 ? "+" : ""}{diffPct.toFixed(2)}%)
-                  </span>
-                </div>
-                <div style={{ fontSize: 9, color: "#94A3B8", textAlign: "center", marginTop: 4, fontStyle: "italic" }}>
-                  คลิก 1 ครั้งบนกราฟเพื่อล้างข้อมูลเปรียบเทียบ
-                </div>
-              </div>
-            );
-          }
-          return null;
-        })()}
-      </div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   DONUT CHART (Fixed Height)
-═══════════════════════════════════════════════════════════════ */
-/* ═══════════════════════════════════════════════════════════════
-   DONUT CHART (Fixed Height — No Layout Shift)
-═══════════════════════════════════════════════════════════════ */
-const DONUT_COLORS = ["#5236FF", "#00B98A", "#F59E0B", "#FF4B55", "#8B5CF6", "#06B6D4", "#EC4899", "#84CC16"];
 const CATEGORY_LABELS = { stock: "หุ้น", crypto: "คริปโต", gold: "ทองคำ/น้ำมัน", fiat: "เงินสด" };
 
-function DonutChart({ segments, activeAssets, hasAssets }) {
-  const [drillCategory, setDrillCategory] = useState(null);
-  const [hoveredSlice, setHoveredSlice] = useState(null);
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-
-  const R = 68, CX = 80, CY = 80, SW = 18;
-  const circumference = 2 * Math.PI * R;
-
-  // Handle mouse move to update tooltip position
-  const handleMouseMove = (e) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    setMousePos({ x, y });
-  };
-
-  // Reset drill-down when active assets are empty
-  useEffect(() => {
-    if (!activeAssets || activeAssets.length === 0) {
-      setDrillCategory(null);
-    }
-  }, [activeAssets]);
-
-  // If no assets or skeleton state
-  if (!segments || segments.length === 0 || !activeAssets) {
-    return (
-      <div className="donut-card-body">
-        <div className="chart-container">
-          <div className="donut-wrapper">
-            <svg viewBox="0 0 160 160" className="donut-chart-svg">
-              <circle cx={CX} cy={CY} r={R} fill="none" stroke="#F1F5F9" strokeWidth={SW} />
-            </svg>
-            <div className="donut-center-label">
-              <div className="donut-center-count" style={{ color: "var(--text-faint)" }}>
-                {activeAssets?.length > 0 ? activeAssets.length : "—"}
-              </div>
-              <div className="donut-center-text">
-                {activeAssets?.length > 0 ? "กำลังโหลด..." : "ว่างเปล่า"}
-              </div>
-            </div>
-          </div>
-          <div className="legend-list">
-            {hasAssets ? (
-              /* Skeleton rows when assets exist but no prices yet */
-              [1,2,3,4].map(i => (
-                <div key={i} className="legend-item">
-                  <div className="skeleton skeleton-circle" style={{ width: 10, height: 10, flexShrink: 0 }} />
-                  <div className="skeleton skeleton-text" style={{ flex: 1, height: 12 }} />
-                  <div className="skeleton skeleton-text" style={{ width: 30, height: 12 }} />
-                </div>
-              ))
-            ) : (
-              /* Empty state hint */
-              <div style={{ gridColumn: "1/-1", textAlign: "center", padding: "12px 0", fontSize: 12, color: "var(--text-faint)" }}>
-                เพิ่มสินทรัพย์เพื่อดูสัดส่วน
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Calculate current slices depending on drill Category
-  let slices = [];
-  let displayCount = 0;
-  let centerText = "สินทรัพย์";
-
-  if (!drillCategory) {
-    // Top-level View
-    displayCount = activeAssets.length;
-    centerText = "สินทรัพย์";
-    let cumulative = 0;
-    slices = segments.map((seg, i) => {
-      const dash = (seg.pct / 100) * circumference;
-      const gap  = circumference - dash;
-      const strokeDashoffset = circumference - cumulative;
-      cumulative += dash;
-      return {
-        ...seg,
-        dash,
-        gap,
-        strokeDashoffset,
-        color: DONUT_COLORS[i % DONUT_COLORS.length]
-      };
-    });
-  } else {
-    // Drilled-down View
-    const filtered = activeAssets.filter(a => (a.category || "stock") === drillCategory);
-    const catTotalVal = filtered.reduce((sum, a) => sum + (a.valueUSD || 0), 0);
-    const sortedFiltered = [...filtered].sort((a, b) => (b.valueUSD || 0) - (a.valueUSD || 0));
-
-    displayCount = sortedFiltered.length;
-    centerText = CATEGORY_LABELS[drillCategory] || drillCategory;
-
-    let childCumulative = 0;
-    slices = sortedFiltered.map((a, i) => {
-      const pct = catTotalVal > 0 ? (a.valueUSD / catTotalVal) * 100 : 0;
-      const dash = (pct / 100) * circumference;
-      const gap  = circumference - dash;
-      const strokeDashoffset = circumference - childCumulative;
-      childCumulative += dash;
-      return {
-        id: a.symbol,
-        label: a.symbol,
-        fullName: a.name || a.symbol,
-        pct,
-        value: a.valueUSD,
-        dash,
-        gap,
-        strokeDashoffset,
-        color: DONUT_COLORS[i % DONUT_COLORS.length]
-      };
-    });
-  }
-
-  return (
-    <div className="donut-card-body" style={{ position: "relative" }}>
-      {/* Back button for drilldown */}
-      {drillCategory && (
-        <button
-          onClick={() => {
-            setDrillCategory(null);
-            setHoveredSlice(null);
-          }}
-          style={{
-            background: "var(--primary-light)",
-            color: "var(--primary)",
-            border: "none",
-            borderRadius: 10,
-            padding: "6px 14px",
-            fontSize: 12,
-            fontWeight: 800,
-            cursor: "pointer",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            marginBottom: 14,
-            transition: "var(--transition)",
-            boxShadow: "var(--shadow-xs)"
-          }}
-          className="ripple-btn"
-        >
-          ← ย้อนกลับ
-        </button>
-      )}
-
-      <div className="chart-container">
-        <div
-          className="donut-wrapper"
-          onMouseMove={handleMouseMove}
-          onMouseLeave={() => setHoveredSlice(null)}
-        >
-          <svg viewBox="0 0 160 160" className="donut-chart-svg">
-            {/* Background track */}
-            <circle cx={CX} cy={CY} r={R} fill="none" stroke="#F1F5F9" strokeWidth={SW} />
-            {/* Segments */}
-            {slices.map((s, i) => (
-              <circle
-                key={i}
-                cx={CX} cy={CY} r={R}
-                fill="none"
-                stroke={s.color}
-                strokeWidth={hoveredSlice && hoveredSlice.id === s.id ? SW + 3 : SW}
-                strokeLinecap="butt"
-                strokeDasharray={`${s.dash} ${s.gap}`}
-                strokeDashoffset={s.strokeDashoffset}
-                onMouseEnter={() => setHoveredSlice(s)}
-                onClick={() => {
-                  if (!drillCategory) {
-                    setDrillCategory(s.id);
-                    setHoveredSlice(null);
-                  }
-                }}
-                style={{
-                  cursor: !drillCategory ? "pointer" : "default",
-                  transition: "stroke-width 0.2s ease, stroke-dasharray 0.8s cubic-bezier(0.4,0,0.2,1), stroke-dashoffset 0.8s cubic-bezier(0.4,0,0.2,1)"
-                }}
-              />
-            ))}
-            {/* White center hole */}
-            <circle cx={CX} cy={CY} r={R - SW / 2 - 2} fill="white" />
-          </svg>
-
-          <div className="donut-center-label" style={{ pointerEvents: "none" }}>
-            <div className="donut-center-count">{displayCount}</div>
-            <div className="donut-center-text">{centerText}</div>
-          </div>
-
-          {/* Floating Tooltip */}
-          {hoveredSlice && (
-            <div
-              className="chart-tooltip-box"
-              style={{
-                position: "absolute",
-                top: mousePos.y - 65,
-                left: mousePos.x,
-                transform: mousePos.x < 80 ? "translateX(15px)" : "translateX(calc(-100% - 15px))",
-                zIndex: 1000,
-                pointerEvents: "none",
-                background: "var(--text-main)",
-                color: "white",
-                padding: "8px 12px",
-                borderRadius: 12,
-                boxShadow: "var(--shadow-md)",
-                fontSize: 12,
-                display: "flex",
-                flexDirection: "column",
-                gap: 2
-              }}
-            >
-              <div style={{ fontWeight: 800, color: "white" }}>{hoveredSlice.label}</div>
-              {hoveredSlice.fullName && (
-                <div style={{ fontSize: 10, color: "var(--text-faint)", whiteSpace: "normal", maxWidth: 140 }}>
-                  {hoveredSlice.fullName}
-                </div>
-              )}
-              <div style={{ display: "flex", gap: 12, justifyContent: "space-between", fontSize: 11, marginTop: 4 }}>
-                <span style={{ color: "var(--text-faint)" }}>สัดส่วน:</span>
-                <span style={{ color: hoveredSlice.color, fontWeight: 800 }}>{hoveredSlice.pct.toFixed(1)}%</span>
-              </div>
-              {hoveredSlice.value !== undefined && (
-                <div style={{ display: "flex", gap: 12, justifyContent: "space-between", fontSize: 11 }}>
-                  <span style={{ color: "var(--text-faint)" }}>มูลค่า:</span>
-                  <span style={{ fontWeight: 800, color: "white" }}>
-                    ${hoveredSlice.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="legend-list">
-          {slices.map((s, i) => (
-            <div
-              key={i}
-              className="legend-item"
-              onMouseEnter={() => setHoveredSlice(s)}
-              onMouseLeave={() => setHoveredSlice(null)}
-              onClick={() => {
-                if (!drillCategory) {
-                  setDrillCategory(s.id);
-                  setHoveredSlice(null);
-                }
-              }}
-              style={{
-                cursor: !drillCategory ? "pointer" : "default",
-                opacity: hoveredSlice && hoveredSlice.id !== s.id ? 0.5 : 1,
-                transition: "opacity 0.2s ease"
-              }}
-            >
-              <div className="legend-color" style={{ background: s.color }} />
-              <span className="legend-name" style={{ fontWeight: hoveredSlice && hoveredSlice.id === s.id ? 800 : 600 }}>{s.label}</span>
-              <span className="legend-pct" style={{ color: s.color, fontWeight: 800 }}>{s.pct.toFixed(1)}%</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function getRealizedPnL(lots, isThai, exchangeRate) {
-  if (!lots || !lots.length) return 0;
-  const sortedLots = [...lots].sort((a, b) => new Date(a.date) - new Date(b.date));
-  let realized = 0;
-  let currentQty = 0;
-  let currentAvgCost = 0;
-  for (const lot of sortedLots) {
-    const lotQty = lot.qty;
-    let lotPrice = lot.price || 0;
-    if (isThai && exchangeRate) {
-      lotPrice = lotPrice / exchangeRate;
-    }
-    if (lotQty > 0) {
-      const newQty = currentQty + lotQty;
-      const newCost = (currentQty * currentAvgCost) + (lotQty * lotPrice);
-      currentAvgCost = newQty > 0 ? newCost / newQty : 0;
-      currentQty = newQty;
-    } else if (lotQty < 0) {
-      const sellQty = Math.abs(lotQty);
-      const gain = (lotPrice - currentAvgCost) * sellQty;
-      realized += gain;
-      currentQty = Math.max(0, currentQty - sellQty);
-    }
-  }
-  return realized;
-}
-
-function PnLDetailsModal({
-  isOpen,
-  onClose,
-  assets,
-  prices,
-  exchangeRate,
-  historicalRates,
-  totalUSD,
-  totalCostUSD,
-  totalRealizedUSD,
-  totalUnrealizedUSD,
-  totalGainUSD,
-  totalGainPct,
-  initialCapitalUSD,
-  onClearAsset,
-  onDeleteAsset
-}) {
-  const [searchTerm, setSearchTerm] = useState("");
-
-  const getCurrencyPriceUSD = (symbol, priceVal, exchangeRate) => {
-    if (symbol === "USD") return 1.0;
-    if (priceVal != null && priceVal > 0) {
-      if (["EUR", "GBP", "AUD", "NZD"].includes(symbol)) {
-        return priceVal;
-      }
-      return 1.0 / priceVal;
-    }
-    if (symbol === "THB") return 1.0 / (exchangeRate || 35.0);
-    return 1.0;
-  };
-
-  const getCurrencyTicker = (symbol) => {
-    if (symbol === "THB") return "USDTHB=X";
-    if (symbol === "USD") return "USD";
-    return `${symbol}USD=X`;
-  };
-
-  const getHistoricalRate = (dateStr) => {
-    if (!dateStr) return exchangeRate;
-    const targetDate = dateStr.split("T")[0];
-    if (historicalRates && historicalRates[targetDate]) {
-      return historicalRates[targetDate];
-    }
-    const dates = Object.keys(historicalRates || {}).sort();
-    if (dates.length === 0) return exchangeRate;
-    let bestRate = exchangeRate;
-    for (const d of dates) {
-      if (d <= targetDate) {
-        bestRate = historicalRates[d];
-      } else {
-        break;
-      }
-    }
-    return bestRate;
-  };
-
-  const getRealizedPnLInTHB = (lots, isThai) => {
-    if (!lots || !lots.length) return 0;
-    const sortedLots = [...lots].sort((a, b) => new Date(a.date) - new Date(b.date));
-    let realizedTHB = 0;
-    let currentQty = 0;
-    let currentAvgCostUSD = 0;
-    for (const lot of sortedLots) {
-      const lotQty = lot.qty;
-      let lotPriceUSD = lot.price || 0;
-      const txRate = getHistoricalRate(lot.date);
-      if (isThai && txRate) {
-        lotPriceUSD = lotPriceUSD / txRate;
-      }
-      if (lotQty > 0) {
-        const newQty = currentQty + lotQty;
-        const newCost = (currentQty * currentAvgCostUSD) + (lotQty * lotPriceUSD);
-        currentAvgCostUSD = newQty > 0 ? newCost / newQty : 0;
-        currentQty = newQty;
-      } else if (lotQty < 0) {
-        const sellQty = Math.abs(lotQty);
-        const gainUSD = (lotPriceUSD - currentAvgCostUSD) * sellQty;
-        const gainTHB = gainUSD * txRate;
-        realizedTHB += gainTHB;
-        currentQty = Math.max(0, currentQty - sellQty);
-      }
-    }
-    return realizedTHB;
-  };
-
-  const computeAssetMetrics = (asset) => {
-    const isThai = asset.symbol.toUpperCase().endsWith(".BK");
-    const isCashAsset = asset.type === "fiat" || asset.category === "fiat";
-
-    let priceUSD = 0;
-    if (isCashAsset) {
-      const ticker = getCurrencyTicker(asset.symbol);
-      const p = prices[ticker]?.price;
-      priceUSD = getCurrencyPriceUSD(asset.symbol, p, exchangeRate);
-    } else {
-      const p = prices[asset.symbol]?.price ?? 0;
-      priceUSD = isThai ? p / exchangeRate : p;
-    }
-
-    const valueUSD = priceUSD * asset.qty;
-    const avgCost = asset.avgCost ?? asset.avgPrice ?? 0;
-    const costUSD = isCashAsset ? avgCost * asset.qty : (avgCost * asset.qty / (isThai ? exchangeRate : 1));
-    const unrealized = asset.qty > 0 ? (valueUSD - costUSD) : 0;
-
-    // Realized
-    const rawRealized = getRealizedPnL(asset.lots || [], isThai, exchangeRate);
-    const rawRealizedTHB = getRealizedPnLInTHB(asset.lots || [], isThai);
-    const realized = rawRealized - (asset.clearedRealizedUSD || 0);
-    const realizedTHB = rawRealizedTHB - (asset.clearedRealizedTHB || 0);
-
-    // Initial Capital (cumulative buys)
-    let totalInvested = 0;
-    (asset.lots || []).forEach(l => {
-      if (l.qty > 0) {
-        const pUSD = isThai ? l.price / exchangeRate : l.price;
-        totalInvested += l.qty * pUSD;
-      }
-    });
-    if (totalInvested === 0 && asset.qty > 0) {
-      totalInvested = costUSD;
-    }
-
-    const totalPnL = realized + unrealized;
-    const totalPnLPct = totalInvested > 0 ? (totalPnL / totalInvested) * 100 : 0;
-
-    return {
-      valueUSD,
-      totalInvested,
-      realized,
-      realizedTHB,
-      unrealized,
-      totalPnL,
-      totalPnLPct
-    };
-  };
-
-  const breakdown = useMemo(() => {
-    return assets.map(a => {
-      const metrics = computeAssetMetrics(a);
-      return {
-        ...a,
-        ...metrics
-      };
-    });
-  }, [assets, prices, exchangeRate]);
-
-  // Sum up THB values realistically
-  const { totalRealizedTHB_Modal, totalUnrealizedTHB_Modal } = useMemo(() => {
-    let relTHB = 0;
-    let unrelTHB = 0;
-    breakdown.forEach(b => {
-      relTHB += b.realizedTHB || 0;
-      unrelTHB += (b.unrealized || 0) * exchangeRate;
-    });
-    return {
-      totalRealizedTHB_Modal: relTHB,
-      totalUnrealizedTHB_Modal: unrelTHB
-    };
-  }, [breakdown, exchangeRate]);
-
-  const totalGainTHB_Modal = totalRealizedTHB_Modal + totalUnrealizedTHB_Modal;
-
-  const filtered = useMemo(() => {
-    const q = searchTerm.trim().toLowerCase();
-    if (!q) return breakdown;
-    return breakdown.filter(b =>
-      b.symbol.toLowerCase().includes(q) ||
-      b.name.toLowerCase().includes(q)
-    );
-  }, [breakdown, searchTerm]);
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal-content" style={{ maxWidth: 840, width: "95%" }}>
-        <div className="modal-header" style={{ borderBottom: "1px solid var(--border)", paddingBottom: 14 }}>
-          <span className="modal-title" style={{ fontSize: 16, fontWeight: 800 }}>📊 รายละเอียดกำไร/ขาดทุนรายสินทรัพย์ (P&L Breakdown)</span>
-          <button className="btn-close" onClick={onClose} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-            <X size={16} />
-          </button>
-        </div>
-
-        {/* Overview Row */}
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
-          gap: 12,
-          marginTop: 14,
-          marginBottom: 16,
-          background: "#F8FAFC",
-          padding: 16,
-          borderRadius: 14,
-          border: "1px solid var(--border)"
-        }}>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", marginBottom: 4 }}>ทุนสะสมสะสมทั้งหมด</div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: "var(--text-main)" }}>{fmt.usd(initialCapitalUSD)}</div>
-            <div style={{ fontSize: 11, color: "var(--text-faint)" }}>{fmt.thb(initialCapitalUSD * exchangeRate)}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", marginBottom: 4 }}>มูลค่าสินทรัพย์ปัจจุบัน</div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: "var(--text-main)" }}>{fmt.usd(totalUSD)}</div>
-            <div style={{ fontSize: 11, color: "var(--text-faint)" }}>{fmt.thb(totalUSD * exchangeRate)}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", marginBottom: 4 }}>รับรู้แล้ว (Realized)</div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: totalRealizedUSD >= 0 ? "var(--gain)" : "var(--loss)" }}>
-              {totalRealizedUSD >= 0 ? "+" : ""}{fmt.usd(totalRealizedUSD)}
-            </div>
-            <div style={{ fontSize: 11, color: "var(--text-faint)" }}>
-              {totalRealizedTHB_Modal >= 0 ? "+" : ""}{fmt.thb(totalRealizedTHB_Modal)}
-            </div>
-          </div>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", marginBottom: 4 }}>ยังไม่รับรู้ (Unrealized)</div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: totalUnrealizedUSD >= 0 ? "var(--gain)" : "var(--loss)" }}>
-              {totalUnrealizedUSD >= 0 ? "+" : ""}{fmt.usd(totalUnrealizedUSD)}
-            </div>
-            <div style={{ fontSize: 11, color: "var(--text-faint)" }}>
-              {totalUnrealizedTHB_Modal >= 0 ? "+" : ""}{fmt.thb(totalUnrealizedTHB_Modal)}
-            </div>
-          </div>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", marginBottom: 4 }}>ผลตอบแทนสะสมสุทธิ</div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: totalGainUSD >= 0 ? "var(--gain)" : "var(--loss)" }}>
-              {totalGainUSD >= 0 ? "+" : ""}{fmt.usd(totalGainUSD)}
-            </div>
-            <div style={{ fontSize: 11, color: totalGainTHB_Modal >= 0 ? "var(--gain)" : "var(--loss)", fontWeight: 700, display: "flex", flexDirection: "column", gap: 2 }}>
-              <div>{totalGainTHB_Modal >= 0 ? "+" : ""}{fmt.thb(totalGainTHB_Modal)}</div>
-              <div style={{ opacity: 0.8, fontSize: 10 }}>({totalGainUSD >= 0 ? "▲" : "▼"} {fmt.pct(totalGainPct)})</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Search Bar */}
-        <div style={{ marginBottom: 14 }}>
-          <input
-            type="text"
-            className="form-input"
-            placeholder="🔍 ค้นหาตามสัญลักษณ์หรือชื่อ..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ height: 38, borderRadius: 10, width: "100%", padding: "0 12px", border: "1px solid var(--border)", fontSize: 13 }}
-          />
-        </div>
-
-        {/* Breakdown Table */}
-        <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: 12, maxHeight: 320, overflowY: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, textAlign: "left" }}>
-            <thead>
-              <tr style={{ background: "#F1F5F9", position: "sticky", top: 0, zIndex: 1 }}>
-                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)", width: "16%" }}>สินทรัพย์</th>
-                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)", width: "12%", minWidth: "90px" }}>สถานะ</th>
-                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)", textAlign: "right", width: "10%" }}>จำนวนถือ</th>
-                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)", textAlign: "right", width: "14%" }}>ทุนสะสมสะสม (USD)</th>
-                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)", textAlign: "right", width: "14%" }}>รับรู้แล้ว (Realized)</th>
-                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)", textAlign: "right", width: "14%" }}>ยังไม่รับรู้ (Unrealized)</th>
-                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)", textAlign: "right", width: "14%" }}>ผลตอบแทนรวม (USD)</th>
-                <th style={{ padding: "10px 12px", fontWeight: 700, color: "var(--text-muted)", textAlign: "center", width: "6%" }}>จัดการ</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={8} style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>
-                    ไม่พบรายการสินทรัพย์
-                  </td>
-                </tr>
-              ) : (
-                filtered.map((item, idx) => {
-                  const isSoldOut = item.qty <= 0.00001;
-                  const isCash = item.type === "fiat" || item.category === "fiat";
-                  const totalPnLTHB = (item.realizedTHB || 0) + (item.unrealized || 0) * exchangeRate;
-                  return (
-                    <tr key={item.id || item.symbol} style={{ borderTop: "1px solid var(--border)", background: idx % 2 === 0 ? "#FFFFFF" : "#F8FAFC" }}>
-                      <td style={{ padding: "10px 12px", fontWeight: 700 }}>
-                        <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
-                          <span style={{ fontSize: 13 }}>{getDisplaySymbol(item.symbol)}</span>
-                          <span className={`badge-type ${item.category || "stock"}`} style={{ fontSize: 9, padding: "1px 4px", borderRadius: 4 }}>
-                            {item.category === "gold" ? (item.symbol === "CL=F" ? "น้ำมัน" : "ทองคำ") : (CATEGORY_LABELS[item.category] || item.category || "stock")}
-                          </span>
-                          {item.broker && (
-                            <span style={{
-                              fontSize: 10,
-                              fontWeight: 800,
-                              color: "var(--primary)",
-                              background: "var(--primary-light)",
-                              padding: "1px 6px",
-                              borderRadius: 4,
-                              border: "1px solid rgba(82,54,255,0.15)",
-                              whiteSpace: "nowrap"
-                            }}>
-                              {item.broker}
-                            </span>
-                          )}
-                        </div>
-                        <div style={{ fontSize: 11, fontWeight: 500, color: "var(--text-muted)", marginTop: 2 }}>{getAssetFullName(item.symbol, item.name, item.category)}</div>
-                      </td>
-                      <td style={{ padding: "10px 12px" }}>
-                        {isSoldOut ? (
-                          <span style={{ fontSize: 10, fontWeight: 700, color: "#64748B", background: "#E2E8F0", padding: "2px 8px", borderRadius: 6, whiteSpace: "nowrap" }}>ขายหมดแล้ว</span>
-                        ) : (
-                          <span style={{ fontSize: 10, fontWeight: 700, color: "#16A34A", background: "#DCFCE7", padding: "2px 8px", borderRadius: 6, whiteSpace: "nowrap" }}>กำลังถือ</span>
-                        )}
-                      </td>
-                      <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 600 }}>
-                        {isCash ? "—" : fmt.qty(item.qty)}
-                      </td>
-                      <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 600 }}>
-                        <div>{fmt.usd(item.totalInvested)}</div>
-                        <div style={{ fontSize: 10, color: "var(--text-faint)", fontWeight: "normal" }}>
-                          ({fmt.thb(item.totalInvested * exchangeRate)})
-                        </div>
-                      </td>
-                      <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700, color: item.realized >= 0 ? "var(--gain)" : "var(--loss)" }}>
-                        <div>{item.realized !== 0 ? (item.realized >= 0 ? "+" : "") + fmt.usd(item.realized) : "—"}</div>
-                        {item.realized !== 0 && (
-                          <div style={{ fontSize: 10, color: item.realizedTHB >= 0 ? "var(--gain)" : "var(--loss)", fontWeight: "normal" }}>
-                            ({item.realizedTHB >= 0 ? "+" : ""}{fmt.thb(item.realizedTHB)})
-                          </div>
-                        )}
-                      </td>
-                      <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700, color: item.unrealized >= 0 ? "var(--gain)" : "var(--loss)" }}>
-                        <div>{item.unrealized !== 0 && !isSoldOut ? (item.unrealized >= 0 ? "+" : "") + fmt.usd(item.unrealized) : "—"}</div>
-                        {item.unrealized !== 0 && !isSoldOut && (
-                          <div style={{ fontSize: 10, color: item.unrealized >= 0 ? "var(--gain)" : "var(--loss)", fontWeight: "normal" }}>
-                            ({item.unrealized >= 0 ? "+" : ""}{fmt.thb(item.unrealized * exchangeRate)})
-                          </div>
-                        )}
-                      </td>
-                      <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 800, color: item.totalPnL >= 0 ? "var(--gain)" : "var(--loss)" }}>
-                        <div>{item.totalPnL >= 0 ? "+" : ""}{fmt.usd(item.totalPnL)}</div>
-                        <div style={{ fontSize: 10, color: totalPnLTHB >= 0 ? "var(--gain)" : "var(--loss)", fontWeight: "bold" }}>
-                          ({totalPnLTHB >= 0 ? "+" : ""}{fmt.thb(totalPnLTHB)})
-                        </div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)" }}>({item.totalPnL >= 0 ? "▲" : "▼"}{fmt.pct(item.totalPnLPct)})</div>
-                      </td>
-                      <td style={{ padding: "10px 12px", textAlign: "center" }}>
-                        <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
-                          <button
-                            onClick={() => onClearAsset(item.id)}
-                            style={{
-                              padding: "4px 8px",
-                              fontSize: 11,
-                              fontWeight: 700,
-                              color: "#D97706",
-                              background: "#FEF3C7",
-                              border: "1.5px solid #F59E0B",
-                              borderRadius: 6,
-                              cursor: "pointer",
-                              transition: "all 0.2s ease"
-                            }}
-                            title="ล้างกำไรสะสมในอดีต (คงจำนวนหุ้นปัจจุบัน)"
-                          >
-                            ล้าง
-                          </button>
-                          <button
-                            onClick={() => onDeleteAsset(item.id, true)}
-                            style={{
-                              padding: "4px 8px",
-                              fontSize: 11,
-                              fontWeight: 700,
-                              color: "#DC2626",
-                              background: "#FEE2E2",
-                              border: "1.5px solid #EF4444",
-                              borderRadius: 6,
-                              cursor: isSoldOut ? "pointer" : "not-allowed",
-                              opacity: isSoldOut ? 1 : 0.4,
-                              transition: "all 0.2s ease"
-                            }}
-                            title={isSoldOut ? "ลบสินทรัพย์ออกจากพอร์ต" : "ไม่สามารถลบได้เนื่องจากยังมีหุ้นเหลืออยู่"}
-                          >
-                            ลบ
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-
-/* ═══════════════════════════════════════════════════════════════
-   KPI CARDS ROW
-═══════════════════════════════════════════════════════════════ */
-function KPIRow({ totalUSD, totalTHB, todayChange, todayChangeTHB, todayChangePct, totalGain, totalGainTHB, totalGainPct, bestAsset, loading }) {
-  if (loading) {
-    return (
-      <div className="kpi-row stagger-1">
-        {[1,2,3,4].map(i => (
-          <div key={i} className="kpi-card">
-            <div className="skeleton skeleton-text" style={{ width: "60%", marginBottom: 10 }} />
-            <div className="skeleton skeleton-text xl" style={{ width: "80%", marginBottom: 8 }} />
-            <div className="skeleton skeleton-text" style={{ width: "40%" }} />
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  const todayUp   = todayChange >= 0;
-  const totalUp   = totalGain  >= 0;
-
-  return (
-    <div className="kpi-row stagger-1">
-      <div className="kpi-card primary">
-        <div className="kpi-label">💰 มูลค่ารวม</div>
-        <div className="kpi-value">{fmt.usd(totalUSD)}</div>
-        <div className="kpi-sub">{fmt.thb(totalTHB)}</div>
-      </div>
-
-      <div className={`kpi-card ${todayUp ? "gain-card" : "loss-card"}`}>
-        <div className="kpi-label">📅 วันนี้</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-          <div className="kpi-value" style={{ color: todayUp ? "var(--gain)" : "var(--loss)", margin: 0, whiteSpace: "nowrap" }}>
-            {todayChange !== 0 ? (todayUp ? "+" : "-") + fmt.usd(Math.abs(todayChange)) : "—"}
-          </div>
-          {todayChange !== 0 && (
-            <span className={`kpi-badge ${todayUp ? "up" : "down"}`} style={{ margin: 0, whiteSpace: "nowrap" }}>
-              {todayUp ? "▲" : "▼"} {fmt.pct(todayChangePct)}
-            </span>
-          )}
-        </div>
-        {todayChange !== 0 && (
-          <div className="kpi-sub" style={{ marginTop: 2 }}>{todayUp ? "+" : "-"}{fmt.thb(Math.abs(todayChangeTHB))}</div>
-        )}
-      </div>
-
-      <div className={`kpi-card ${totalUp ? "gain-card" : "loss-card"}`}>
-        <div className="kpi-label">📊 กำไร/ขาดทุนรวม</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-          <div className="kpi-value" style={{ color: totalUp ? "var(--gain)" : "var(--loss)", margin: 0, whiteSpace: "nowrap" }}>
-            {totalGain !== 0 ? (totalUp ? "+" : "-") + fmt.usd(Math.abs(totalGain)) : "—"}
-          </div>
-          {totalGain !== 0 && (
-            <span className={`kpi-badge ${totalUp ? "up" : "down"}`} style={{ margin: 0, whiteSpace: "nowrap" }}>
-              {totalUp ? "▲" : "▼"} {fmt.pct(totalGainPct)}
-            </span>
-          )}
-        </div>
-        {totalGain !== 0 && (
-          <div className="kpi-sub" style={{ marginTop: 2 }}>{totalUp ? "+" : "-"}{fmt.thb(Math.abs(totalGainTHB))}</div>
-        )}
-      </div>
-
-      <div className="kpi-card gold-card">
-        <div className="kpi-label">🏆 ดีที่สุด</div>
-        {bestAsset ? (
-          <>
-            <div className="kpi-value small">{bestAsset.symbol}</div>
-            <div className="kpi-sub" style={{ color: "var(--gain)", fontWeight: 700 }}>
-              {fmt.pct(bestAsset.pct)}
-            </div>
-          </>
-        ) : (
-          <div className="kpi-value small" style={{ color: "var(--text-muted)" }}>—</div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   MAIN DASHBOARD COMPONENT
-═══════════════════════════════════════════════════════════════ */
 export default function Dashboard({ user, onLogout, showToast }) {
   const [hideValues, setHideValues] = useState(() => {
     return localStorage.getItem("hide_portfolio_values") === "true";
   });
 
-  hideValuesGlobal = hideValues;
-
   useEffect(() => {
     localStorage.setItem("hide_portfolio_values", hideValues ? "true" : "false");
-    hideValuesGlobal = hideValues;
   }, [hideValues]);
 
   const [assets, setAssets]               = useState([]);
@@ -2484,6 +44,14 @@ export default function Dashboard({ user, onLogout, showToast }) {
   const [portfolioHistory, setPortfolioHistory] = useState([]); // [{date, value}]
   const [exchangeRate, setExchangeRate]   = useState(35.0);
   const [historicalRates, setHistoricalRates] = useState({});
+
+  const fmt = useMemo(() => ({
+    usd:  (n) => fmtUSD(n, hideValues),
+    thb:  (n, decimals = 0) => fmtTHB(n, decimals, hideValues),
+    pct:  fmtPct,
+    qty:  (n) => fmtQty(n, hideValues),
+    date: fmtDate,
+  }), [hideValues]);
 
   const getHistoricalRate = useCallback((dateStr) => {
     if (!dateStr) return exchangeRate;
@@ -2612,10 +180,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
   const [profilePic, setProfilePic]             = useState(() => localStorage.getItem(`profile_pic_${user.username}`) || "");
   const [nickname, setNickname]                 = useState(() => localStorage.getItem(`profile_nickname_${user.username}`) || "");
   const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem("gemini_api_key") || "");
-
-  useEffect(() => {
-    // No hardcoded key migration — key must be entered via Settings
-  }, []);
 
   const [newNickname, setNewNickname]           = useState("");
   const [oldPassword, setOldPassword]           = useState("");
@@ -2780,7 +344,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
       if (res.ok) {
         const data = await res.json();
         setAssets(data);
-        // Backup to local storage in case server goes offline later
         localStorage.setItem(`local_portfolio_${user.username}`, JSON.stringify(data));
         await fetchPrices(data);
         if (data.length > 0) fetchSparklines(data, chartRange);
@@ -2850,7 +413,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
         setPrices(newPrices);
         if (data.exchangeRate) setExchangeRate(data.exchangeRate);
       } else {
-        // Fallback or local user mode: generate mock quotes for symbols
         const newPrices = { ...prevPricesRef.current };
         const symList = symbols ? symbols.split(",") : [];
 
@@ -2858,14 +420,12 @@ export default function Dashboard({ user, onLogout, showToast }) {
           const cleanSym = s.toUpperCase();
           let basePrice = 100.0;
 
-          // Find a reasonable basePrice from avgCost in assets
           const matchAsset = portfolioAssets.find(a => a.symbol.toUpperCase() === cleanSym || getCurrencyTicker(a.symbol).toUpperCase() === cleanSym);
           if (matchAsset) {
             basePrice = matchAsset.avgCost || matchAsset.avgPrice || 100.0;
           }
 
-          // Add a small random-walk variation
-          const changePercent = (Math.random() - 0.5) * 0.02; // -1% to +1%
+          const changePercent = (Math.random() - 0.5) * 0.02;
           const lastPrice = prevPricesRef.current[cleanSym]?.price || basePrice;
           const currPrice = lastPrice * (1 + changePercent);
 
@@ -2878,11 +438,9 @@ export default function Dashboard({ user, onLogout, showToast }) {
           };
         });
 
-        // Add a mock exchange rate for THB/USD
-        const mockExchangeRate = 35.0 + (Math.random() - 0.5) * 0.2; // roughly 35 THB/USD
+        const mockExchangeRate = 35.0 + (Math.random() - 0.5) * 0.2;
         setExchangeRate(mockExchangeRate);
 
-        // Also mock THB=X ticker specifically if cash assets need it
         newPrices["THB=X"] = {
           price: mockExchangeRate,
           change: 0.0,
@@ -2897,7 +455,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
           marketState: "REGULAR"
         };
 
-        // Detect price changes for flash animation in mock mode too
         const flash = {};
         Object.keys(newPrices).forEach(sym => {
           const prev = prevPricesRef.current[sym]?.price;
@@ -2935,7 +492,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
         return a.symbol;
       }).filter(Boolean))];
 
-      // Calculate optimal timeframe range based on earliest transaction date (including cash)
+      // Calculate optimal timeframe range based on earliest transaction date
       let earliestDate = null;
       portfolioAssets.forEach(asset => {
         const assetLots = asset.lots && asset.lots.length > 0 ? asset.lots : [];
@@ -2954,15 +511,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
         const ageInDays = (Date.now() - earliestTime) / 86400000;
 
         const rangeDurationDays = {
-          "1D": 1,
-          "1W": 7,
-          "1M": 30,
-          "3M": 90,
-          "6M": 180,
-          "YTD": 365,
-          "1Y": 365,
-          "5Y": 1825,
-          "MAX": Infinity
+          "1D": 1, "1W": 7, "1M": 30, "3M": 90, "6M": 180, "YTD": 365, "1Y": 365, "5Y": 1825, "MAX": Infinity
         };
 
         const rangesOrder = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "5Y", "MAX"];
@@ -2992,33 +541,15 @@ export default function Dashboard({ user, onLogout, showToast }) {
         const data = await res.json();
         setSparklines(data);
       } else {
-        // Fallback or local user mode: generate mock sparkline date series for the requested tf/range
         const mockSparklines = {};
-
-        // Generate history series based on timeframe
         const days = {
-          "1D": 24, // 24 hourly points
-          "1W": 7,  // 7 daily points
-          "1M": 30,
-          "3M": 90,
-          "6M": 180,
-          "YTD": 150,
-          "1Y": 252, // trading days
-          "5Y": 252 * 5,
-          "MAX": 252 * 5
+          "1D": 24, "1W": 7, "1M": 30, "3M": 90, "6M": 180, "YTD": 150, "1Y": 252, "5Y": 252 * 5, "MAX": 252 * 5
         }[optimalRange] || 30;
 
         const nowTime = Date.now();
         const dateInterval = {
-          "1D": 3600 * 1000, // 1 hour
-          "1W": 24 * 3600 * 1000,
-          "1M": 24 * 3600 * 1000,
-          "3M": 24 * 3600 * 1000,
-          "6M": 24 * 3600 * 1000,
-          "YTD": 24 * 3600 * 1000,
-          "1Y": 24 * 3600 * 1000,
-          "5Y": 7 * 24 * 3600 * 1000,
-          "MAX": 7 * 24 * 3600 * 1000
+          "1D": 3600 * 1000, "1W": 24 * 3600 * 1000, "1M": 24 * 3600 * 1000, "3M": 24 * 3600 * 1000,
+          "6M": 24 * 3600 * 1000, "YTD": 24 * 3600 * 1000, "1Y": 24 * 3600 * 1000, "5Y": 7 * 24 * 3600 * 1000, "MAX": 7 * 24 * 3600 * 1000
         }[optimalRange] || 24 * 3600 * 1000;
 
         syms.forEach(sym => {
@@ -3032,14 +563,12 @@ export default function Dashboard({ user, onLogout, showToast }) {
             basePrice = matchAsset.avgCost || matchAsset.avgPrice || 100.0;
           }
 
-          let currentVal = basePrice * 0.9; // start slightly lower
+          let currentVal = basePrice * 0.9;
 
           for (let i = days; i >= 0; i--) {
             const timeAt = nowTime - i * dateInterval;
             const dateStr = new Date(timeAt).toISOString();
-
-            // Random-walk drift
-            const drift = (Math.random() - 0.48) * 0.03; // slightly upwards bias
+            const drift = (Math.random() - 0.48) * 0.03;
             currentVal = currentVal * (1 + drift);
             if (currentVal < 0.01) currentVal = 0.01;
 
@@ -3047,13 +576,9 @@ export default function Dashboard({ user, onLogout, showToast }) {
             closes.push(currentVal);
           }
 
-          mockSparklines[cleanSym] = {
-            dates,
-            closes
-          };
+          mockSparklines[cleanSym] = { dates, closes };
         });
 
-        // Include historical conversion rates for exchangeRate (THB=X) if needed
         const thbCloses = [];
         const thbDates = [];
         let currThb = 35.0;
@@ -3065,10 +590,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
           thbDates.push(dateStr);
           thbCloses.push(currThb);
         }
-        mockSparklines["THB=X"] = {
-          dates: thbDates,
-          closes: thbCloses
-        };
+        mockSparklines["THB=X"] = { dates: thbDates, closes: thbCloses };
 
         setSparklines(mockSparklines);
       }
@@ -3086,10 +608,8 @@ export default function Dashboard({ user, onLogout, showToast }) {
       return;
     }
 
-    // Check if dates are intraday (1D, 5D, 1W)
     const isShortTF = chartRange === "1D" || chartRange === "5D" || chartRange === "1W";
 
-    // Parse and sort price points for each symbol to allow robust closest-date lookups
     const symbolPriceHistories = {};
     Object.keys(sparklines).forEach(sym => {
       const symData = sparklines[sym];
@@ -3098,7 +618,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
           dateStr: isShortTF ? d : d.split("T")[0],
           price: symData.closes[idx]
         })).filter(p => p.price != null && p.price > 0);
-        // Sort by dateStr ascending
         points.sort((a, b) => a.dateStr.localeCompare(b.dateStr));
         symbolPriceHistories[sym.toUpperCase()] = points;
       }
@@ -3106,8 +625,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
 
     const getPriceOnDate = (sym, targetDateStr) => {
       const points = symbolPriceHistories[sym.toUpperCase()];
-
-      // If we are looking for today's price (or a future date), use the live price if available
       const todayStr = new Date().toISOString().split("T")[0];
       if (!isShortTF && targetDateStr.startsWith(todayStr)) {
         const livePrice = prices[sym.toUpperCase()]?.price;
@@ -3117,23 +634,19 @@ export default function Dashboard({ user, onLogout, showToast }) {
       }
 
       if (points && points.length > 0) {
-        // Find latest price on or before targetDateStr (lexicographical comparison)
         for (let i = points.length - 1; i >= 0; i--) {
           if (points[i].dateStr <= targetDateStr) {
             return points[i].price;
           }
         }
-        // Fallback to first available price if targetDateStr is before the first point
         return points[0].price;
       }
 
-      // Fallback to live price from fetchPrices
       const livePrice = prices[sym.toUpperCase()]?.price;
       if (livePrice != null && livePrice > 0) {
         return livePrice;
       }
 
-      // Fallback to asset's own average price/cost
       const asset = assets.find(a => a.symbol.toUpperCase() === sym.toUpperCase());
       if (asset) {
         const avg = asset.avgCost ?? asset.avgPrice ?? 0;
@@ -3142,7 +655,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
       return null;
     };
 
-    // 1. Create a union of all dates across all sparklines
     const allDatesSet = new Set();
     Object.keys(sparklines).forEach(sym => {
       const symData = sparklines[sym];
@@ -3150,9 +662,9 @@ export default function Dashboard({ user, onLogout, showToast }) {
         symData.dates.forEach(d => {
           if (d) {
             if (isShortTF) {
-              allDatesSet.add(d); // Keep full ISO string for intraday
+              allDatesSet.add(d);
             } else {
-              allDatesSet.add(d.split("T")[0]); // Keep only date part YYYY-MM-DD for daily/weekly
+              allDatesSet.add(d.split("T")[0]);
             }
           }
         });
@@ -3164,17 +676,14 @@ export default function Dashboard({ user, onLogout, showToast }) {
       return;
     }
 
-    // Add current live time to the timeline so the graph ends exactly at the current live valuation
     if (isShortTF) {
       allDatesSet.add(new Date().toISOString());
     } else {
       allDatesSet.add(new Date().toISOString().split("T")[0]);
     }
 
-    // Sort timeline ascending
     let timeline = Array.from(allDatesSet).sort((a, b) => a.localeCompare(b));
 
-    // 2. Find the earliest transaction date across all assets (including cash)
     let earliestDate = null;
     assets.forEach(asset => {
       const assetLots = asset.lots && asset.lots.length > 0 ? asset.lots : [];
@@ -3187,7 +696,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
       });
     });
 
-    // Find the raw start date of the fetched timeframe (from sparklines)
     let rawStartDateStr = null;
     Object.keys(sparklines).forEach(sym => {
       const symData = sparklines[sym];
@@ -3204,14 +712,12 @@ export default function Dashboard({ user, onLogout, showToast }) {
 
     if (earliestDate) {
       const earliestStr = earliestDate.split("T")[0];
-      // ONLY clip or prepend the earliest purchase date if the purchase happened AFTER the timeframe started
       if (rawStartDateStr && earliestStr > rawStartDateStr) {
         timeline = timeline.filter(d => {
           const dStr = isShortTF ? d.split("T")[0] : d;
           return dStr >= earliestStr;
         });
 
-        // Prepend exact first purchase date if the timeline starts after it
         const firstTimelineDate = timeline[0] ? (isShortTF ? timeline[0].split("T")[0] : timeline[0]) : "";
         if (timeline.length > 0 && firstTimelineDate > earliestStr) {
           timeline.unshift(isShortTF ? earliestStr + "T00:00:00.000Z" : earliestStr);
@@ -3221,8 +727,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
       }
     }
 
-    // 3. Compute portfolio values for each date in the timeline
-    // Pre-map each lot of each asset to its closest timeline index for exact marker alignment
     const assetLotsWithMappedIdx = assets.map(asset => {
       const isThai = asset.symbol.toUpperCase().endsWith(".BK");
       const isCashAsset = asset.type === "fiat" || asset.category === "fiat";
@@ -3233,11 +737,8 @@ export default function Dashboard({ user, onLogout, showToast }) {
         
       const mappedLots = rawLots.map(lot => {
         if (!lot || !lot.date) return null;
-        
-        // Construct full ISO/timestamp for the lot
         const lotTime = new Date(lot.date + "T" + (lot.time || "00:00") + ":00.000Z").getTime();
         
-        // Find closest index in timeline
         let bestIdx = 0;
         let bestDiff = Infinity;
         timeline.forEach((tStr, idx) => {
@@ -3249,10 +750,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
           }
         });
         
-        return {
-          ...lot,
-          mappedIdx: bestIdx
-        };
+        return { ...lot, mappedIdx: bestIdx };
       }).filter(Boolean);
       
       return {
@@ -3268,14 +766,11 @@ export default function Dashboard({ user, onLogout, showToast }) {
       let totalCostUSD = 0;
 
       assetLotsWithMappedIdx.forEach(asset => {
-        // Filter lots whose mappedIdx <= current timeline index idx
         const lotsBeforeOrOnDate = asset.lots.filter(lot => lot.mappedIdx <= idx);
-        if (lotsBeforeOrOnDate.length === 0) return; // not purchased yet
+        if (lotsBeforeOrOnDate.length === 0) return;
 
-        // Calculate qty on this date
         const qtyOnDate = lotsBeforeOrOnDate.reduce((sum, l) => sum + (l.qty || 0), 0);
 
-        // Calculate cost on this date in USD
         const costOnDateUSD = lotsBeforeOrOnDate.reduce((sum, l) => {
           let priceUSD = asset.isThai ? (l.price || 0) / exchangeRate : (l.price || 0);
           if (asset.isCashAsset) {
@@ -3313,7 +808,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
         }
 
         const price = getPriceOnDate(asset.symbol, date);
-        // Robust fallback: if sparkline price is null/missing, use live price or purchase price
         let priceUSD = 0;
         if (price != null && price > 0) {
           priceUSD = asset.isThai ? price / exchangeRate : price;
@@ -3334,10 +828,8 @@ export default function Dashboard({ user, onLogout, showToast }) {
       return { date: dateIso, value: totalUSD, cost: totalCostUSD };
     });
 
-    // Clean history points
     history = history.filter(d => d.value > 0);
 
-    // If there is only 1 historical point, pad it to the day before to prevent length < 2 guard
     if (history.length === 1) {
       const singlePoint = history[0];
       const prevDate = new Date(new Date(singlePoint.date) - 86400000).toISOString();
@@ -3380,7 +872,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
         }
         setHistoricalRates(rates);
       } else {
-        // Mock historical THB exchange rates going back ~10 years
         const rates = {};
         const now = Date.now();
         let currentThb = 35.0;
@@ -3430,7 +921,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
       const gainUSD = valueUSD - costUSD;
       const gainPct = costUSD > 0 ? (gainUSD / costUSD) * 100 : 0;
 
-      // Calculate day changes based on Yahoo Finance ticker previousClose if available
       let todayChg = 0;
       let todayPct = 0;
       if (asset.symbol !== "USD") {
@@ -3452,25 +942,14 @@ export default function Dashboard({ user, onLogout, showToast }) {
       }
 
       return {
-        price,
-        priceUSD,
-        valueUSD,
-        valueTHB,
-        costUSD,
-        gainUSD,
-        gainPct,
-        todayChg,
-        todayPct,
-        extPrice: null,
-        extChangePct: null,
-        extType: null
+        price, priceUSD, valueUSD, valueTHB, costUSD, gainUSD, gainPct, todayChg, todayPct,
+        extPrice: null, extChangePct: null, extType: null
       };
     }
 
     const pData = prices[asset.symbol];
     const regPrice = pData?.price ?? 0;
 
-    // Check for active pre-market or after-market pricing
     const isPre = pData?.marketState === "PRE" || pData?.marketState === "PREPRE";
     const isPost = pData?.marketState === "POST" || pData?.marketState === "POSTPOST";
 
@@ -3488,14 +967,11 @@ export default function Dashboard({ user, onLogout, showToast }) {
       extType = "After";
     }
 
-
     const price = extPrice ?? regPrice;
-
     const priceUSD = isThai ? price / exchangeRate : price;
     const valueUSD = priceUSD * asset.qty;
     const valueTHB = valueUSD * exchangeRate;
 
-    // Robustly handle avgCost vs avgPrice for legacy database support
     const avgCost  = asset.avgCost ?? asset.avgPrice ?? 0;
     const costUSD  = avgCost * asset.qty;
     const gainUSD  = valueUSD - costUSD;
@@ -3506,7 +982,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
     const todayChg = ((activePrice - prevClose) * asset.qty);
     const todayPct = (prevClose > 0 ? ((activePrice - prevClose) / prevClose) * 100 : 0);
 
-    // Regular hours calculations
     const regPriceUSD = isThai ? regPrice / exchangeRate : regPrice;
     const regValueUSD = regPriceUSD * asset.qty;
     const regValueTHB = regValueUSD * exchangeRate;
@@ -3515,13 +990,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
     const regTodayChg = pData?.change ? (isThai ? pData.change / exchangeRate : pData.change) * asset.qty : 0;
     const regTodayPct = pData?.changePercent ?? 0;
 
-    // Extended hours calculations
-    let extPriceUSD = null;
-    let extValueUSD = null;
-    let extValueTHB = null;
-    let extGainUSD = null;
-    let extGainPct = null;
-    let extTodayPct = null;
+    let extPriceUSD = null, extValueUSD = null, extValueTHB = null, extGainUSD = null, extGainPct = null, extTodayPct = null;
 
     if (extPrice != null) {
       extPriceUSD = isThai ? extPrice / exchangeRate : extPrice;
@@ -3533,37 +1002,12 @@ export default function Dashboard({ user, onLogout, showToast }) {
     }
 
     return {
-      price,
-      priceUSD,
-      valueUSD,
-      valueTHB,
-      costUSD,
-      gainUSD,
-      gainPct,
-      todayChg,
-      todayPct,
-      extPrice,
-      extChangePct,
-      extType,
-      // Regular hours fields
-      regPrice,
-      regPriceUSD,
-      regValueUSD,
-      regValueTHB,
-      regGainUSD,
-      regGainPct,
-      regTodayChg,
-      regTodayPct,
-      // Extended hours fields
-      extPriceUSD,
-      extValueUSD,
-      extValueTHB,
-      extGainUSD,
-      extGainPct,
-      extTodayPct
+      price, priceUSD, valueUSD, valueTHB, costUSD, gainUSD, gainPct, todayChg, todayPct,
+      extPrice, extChangePct, extType,
+      regPrice, regPriceUSD, regValueUSD, regValueTHB, regGainUSD, regGainPct, regTodayChg, regTodayPct,
+      extPriceUSD, extValueUSD, extValueTHB, extGainUSD, extGainPct, extTodayPct
     };
   }, [prices, exchangeRate]);
-
 
   /* ── COMPUTED PORTFOLIO TOTALS ── */
   const { totalUSD, totalCostUSD, todayChangeUSD, totalRealizedUSD, totalRealizedTHB, bestAsset, sortedAssets, donutSegments } = useMemo(() => {
@@ -3590,8 +1034,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
       totRealizedTHB += realizedTHB;
 
       const assetWithPnL = {
-        ...a,
-        ...c,
+        ...a, ...c,
         realizedPnL: realized,
         realizedPnLTHB: realizedTHB,
         unrealizedPnL: a.qty > 0 ? (c.valueUSD - c.costUSD) : 0,
@@ -3605,10 +1048,8 @@ export default function Dashboard({ user, onLogout, showToast }) {
       return assetWithPnL;
     });
 
-    // Filter out assets with qty <= 0.00001 (fully sold-out) from active list
     const activeAssets = computed.filter(a => a.qty > 0.00001);
 
-    // Sort active
     const sorted = [...activeAssets].sort((a, b) => {
       if (!sortConfig.key) return b.valueUSD - a.valueUSD;
       const dir = sortConfig.dir === "asc" ? 1 : -1;
@@ -3621,7 +1062,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
       }
     });
 
-    // Donut segments grouped by category
     const catMap = {};
     activeAssets.forEach(a => {
       const cat = a.category || "stock";
@@ -3672,19 +1112,17 @@ export default function Dashboard({ user, onLogout, showToast }) {
   const totalGainPct = initialCapitalUSD > 0 ? (totalGainUSD / initialCapitalUSD) * 100 : 0;
   const todayChangePct = totalCostUSD > 0 ? (todayChangeUSD / (totalUSD - todayChangeUSD)) * 100 : 0;
 
-  /* ── SAVE ASSET (Purchase Lots System) ── */
+  /* ── SAVE ASSET ── */
   const handleSaveAsset = async (formData) => {
     const isBatch = Array.isArray(formData);
     const transactions = isBatch ? formData : [formData];
 
-    // Sort transactions: BUYs first, then SELLs. Within each type, sort chronologically by date & time.
     const sortedTx = [...transactions].sort((a, b) => {
       const isABuy = a.transactionType === "BUY";
       const isBBuy = b.transactionType === "BUY";
       if (isABuy !== isBBuy) {
-        return isABuy ? -1 : 1; // BUYs first
+        return isABuy ? -1 : 1;
       }
-      // Same transaction type: sort chronologically
       const dtA = new Date(`${a.date || "1970-01-01"}T${a.time || "00:00"}`);
       const dtB = new Date(`${b.date || "1970-01-01"}T${b.time || "00:00"}`);
       return dtA - dtB;
@@ -3739,7 +1177,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
         const isSell = tx.transactionType === "SELL";
         const displaySym = broker ? `${sym} (${broker})` : sym;
 
-        // Find existing asset by matching BOTH symbol AND broker
         const existingIdx = updatedAssets.findIndex(a =>
           a.symbol === sym &&
           (a.broker || "").trim().toLowerCase() === broker.toLowerCase()
@@ -3747,35 +1184,27 @@ export default function Dashboard({ user, onLogout, showToast }) {
 
         if (isSell) {
           if (existingIdx < 0) {
-            // Block in ALL cases — cannot sell what you don't own
             if (!isBatch) {
-              showToast(
-                `❌ ไม่สามารถขาย ${displaySym} ได้ เพราะไม่มีในพอร์ตโฟลิโอ\nกรุณาเพิ่มรายการซื้อก่อน`,
-                "error"
-              );
+              showToast(`❌ ไม่สามารถขาย ${displaySym} ได้ เพราะไม่มีในพอร์ตโฟลิโอ\nกรุณาเพิ่มรายการซื้อก่อน`, "error");
               return;
             } else {
               skippedTxs.push({ tx: { symbol: sym, ...tx }, reason: `ไม่มีสินทรัพย์ ${displaySym} นี้ในพอร์ตโฟลิโอ` });
-              continue; // skip this tx in batch mode
+              continue;
             }
           } else {
             const existing = updatedAssets[existingIdx];
             if (newQty > existing.qty) {
               if (!isBatch) {
-                showToast(
-                  `❌ ขาย ${displaySym} ไม่ได้ — จำนวนที่ขาย (${fmt.qty(newQty)}) มากกว่าที่ถืออยู่ (${fmt.qty(existing.qty)} หน่วย)`,
-                  "error"
-                );
+                showToast(`❌ ขาย ${displaySym} ไม่ได้ — จำนวนที่ขาย (${fmtQty(newQty, hideValues)}) มากกว่าที่ถืออยู่ (${fmtQty(existing.qty, hideValues)} หน่วย)`, "error");
                 return;
               } else {
-                skippedTxs.push({ tx: { symbol: sym, ...tx }, reason: `จำนวนหุ้นไม่เพียงพอ (ขาย ${fmt.qty(newQty)} แต่ในพอร์ตมี ${fmt.qty(existing.qty)})` });
-                continue; // skip this tx in batch mode
+                skippedTxs.push({ tx: { symbol: sym, ...tx }, reason: `จำนวนหุ้นไม่เพียงพอ (ขาย ${fmtQty(newQty, hideValues)} แต่ในพอร์ตมี ${fmtQty(existing.qty, hideValues)})` });
+                continue;
               }
             }
           }
         }
 
-        // Check for duplicates
         if (existingIdx >= 0) {
           const existingAsset = updatedAssets[existingIdx];
           const duplicateLot = (existingAsset.lots || []).find(l => {
@@ -3792,7 +1221,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
               if (isBatch) {
                 skippedTxs.push({ tx: { symbol: sym, ...tx }, reason: "ผู้ใช้ยกเลิกเนื่องจากพบธุรกรรมซ้ำซ้อน" });
               }
-              continue; // Skip this transaction
+              continue;
             }
           }
         }
@@ -3812,7 +1241,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
           const allLots   = [...oldLots, newLot];
           const totalQty  = allLots.reduce((s, l) => s + l.qty, 0);
 
-          // Recompute average cost solely from positive (buy) lots
           const buyLots = allLots.filter(l => l.qty > 0);
           const buyQty  = buyLots.reduce((s, l) => s + l.qty, 0);
           const buyCost = buyLots.reduce((s, l) => s + l.qty * l.price, 0);
@@ -3829,8 +1257,8 @@ export default function Dashboard({ user, onLogout, showToast }) {
             const isCash = category === "fiat";
             showToast(
               isSell
-                ? `✅ ${isCash ? "ถอนเงินสด" : "ขายออก"} ${displaySym} ${fmt.qty(newQty)} หน่วยสำเร็จ`
-                : `✅ ${isCash ? "ฝากเพิ่ม" : "ซื้อเพิ่ม"} ${displaySym} ${fmt.qty(newQty)} หน่วยสำเร็จ`,
+                ? `✅ ${isCash ? "ถอนเงินสด" : "ขายออก"} ${displaySym} ${fmtQty(newQty, hideValues)} หน่วยสำเร็จ`
+                : `✅ ${isCash ? "ฝากเพิ่ม" : "ซื้อเพิ่ม"} ${displaySym} ${fmtQty(newQty, hideValues)} หน่วยสำเร็จ`,
               "success"
             );
           }
@@ -3938,33 +1366,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
     e.target.value = "";
   };
 
-  /* ── SORT HEADER COMPONENT ── */
-  const SortTh = ({ sortKey, children, align = "left" }) => {
-    const isActive = sortConfig.key === sortKey;
-    const isDesc   = isActive && sortConfig.dir === "desc";
-    return (
-      <th style={{ textAlign: align }}>
-        <span className="sort-header" onClick={() => handleSort(sortKey)}>
-          {children}
-          <span className={`sort-icon ${isActive ? "active" : ""} ${isDesc ? "desc" : "asc"}`}>
-            {isActive ? (isDesc ? "▼" : "▲") : "⇅"}
-          </span>
-        </span>
-      </th>
-    );
-  };
-
-  /* ── MARKET STATE BADGE ── */
-  const MarketBadge = ({ state }) => {
-    if (!state || state === "REGULAR") return null;
-    const map = { PRE: { label: "PRE", cls: "pre" }, POST: { label: "POST", cls: "post" }, CLOSED: { label: "CLOSED", cls: "post" } };
-    const info = map[state] || { label: state, cls: "post" };
-    return <span className={`badge-market-state ${info.cls}`}>{info.label}</span>;
-  };
-
-  /* ════════════════════════════════════════════════
-     RENDER
-  ════════════════════════════════════════════════ */
   if (loading) {
     return (
       <div className="loading-overlay" style={{ minHeight: "100vh" }}>
@@ -3979,674 +1380,106 @@ export default function Dashboard({ user, onLogout, showToast }) {
   return (
     <>
       <div className="fade-in">
-        {/* ── NAVBAR ── */}
-      <nav className="navbar">
-        <div className="navbar-container">
-          <div className="navbar-brand">
-            <span>📈</span>
-            {isEditingName ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <input
-                  type="text"
-                  value={tempName}
-                  onChange={(e) => setTempName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleSaveName();
-                    if (e.key === "Escape") setIsEditingName(false);
-                  }}
-                  autoFocus
-                  style={{
-                    fontSize: 15,
-                    fontWeight: 800,
-                    color: "var(--primary)",
-                    border: "1.5px solid var(--primary)",
-                    borderRadius: 8,
-                    padding: "2px 8px",
-                    width: 120,
-                    fontFamily: "Outfit, sans-serif",
-                    height: 28,
-                    background: "white"
-                  }}
-                />
-                <button
-                  onClick={handleSaveName}
-                  style={{
-                    background: "var(--primary)",
-                    color: "white",
-                    border: "none",
-                    borderRadius: 6,
-                    padding: "4px 8px",
-                    fontSize: 11,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    height: 28,
-                    display: "flex",
-                    alignItems: "center"
-                  }}
-                >
-                  บันทึก
-                </button>
-              </div>
-            ) : (
-              <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontWeight: 800 }}>{portfolioName}</span>
-                <button
-                  onClick={() => { setTempName(portfolioName); setIsEditingName(true); }}
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    color: "var(--text-faint)",
-                    cursor: "pointer",
-                    padding: 4,
-                    display: "inline-flex",
-                    alignItems: "center"
-                  }}
-                  title="แก้ไขชื่อพอร์ต"
-                >
-                  <Pencil size={13} />
-                </button>
-              </div>
-            )}
-            <span className="live-dot" title="Live" />
-          </div>
-            <div className="navbar-actions">
-              <div
-                className="user-profile-btn"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  cursor: "default",
-                  padding: "4px 10px",
-                  borderRadius: 10,
-                  background: "var(--primary-light)",
-                  userSelect: "none"
-                }}
-              >
-                {profilePic ? (
-                  <img
-                    src={profilePic}
-                    alt="avatar"
-                    style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: "50%",
-                      objectFit: "cover",
-                      border: "1.5px solid var(--primary)"
-                    }}
-                  />
-                ) : (
-                  <span style={{ fontSize: 13 }}>👤</span>
-                )}
-                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--primary)" }}>
-                  {nickname || user?.username}
-                </span>
-              </div>
-              <button
-                onClick={() => setProfileModalOpen(true)}
-                style={{
-                  background: "#F1F5F9",
-                  border: "none",
-                  color: "var(--text-main)",
-                  cursor: "pointer",
-                  width: 32,
-                  height: 32,
-                  borderRadius: "50%",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  transition: "var(--transition)"
-                }}
-                title="ตั้งค่า"
-                className="ripple-btn"
-              >
-                <Settings size={16} />
-              </button>
-            </div>
-        </div>
-      </nav>
-
-      <div className="app-container">
-
-        {/* ── KPI CARDS ROW ── */}
-        <KPIRow
-          totalUSD={hasPrices ? totalUSD : null}
-          totalTHB={hasPrices ? totalUSD * exchangeRate : null}
-          totalCostUSD={totalCostUSD}
-          todayChange={hasPrices ? todayChangeUSD : 0}
-          todayChangeTHB={hasPrices ? todayChangeUSD * exchangeRate : 0}
-          todayChangePct={hasPrices ? todayChangePct : 0}
-          totalGain={hasPrices ? totalGainUSD : 0}
-          totalGainTHB={hasPrices ? totalGainTHB : 0}
-          totalGainPct={hasPrices ? totalGainPct : 0}
-          bestAsset={hasPrices ? bestAsset : null}
-          loading={!hasPrices && assets.length > 0}
+        <DashboardHeader
+          portfolioName={portfolioName}
+          isEditingName={isEditingName}
+          setIsEditingName={setIsEditingName}
+          tempName={tempName}
+          setTempName={setTempName}
+          handleSaveName={handleSaveName}
+          nickname={nickname}
+          user={user}
+          profilePic={profilePic}
+          setProfileModalOpen={setProfileModalOpen}
         />
 
-        {/* ── DASHBOARD GRID ── */}
-        <div className="dashboard-grid">
+        <div className="app-container">
+          <KPIRow
+            totalUSD={hasPrices ? totalUSD : null}
+            totalTHB={hasPrices ? totalUSD * exchangeRate : null}
+            totalCostUSD={totalCostUSD}
+            todayChange={hasPrices ? todayChangeUSD : 0}
+            todayChangeTHB={hasPrices ? todayChangeUSD * exchangeRate : 0}
+            todayChangePct={hasPrices ? todayChangePct : 0}
+            totalGain={hasPrices ? totalGainUSD : 0}
+            totalGainTHB={hasPrices ? totalGainTHB : 0}
+            totalGainPct={hasPrices ? totalGainPct : 0}
+            bestAsset={hasPrices ? bestAsset : null}
+            loading={!hasPrices && assets.length > 0}
+          />
 
-          {/* ══ LEFT COLUMN ══ */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-
-            {/* Hero Net Worth Card */}
-            <div className="hero-card stagger-2">
-              <div className="hero-label">🏦 มูลค่าพอร์ตโฟลิโอรวม</div>
-              {hasPrices ? (
-                <>
-                  <div className={`hero-usd${priceFlash["PORTFOLIO"] ? " num-tick" : ""}`} style={{ marginBottom: 4 }}>
-                    {fmt.usd(totalUSD)}
-                  </div>
-                  <div className="hero-thb" style={{ fontSize: "25px", color: "#FFFFFF", opacity: 0.95, fontWeight: "800", marginTop: 4, marginBottom: 16 }}>
-                    {fmt.thb(totalUSD * exchangeRate)}
-                  </div>
-                  {(totalCostUSD > 0 || initialCapitalUSD > 0 || totalRealizedUSD !== 0) && (
-                    <div className={`hero-pnl ${totalGainUSD >= 0 ? "up" : "down"}`}
-                      onClick={() => setShowPnLDetailsModal(true)}
-                      style={{
-                        display: "inline-flex",
-                        flexWrap: "wrap",
-                        gap: "4px 8px",
-                        alignItems: "center",
-                        cursor: "pointer",
-                        background: "rgba(255, 255, 255, 0.12)",
-                        padding: "6px 12px",
-                        borderRadius: "10px",
-                        transition: "background 0.2s, transform 0.2s",
-                        border: "1px solid rgba(255, 255, 255, 0.15)"
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = "rgba(255, 255, 255, 0.22)";
-                        e.currentTarget.style.transform = "translateY(-1px)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = "rgba(255, 255, 255, 0.12)";
-                        e.currentTarget.style.transform = "translateY(0)";
-                      }}
-                      title="คลิกเพื่อดูรายละเอียดกำไร/ขาดทุนรายสินทรัพย์">
-                      <span>
-                        {totalGainUSD >= 0 ? "▲" : "▼"} {fmt.usd(Math.abs(totalGainUSD))}
-                      </span>
-                      <span style={{ opacity: 0.8, fontSize: 12 }}>({fmt.pct(totalGainPct)})</span>
-                      <span style={{ opacity: 0.5 }}>|</span>
-                      <span>
-                        {totalGainTHB >= 0 ? "▲" : "▼"} {fmt.thb(Math.abs(totalGainTHB), 2)}
-                      </span>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <>
-                  <div className="skeleton skeleton-text xl" style={{ width: "80%", marginBottom: 10 }} />
-                  <div className="skeleton skeleton-text" style={{ width: "60%", marginBottom: 16 }} />
-                  <div className="skeleton skeleton-block" style={{ width: 140, height: 32, borderRadius: 12 }} />
-                </>
-              )}
-              <div className="hero-divider" />
-              <div className="hero-meta">
-                <div className="hero-meta-item">
-                  <span className="hero-meta-label">สินทรัพย์ที่ถืออยู่</span>
-                  <span className="hero-meta-value">{assets.filter(a => a.qty > 0.00001).length} รายการ</span>
-                </div>
-                <div className="hero-meta-item" style={{ textAlign: "right" }}>
-                  <span className="hero-meta-label">ต้นทุนรวม</span>
-                  <span className="hero-meta-value" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
-                    <span>{fmt.usd(totalCostUSD)}</span>
-                    <span style={{ fontSize: 11, color: "rgba(255, 255, 255, 0.9)", fontWeight: 600 }}>({fmt.thb(totalCostUSD * exchangeRate, 0)})</span>
-                  </span>
-                </div>
-              </div>
-              <div className="hero-meta" style={{ marginTop: 10, borderTop: "1px dashed rgba(255,255,255,0.2)", paddingTop: 10 }}>
-                <div className="hero-meta-item">
-                  <span className="hero-meta-label">รับรู้แล้ว (Realized)</span>
-                  <span className="hero-meta-value" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
-                    <span style={{ color: totalRealizedUSD >= 0 ? "#6EE7B7" : "#FCA5A5", fontWeight: 700 }}>
-                      {totalRealizedUSD >= 0 ? "+" : ""}{fmt.usd(totalRealizedUSD)}
-                    </span>
-                    <span style={{ fontSize: 11, color: "rgba(255, 255, 255, 0.9)", fontWeight: 600 }}>
-                      ({totalRealizedUSD >= 0 ? "+" : ""}{fmt.thb(totalRealizedUSD * exchangeRate)})
-                    </span>
-                  </span>
-                </div>
-                <div className="hero-meta-item" style={{ textAlign: "right" }}>
-                  <span className="hero-meta-label">ยังไม่รับรู้ (Unrealized)</span>
-                  <span className="hero-meta-value" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
-                    <span style={{ color: totalUnrealizedUSD >= 0 ? "#6EE7B7" : "#FCA5A5", fontWeight: 700 }}>
-                      {totalUnrealizedUSD >= 0 ? "+" : ""}{fmt.usd(totalUnrealizedUSD)}
-                    </span>
-                    <span style={{ fontSize: 11, color: "rgba(255, 255, 255, 0.9)", fontWeight: 600 }}>
-                      ({totalUnrealizedUSD >= 0 ? "+" : ""}{fmt.thb(totalUnrealizedUSD * exchangeRate)})
-                    </span>
-                  </span>
-                </div>
-              </div>
-              <div className="hero-meta" style={{ marginTop: 10, borderTop: "1px dashed rgba(255,255,255,0.2)", paddingTop: 10 }}>
-                <div className="hero-meta-item">
-                  <span className="hero-meta-label">ทุนสะสมทั้งหมด</span>
-                  <span className="hero-meta-value" style={{ fontWeight: 700 }}>
-                    {fmt.usd(initialCapitalUSD)}
-                  </span>
-                </div>
-                <div className="hero-meta-item" style={{ textAlign: "right" }}>
-                  <span className="hero-meta-label">มูลค่าทุนสะสม (THB)</span>
-                  <span className="hero-meta-value" style={{ fontSize: 11, color: "rgba(255, 255, 255, 0.9)", fontWeight: 600 }}>
-                    ({fmt.thb(initialCapitalUSD * exchangeRate)})
-                  </span>
-                </div>
-              </div>
-              {hasPrices && todayChangeUSD !== 0 && (
-                <div style={{
-                  marginTop: 14,
-                  background: "rgba(255,255,255,0.12)",
-                  borderRadius: 10,
-                  padding: "8px 14px",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center"
-                }}>
-                  <span style={{ fontSize: 11, opacity: 0.9, fontWeight: 600 }}>กำไร/ขาดทุนวันนี้</span>
-                  <span style={{ fontSize: 14, fontWeight: 800, color: todayChangeUSD >= 0 ? "#6EE7B7" : "#FCA5A5" }}>
-                    {todayChangeUSD >= 0 ? "+" : ""}{fmt.usd(todayChangeUSD)}{" "}
-                    <span style={{ fontSize: 11, opacity: 0.85, fontWeight: 700 }}>
-                      ({todayChangeUSD >= 0 ? "+" : ""}{fmt.thb(todayChangeUSD * exchangeRate, 0)})
-                    </span>
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Donut Allocation Card */}
-            <div className="card stagger-3">
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-                <div className="card-section-title">
-                  <PieChart size={16} /> สัดส่วนสินทรัพย์
-                </div>
-              </div>
-              <DonutChart
-                segments={hasPrices && donutSegments.length > 0 ? donutSegments : []}
-                activeAssets={sortedAssets}
-                hasAssets={sortedAssets.length > 0}
-              />
-            </div>
-          </div>
-
-          {/* ══ RIGHT COLUMN ══ */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-
-            {/* Portfolio Performance Chart */}
-            <div className="card stagger-2" style={{ padding: "16px 14px 10px" }}>
-              <PortfolioChart
-                history={portfolioHistory}
-                range={chartRange}
-                onRangeChange={handleRangeChange}
-                assets={assets}
+          <div className="dashboard-grid">
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <PortfolioSummary
+                hasPrices={hasPrices}
+                totalUSD={totalUSD}
                 exchangeRate={exchangeRate}
-                prices={prices}
+                totalCostUSD={totalCostUSD}
+                totalGainUSD={totalGainUSD}
+                totalGainPct={totalGainPct}
+                totalGainTHB={totalGainTHB}
+                assets={assets}
+                totalRealizedUSD={totalRealizedUSD}
+                totalUnrealizedUSD={totalUnrealizedUSD}
+                initialCapitalUSD={initialCapitalUSD}
+                todayChangeUSD={todayChangeUSD}
+                setShowPnLDetailsModal={setShowPnLDetailsModal}
+                hideValues={hideValues}
               />
+
+              <div className="card stagger-3">
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                  <div className="card-section-title">
+                    <PieChart size={16} /> สัดส่วนสินทรัพย์
+                  </div>
+                </div>
+                <DonutChart
+                  segments={hasPrices && donutSegments.length > 0 ? donutSegments : []}
+                  activeAssets={sortedAssets}
+                  hasAssets={sortedAssets.length > 0}
+                />
+              </div>
             </div>
 
-            {/* Assets Table Card */}
-            <div className="card stagger-3">
-              <div className="control-bar">
-                <div className="section-title" style={{ flexWrap: "wrap", gap: 10 }}>
-                  📋 สินทรัพย์ของฉัน
-                  {sortedAssets.length > 0 && (
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-muted)", background: "#F1F5F9", padding: "2px 10px", borderRadius: 8 }}>
-                      {sortedAssets.length} รายการ
-                    </span>
-                  )}
-                  <div className="exchange-badge" style={{ fontSize: 12, height: "fit-content", padding: "4px 10px", margin: 0 }}>
-                    💱 1 USD = <strong>{exchangeRate.toFixed(2)}</strong> THB
-                  </div>
-                </div>
-                <div className="action-buttons">
-                  <button
-                    className="btn-icon ripple-btn"
-                    onClick={() => setHideValues(prev => !prev)}
-                    title={hideValues ? "แสดงข้อมูลเงิน" : "ซ่อนข้อมูลเงิน"}
-                    style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}
-                  >
-                    {hideValues ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                  <button
-                    className={`btn-icon ripple-btn${refreshing ? " spin" : ""}`}
-                    onClick={() => fetchPrices(assets)}
-                    title="รีเฟรชราคา"
-                  >
-                    <RefreshCw size={16} />
-                  </button>
-                  <button className="btn-action ripple-btn" onClick={() => { setEditingAsset(null); setModalOpen(true); }}>
-                    <Plus size={16} /> เพิ่มสินทรัพย์
-                  </button>
-                </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div className="card stagger-2" style={{ padding: "16px 14px 10px" }}>
+                <PortfolioChart
+                  history={portfolioHistory}
+                  range={chartRange}
+                  onRangeChange={handleRangeChange}
+                  assets={assets}
+                  exchangeRate={exchangeRate}
+                  prices={prices}
+                />
               </div>
 
-              {/* ── EMPTY STATE ── */}
-              {sortedAssets.length === 0 ? (
-                <div className="empty-state">
-                  <div className="empty-icon">📊</div>
-                  <div className="empty-title">พอร์ตยังว่างอยู่</div>
-                  <div className="empty-subtitle">กด "เพิ่มสินทรัพย์" เพื่อเริ่มติดตามการลงทุน</div>
-                  <button className="btn btn-primary ripple-btn" style={{ width: "auto", marginTop: 8, paddingInline: 28, height: 48 }}
-                    onClick={() => { setEditingAsset(null); setModalOpen(true); }}>
-                    <Plus size={18} /> เพิ่มสินทรัพย์แรก
-                  </button>
-                </div>
-              ) : (
-                <>
-                  {/* ── DESKTOP TABLE ── */}
-                  <div className="table-wrapper">
-                    <table className="asset-table">
-                      <thead>
-                        <tr>
-                          <th><span className="sort-header" onClick={() => handleSort("symbol")}>
-                            สินทรัพย์
-                            <span className={`sort-icon${sortConfig.key === "symbol" ? " active" : ""}`}>
-                              {sortConfig.key === "symbol" ? (sortConfig.dir === "asc" ? "▲" : "▼") : "⇅"}
-                            </span>
-                          </span></th>
-                          <th style={{ textAlign: "right" }}>ราคา</th>
-                          <SortTh sortKey="value" align="right">มูลค่า</SortTh>
-                          <SortTh sortKey="gain"  align="right">กำไร/ขาดทุน</SortTh>
-                          <SortTh sortKey="today" align="right">วันนี้</SortTh>
-                          <th />
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {sortedAssets.map((asset, idx) => {
-                          const pData = prices[asset.symbol];
-                          const flash = priceFlash[asset.symbol];
-                          const weightPct = totalUSD > 0 ? (asset.valueUSD / totalUSD) * 100 : 0;
-                          const isBest = bestAsset?.symbol === asset.symbol;
-                          const isCashAsset = asset.type === "fiat" || asset.category === "fiat";
-
-                          const isSelected = selectedAsset?.id === asset.id;
-                          return (
-                            <tr key={asset.id || asset.symbol}
-                              className={`asset-row-clickable ${isSelected ? "selected" : ""} ${flash ? `price-flash-${flash}` : ""}`}
-                              onClick={(e) => {
-                                if (e.target.closest("button") || e.target.closest("td:last-child")) return;
-                                setSelectedAsset(asset);
-                              }}
-                              style={{ animationDelay: `${idx * 0.04}s` }}>
-
-                              {/* Symbol */}
-                              <td>
-                                <div className="asset-name-col">
-                                  <AssetLogo symbol={asset.symbol} category={asset.category} />
-                                  <div>
-                                    <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 4 }}>
-                                      <span className="asset-symbol">{getDisplaySymbol(asset.symbol)}</span>
-                                      <span className={`badge-type ${asset.category || "stock"}`}>
-                                        {asset.category === "gold" ? (asset.symbol === "CL=F" ? "น้ำมัน" : "ทองคำ") : (CATEGORY_LABELS[asset.category] || asset.category || "stock")}
-                                      </span>
-                                      {asset.broker && (
-                                        <span style={{
-                                          fontSize: 10,
-                                          fontWeight: 800,
-                                          color: "var(--primary)",
-                                          background: "var(--primary-light)",
-                                          padding: "1px 6px",
-                                          borderRadius: 4,
-                                          border: "1px solid rgba(82,54,255,0.15)",
-                                          whiteSpace: "nowrap"
-                                        }}>
-                                          {asset.broker}
-                                        </span>
-                                      )}
-                                      {!isCashAsset && isBest && (
-                                        <span className="best-badge">🏆 Best</span>
-                                      )}
-                                    </div>
-                                    <div className="asset-fullname">{getAssetFullName(asset.symbol, asset.name, asset.category)}</div>
-                                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
-                                      <MarketBadge state={pData?.marketState} />
-                                      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", background: "#F1F5F9", padding: "1px 6px", borderRadius: 4 }}>
-                                        {weightPct.toFixed(2)}%
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-                              </td>
-
-                              {/* Price */}
-                              <td style={{ textAlign: "right" }}>
-                                {!hasPrices ? (
-                                  <div className="skeleton skeleton-text" style={{ width: 70, height: 16, marginLeft: "auto" }} />
-                                ) : isCashAsset ? (
-                                  <span style={{ color: "var(--text-faint)", fontSize: 13 }}>—</span>
-                                ) : (
-                                  <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10 }}>
-                                    <div>
-                                      {/* Line 1: Regular Price */}
-                                      <div className={`num-tick`} style={{ fontWeight: 700, fontSize: 14 }}>
-                                        {fmt.usd(asset.regPriceUSD)}
-                                      </div>
-                                      <div className="price-thb">{fmt.thb(asset.regPriceUSD * exchangeRate)}</div>
-
-                                      {/* Line 2: Extended Hours Price */}
-                                      {asset.extPrice != null && (
-                                        <div style={{ fontSize: 10, fontWeight: 700, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 2 }}>
-                                          {asset.extType}: {fmt.usd(asset.extPriceUSD)} ({fmt.pct(asset.extChangePct)})
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                )}
-                              </td>
-
-                              {/* Value */}
-                              <td style={{ textAlign: "right" }}>
-                                {!hasPrices ? (
-                                  <div className="skeleton skeleton-text" style={{ width: 80, height: 16, marginLeft: "auto" }} />
-                                ) : (
-                                  <div>
-                                    {/* Line 1: Regular Value */}
-                                    <div style={{ fontWeight: 700, fontSize: 14 }}>
-                                      {fmt.usd(isCashAsset ? asset.valueUSD : asset.regValueUSD)}
-                                    </div>
-                                    <div className="price-thb">
-                                      {isCashAsset ? (
-                                        `${fmt.qty(asset.qty)} ${asset.symbol}`
-                                      ) : (
-                                        fmt.thb(asset.regValueTHB)
-                                      )}
-                                    </div>
-
-                                    {/* Line 2: Extended Hours Value */}
-                                    {!isCashAsset && asset.extPrice != null && (
-                                      <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 2 }}>
-                                        {asset.extType}: {fmt.usd(asset.extValueUSD)} ({fmt.thb(asset.extValueTHB)})
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                              </td>
-
-                              {/* Gain/Loss */}
-                              <td style={{ textAlign: "right" }}>
-                                {!hasPrices || asset.costUSD === 0 || isCashAsset ? (
-                                  <span style={{ color: "var(--text-faint)", fontSize: 13 }}>—</span>
-                                ) : (
-                                  <div>
-                                    {/* Line 1: Regular Gain/Loss */}
-                                    <div className={`pnl-cell ${asset.regGainUSD >= 0 ? "positive" : "negative"}`}>
-                                      <div>{asset.regGainUSD >= 0 ? "+" : ""}{fmt.usd(asset.regGainUSD)}</div>
-                                      <div style={{ fontSize: 12 }}>{fmt.pct(asset.regGainPct)}</div>
-                                    </div>
-
-                                    {/* Line 2: Extended Gain/Loss */}
-                                    {asset.extPrice != null && (
-                                      <div className={`pnl-cell ${asset.extGainUSD >= 0 ? "positive" : "negative"}`} style={{ fontSize: 10, marginTop: 2 }}>
-                                        <div>{asset.extType}: {asset.extGainUSD >= 0 ? "+" : ""}{fmt.usd(asset.extGainUSD)} ({fmt.pct(asset.extGainPct)})</div>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                              </td>
-
-                              {/* Today */}
-                              <td style={{ textAlign: "right" }}>
-                                {!hasPrices || isCashAsset ? (
-                                  <span style={{ color: "var(--text-faint)", fontSize: 13 }}>—</span>
-                                ) : (
-                                  <div>
-                                    {/* Line 1: Regular Today Return */}
-                                    <div className={`pnl-cell ${asset.regTodayPct >= 0 ? "positive" : "negative"}`}>
-                                      <div style={{ fontSize: 13 }}>{fmt.pct(asset.regTodayPct)}</div>
-                                    </div>
-
-                                    {/* Line 2: Extended Today Return */}
-                                    {asset.extPrice != null && (
-                                      <div className={`pnl-cell ${asset.extChangePct >= 0 ? "positive" : "negative"}`} style={{ fontSize: 10, marginTop: 2 }}>
-                                        <div>{asset.extType}: {fmt.pct(asset.extChangePct)}</div>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                              </td>
-
-                              {/* Actions */}
-                              <td>
-                                <div style={{ display: "flex", gap: 4 }}>
-                                  <button className="btn-delete" title={asset.category === "fiat" || asset.type === "fiat" ? "ฝากเงินสด / ถอนเงินสด" : "ซื้อ / ขายสินทรัพย์"} style={{ color: "var(--primary)" }}
-                                    onClick={() => { setEditingAsset(asset); setModalOpen(true); }}>
-                                    <Plus size={14} />
-                                  </button>
-                                  <button className="btn-delete" title="ลบออกจากพอร์ต" onClick={() => handleDeleteAsset(asset)}>
-                                    <Trash2 size={14} />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* ── MOBILE CARDS ── */}
-                  <div className="mobile-assets-list">
-                    {sortedAssets.map((asset, idx) => {
-                      const pData = prices[asset.symbol];
-                      const flash = priceFlash[asset.symbol];
-                      const sp    = (asset.symbol === "THB" || asset.symbol === "USD") ? [1.0, 1.0, 1.0] : sparklines[asset.symbol]?.closes;
-                      const isBest = bestAsset?.symbol === asset.symbol;
-                      const isCashAsset = asset.type === "fiat" || asset.category === "fiat";
-
-                      return (
-                        <div key={asset.id || asset.symbol}
-                          className={`mobile-asset-card${flash ? ` price-flash-${flash}` : ""}`}
-                          onClick={(e) => {
-                            if (e.target.closest("button")) return;
-                            setSelectedAsset(asset);
-                          }}
-                          style={{ animationDelay: `${idx * 0.06}s`, cursor: "pointer" }}>
-
-                          <div className="mobile-card-top">
-                            <div className="mobile-card-left">
-                              <AssetLogo symbol={asset.symbol} category={asset.category} />
-                              <div>
-                                <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
-                                  <span className="asset-symbol">{getDisplaySymbol(asset.symbol)}</span>
-                                  <span className={`badge-type ${asset.category || "stock"}`}>
-                                    {asset.category === "gold" ? (asset.symbol === "CL=F" ? "น้ำมัน" : "ทองคำ") : (CATEGORY_LABELS[asset.category] || asset.category || "stock")}
-                                  </span>
-                                  {asset.broker && (
-                                    <span style={{
-                                      fontSize: 10,
-                                      fontWeight: 800,
-                                      color: "var(--primary)",
-                                      background: "var(--primary-light)",
-                                      padding: "1px 6px",
-                                      borderRadius: 4,
-                                      border: "1px solid rgba(82,54,255,0.15)",
-                                      whiteSpace: "nowrap"
-                                    }}>
-                                      {asset.broker}
-                                    </span>
-                                  )}
-                                  {!isCashAsset && isBest && <span className="best-badge" style={{ padding: "1px 6px", borderRadius: 4 }}>🏆 Best</span>}
-                                </div>
-                                <div className="asset-fullname">{getAssetFullName(asset.symbol, asset.name, asset.category)}</div>
-                                <MarketBadge state={pData?.marketState} />
-                              </div>
-                            </div>
-                            <div className="mobile-card-right">
-                              {hasPrices ? (
-                                isCashAsset ? (
-                                  <span style={{ color: "var(--text-faint)", fontSize: 13 }}>—</span>
-                                ) : (
-                                  <>
-                                    <div className="mobile-card-price">{fmt.usd(asset.regPriceUSD)}</div>
-                                    <div className="price-thb">{fmt.thb(asset.regPriceUSD * exchangeRate)}</div>
-                                    {!isCashAsset && asset.extPrice != null && (
-                                      <div style={{ fontSize: 9, fontWeight: 700, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 2 }}>
-                                        {asset.extType}: {fmt.usd(asset.extPriceUSD)} ({fmt.pct(asset.extChangePct)})
-                                      </div>
-                                    )}
-                                  </>
-                                )
-                              ) : (
-                                <div className="skeleton skeleton-text" style={{ width: 80, height: 18 }} />
-                              )}
-                            </div>
-                          </div>
-
-
-
-                          <div className="mobile-card-stats">
-                            <div className="mobile-stat">
-                              <span className="mobile-stat-label">มูลค่า</span>
-                              <span className="mobile-stat-value">
-                                {hasPrices ? (
-                                  isCashAsset ? (
-                                    `${fmt.qty(asset.qty)} ${asset.symbol} (≈ ${fmt.usd(asset.valueUSD)})`
-                                  ) : (
-                                    fmt.usd(asset.valueUSD)
-                                  )
-                                ) : "—"}
-                              </span>
-                            </div>
-                            <div className="mobile-stat">
-                              <span className="mobile-stat-label">กำไร/ขาดทุน</span>
-                              <span className="mobile-stat-value" style={{ color: isCashAsset ? "var(--text-faint)" : (asset.gainUSD >= 0 ? "var(--gain)" : "var(--loss)") }}>
-                                {isCashAsset ? "—" : (hasPrices && asset.costUSD > 0 ? fmt.pct(asset.gainPct) : "—")}
-                              </span>
-                            </div>
-                            <div className="mobile-stat">
-                              <span className="mobile-stat-label">วันนี้</span>
-                              <span className="mobile-stat-value" style={{ color: isCashAsset ? "var(--text-faint)" : (asset.todayPct >= 0 ? "var(--gain)" : "var(--loss)") }}>
-                                {isCashAsset ? "—" : (hasPrices ? fmt.pct(asset.todayPct) : "—")}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                            <button className="btn btn-secondary ripple-btn"
-                              style={{ height: 38, fontSize: 12, flex: 1 }}
-                              onClick={() => { setEditingAsset(asset); setModalOpen(true); }}>
-                              {isCashAsset ? "📥 ฝาก / 📤 ถอน" : "🟢 ซื้อ / 🔴 ขาย"}
-                            </button>
-                            <button className="btn-icon ripple-btn" style={{ flex: "0 0 38px" }}
-                              onClick={() => handleDeleteAsset(asset)} title="ลบ">
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
+              <AssetTable
+                sortedAssets={sortedAssets}
+                prices={prices}
+                priceFlash={priceFlash}
+                bestAsset={bestAsset}
+                totalUSD={totalUSD}
+                exchangeRate={exchangeRate}
+                setSelectedAsset={setSelectedAsset}
+                selectedAsset={selectedAsset}
+                refreshing={refreshing}
+                fetchPrices={fetchPrices}
+                assets={assets}
+                setHideValues={setHideValues}
+                hideValues={hideValues}
+                setEditingAsset={setEditingAsset}
+                setModalOpen={setModalOpen}
+                sortConfig={sortConfig}
+                handleSort={handleSort}
+                handleDeleteAsset={handleDeleteAsset}
+                hasPrices={hasPrices}
+                sparklines={sparklines}
+              />
             </div>
           </div>
         </div>
-
-      </div>
       </div>
 
-      {/* ── ASSET MODAL ── */}
       {modalOpen && (
         <AssetModal
           isOpen={modalOpen}
@@ -4658,7 +1491,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
         />
       )}
 
-      {/* ── P&L DETAILS MODAL ── */}
       {showPnLDetailsModal && (
         <PnLDetailsModal
           isOpen={showPnLDetailsModal}
@@ -4679,7 +1511,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
         />
       )}
 
-      {/* ── ASSET DETAIL PANEL ── */}
       {selectedAsset && (
         <AssetDetailPanel
           asset={selectedAsset}
@@ -4695,7 +1526,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
         />
       )}
 
-      {/* ── SETTINGS MODAL ── */}
       {profileModalOpen && (
         <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setProfileModalOpen(false); }}>
           <div className="modal-content" style={{ maxWidth: 440 }}>
@@ -4857,8 +1687,6 @@ export default function Dashboard({ user, onLogout, showToast }) {
                   </label>
                 </div>
               </div>
-
-
 
               {/* SECTION 5: DATA MANAGEMENT */}
               <div style={{
