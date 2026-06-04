@@ -3,4 +3,4 @@
 - **Current Branch**: `main`
 - **Active Task**: None (Ready for new instructions)
 - **Tech Stack**: React (Vite), Cloudflare Pages Functions, SQLite (via KV/Miniflare)
-- **Last Status Update**: 2026-06-04 (Fixed batch transaction sorting in Dashboard.jsx. Combined date and time for chronological ordering and prioritized BUY over SELL for identical timestamps to prevent portfolio validation errors during batch imports. Pushed updates to GitHub.)
+- **Last Status Update**: 2026-06-04 (Improved batch transaction processing in Dashboard.jsx by prioritizing all BUYs before SELLs in the import loop and collecting skipped transactions into a consolidated alert summary dialog. Pushed updates to GitHub.)
