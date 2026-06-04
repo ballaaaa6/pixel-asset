@@ -393,10 +393,58 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
   const touchRef = useRef({ lastX: 0, lastY: 0, type: null, startDist: 0, startZoom: null, isPinching: false, centerX: 0 });
   const lastTouchTime = useRef(0);
 
-  const [showEma10, setShowEma10] = useState(false);
-  const [showEma20, setShowEma20] = useState(false);
-  const [showEma50, setShowEma50] = useState(true);
-  const [showEma200, setShowEma200] = useState(true);
+  const [showEma10, setShowEma10] = useState(() => {
+    if (typeof window !== "undefined" && window.localStorage) {
+      const saved = localStorage.getItem("ema_showEma10");
+      return saved !== null ? JSON.parse(saved) : false;
+    }
+    return false;
+  });
+  const [showEma20, setShowEma20] = useState(() => {
+    if (typeof window !== "undefined" && window.localStorage) {
+      const saved = localStorage.getItem("ema_showEma20");
+      return saved !== null ? JSON.parse(saved) : false;
+    }
+    return false;
+  });
+  const [showEma50, setShowEma50] = useState(() => {
+    if (typeof window !== "undefined" && window.localStorage) {
+      const saved = localStorage.getItem("ema_showEma50");
+      return saved !== null ? JSON.parse(saved) : false;
+    }
+    return false;
+  });
+  const [showEma200, setShowEma200] = useState(() => {
+    if (typeof window !== "undefined" && window.localStorage) {
+      const saved = localStorage.getItem("ema_showEma200");
+      return saved !== null ? JSON.parse(saved) : true;
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.localStorage) {
+      localStorage.setItem("ema_showEma10", JSON.stringify(showEma10));
+    }
+  }, [showEma10]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.localStorage) {
+      localStorage.setItem("ema_showEma20", JSON.stringify(showEma20));
+    }
+  }, [showEma20]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.localStorage) {
+      localStorage.setItem("ema_showEma50", JSON.stringify(showEma50));
+    }
+  }, [showEma50]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.localStorage) {
+      localStorage.setItem("ema_showEma200", JSON.stringify(showEma200));
+    }
+  }, [showEma200]);
 
   const diffStartIdxRef = useRef(null);
   const diffEndIdxRef = useRef(null);
