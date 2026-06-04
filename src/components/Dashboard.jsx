@@ -329,7 +329,15 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
         const txs = transactionsByIdx[idx];
         const primarySymbol = txs[0]?.symbol || "";
         const x = PAD_L + (displayIdx / (displayedData.length - 1)) * iW;
-        return { idx, x, symbol: primarySymbol, txs };
+
+        // Determine color type: all buy = green, all sell = red, mix = orange
+        const buysCount = txs.filter(t => t.type === "BUY" || (t.qty || 0) >= 0).length;
+        const sellsCount = txs.filter(t => t.type === "SELL" || (t.qty || 0) < 0).length;
+        let colorType = "mixed";
+        if (buysCount > 0 && sellsCount === 0) colorType = "buy";
+        else if (buysCount === 0 && sellsCount > 0) colorType = "sell";
+
+        return { idx, x, symbol: primarySymbol, txs, colorType };
       })
       .filter(Boolean);
   }, [transactionsByIdx, history, displayedData, zoomRange, iW, PAD_L]);
@@ -837,7 +845,9 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
           cursor: zoomRange ? (dragStart && dragStart.type === "pan" ? "grabbing" : "grab") : "crosshair",
           position: "relative",
           width: "100%",
-          touchAction: "pan-y"
+          touchAction: "pan-y",
+          userSelect: "none",
+          WebkitUserSelect: "none"
         }}>
         <svg
           viewBox={`0 0 ${W} ${H}`}
@@ -994,19 +1004,22 @@ function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate })
           )}
 
           {/* Lot Purchase markers on timeline */}
-          {lotMarkers.map((m, i) => (
-            <g key={i}>
-              <line x1={m.x} y1={PAD_T} x2={m.x} y2={H - PAD_B}
-                stroke="#F59E0B" strokeWidth="1.5" strokeDasharray="5 4" opacity="0.8" />
-              <circle cx={m.x} cy={PAD_T + 10} r="7" fill="#F59E0B" style={{ cursor: "pointer" }} />
-              <text x={m.x} y={PAD_T + 13} textAnchor="middle" fontSize="8" fill="white" fontWeight="800" fontFamily="Outfit,sans-serif" style={{ cursor: "pointer", pointerEvents: "none" }}>
-                {m.symbol.slice(0, 1)}
-              </text>
-              <title>
-                {m.txs.map(t => `${t.type === "BUY" ? "ซื้อ" : "ขาย"} ${t.symbol} ${t.qty.toLocaleString()} หุ้น @ ${fmt.usd(t.price)}`).join("\n")}
-              </title>
-            </g>
-          ))}
+          {lotMarkers.map((m, i) => {
+            const markerColor = m.colorType === "buy" ? "#16A34A" : m.colorType === "sell" ? "#DC2626" : "#F59E0B";
+            return (
+              <g key={i}>
+                <line x1={m.x} y1={PAD_T} x2={m.x} y2={H - PAD_B}
+                  stroke={markerColor} strokeWidth="1.5" strokeDasharray="5 4" opacity="0.8" />
+                <circle cx={m.x} cy={PAD_T + 10} r="7.5" fill={markerColor} style={{ cursor: "pointer" }} />
+                <text x={m.x} y={PAD_T + 10} textAnchor="middle" fontSize="8" fill="white" fontWeight="900" fontFamily="Outfit,sans-serif" dominantBaseline="middle" style={{ cursor: "pointer", pointerEvents: "none" }}>
+                  {m.symbol.slice(0, 1)}
+                </text>
+                <title>
+                  {m.txs.map(t => `${t.type === "BUY" ? "ซื้อ" : "ขาย"} ${t.symbol} ${t.qty.toLocaleString()} หุ้น @ ${fmt.usd(t.price)}`).join("\n")}
+                </title>
+              </g>
+            );
+          })}
 
           {/* Hover vertical crosshair */}
           {hovered && (

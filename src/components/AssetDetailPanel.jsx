@@ -406,10 +406,17 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
 
     const startIdx = zoomRange ? zoomRange.start : 0;
     const endIdx = zoomRange ? zoomRange.end : candles.length - 1;
-    const markers = [];
+    const limitStartDate = tf === "ตั้งแต่ซื้อ" ? sortedLots[0]?.date : candles[0].date.split("T")[0];
+    const limitEndDate = candles[candles.length - 1].date.split("T")[0];
 
+    // 1. Map each lot to its closest candle, verifying boundary range
+    const rawMarkers = [];
     sortedLots.forEach((lot, i) => {
       const lotDateStr = lot.date;
+
+      // STRICT TIMEFRAME BOUNDARY FILTER:
+      // Hide transaction if it's strictly outside the active timeframe range.
+      if (lotDateStr < limitStartDate || lotDateStr > limitEndDate) return;
 
       let bestIdx = -1, bestDiff = Infinity;
       const targetTime = new Date(lotDateStr + "T00:00:00.000Z").getTime();
@@ -421,17 +428,71 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
         if (diff < bestDiff) { bestDiff = diff; bestIdx = idx; }
       });
 
-      // Display marker if nearest candle is in current viewport and within 30 days
-      if (bestIdx >= startIdx && bestIdx <= endIdx && bestDiff <= 30 * 86400 * 1000) {
-        const displayIdx = bestIdx - startIdx;
-        const x = PAD_L + (displayIdx / (displayedCandles.length - 1)) * iW;
-        const priceUSD = lot.price && isThai ? lot.price / exchangeRate : lot.price;
+      // Display marker if nearest candle is in current viewport
+      if (bestIdx >= startIdx && bestIdx <= endIdx) {
         const isBuy = (lot.qty || 0) >= 0;
-        markers.push({ x, lot, priceUSD, idx: bestIdx, num: i + 1, isBuy });
+        rawMarkers.push({
+          idx: bestIdx,
+          num: i + 1,
+          isBuy,
+          lot,
+          priceUSD: lot.price && isThai ? lot.price / exchangeRate : lot.price
+        });
       }
     });
-    return markers;
-  }, [lots, candles, displayedCandles, zoomRange, PAD_L, iW, isThai, exchangeRate]);
+
+    // 2. Group rawMarkers by unique index (bestIdx) to prevent overlap on same day/candle
+    const groupedMap = {};
+    rawMarkers.forEach(m => {
+      if (!groupedMap[m.idx]) {
+        groupedMap[m.idx] = {
+          idx: m.idx,
+          nums: [],
+          buysCount: 0,
+          sellsCount: 0,
+          txs: []
+        };
+      }
+      groupedMap[m.idx].nums.push(m.num);
+      if (m.isBuy) groupedMap[m.idx].buysCount++;
+      else groupedMap[m.idx].sellsCount++;
+      groupedMap[m.idx].txs.push(m);
+    });
+
+    // 3. Map groups to final markers with screen coordinate X and consolidated details
+    return Object.values(groupedMap).map(group => {
+      const displayIdx = group.idx - startIdx;
+      const x = PAD_L + (displayIdx / (displayedCandles.length - 1)) * iW;
+      
+      // Determine color type: all buy = green, all sell = red, mix = orange
+      let colorType = "mixed";
+      if (group.buysCount > 0 && group.sellsCount === 0) colorType = "buy";
+      else if (group.buysCount === 0 && group.sellsCount > 0) colorType = "sell";
+
+      // Sequence label string (e.g. "1", "1,2", "4-7")
+      group.nums.sort((a, b) => a - b);
+      let isConsecutive = true;
+      for (let k = 1; k < group.nums.length; k++) {
+        if (group.nums[k] !== group.nums[k-1] + 1) {
+          isConsecutive = false;
+          break;
+        }
+      }
+      const label = group.nums.length === 1
+        ? String(group.nums[0])
+        : isConsecutive
+          ? `${group.nums[0]}-${group.nums[group.nums.length - 1]}`
+          : group.nums.join(",");
+
+      return {
+        x,
+        colorType,
+        label,
+        numsCount: group.nums.length,
+        txs: group.txs
+      };
+    });
+  }, [lots, candles, displayedCandles, zoomRange, PAD_L, iW, isThai, exchangeRate, tf]);
 
   const stateRef = useRef();
   stateRef.current = {
@@ -987,14 +1048,20 @@ function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, asset, h
 
         {/* ── Lot purchase markers ── */}
         {lotMarkers.map((m, i) => {
-          const markerColor = m.isBuy ? "#16A34A" : "#DC2626";
+          const markerColor = m.colorType === "buy" ? "#16A34A" : m.colorType === "sell" ? "#DC2626" : "#F59E0B";
+          const isMultiple = m.numsCount > 1;
+          const badgeW = isMultiple ? Math.max(16, m.label.length * 6 + 10) : 15;
           return (
             <g key={i}>
               <line x1={m.x} y1={PAD_T} x2={m.x} y2={H - PAD_B}
                 stroke={markerColor} strokeWidth="1.5" strokeDasharray="5 4" opacity="0.85" />
-              <circle cx={m.x} cy={PAD_T + 12} r="7.5" fill={markerColor} />
+              {isMultiple ? (
+                <rect x={m.x - badgeW / 2} y={PAD_T + 4.5} width={badgeW} height={15} rx="7.5" fill={markerColor} />
+              ) : (
+                <circle cx={m.x} cy={PAD_T + 12} r="7.5" fill={markerColor} />
+              )}
               <text x={m.x} y={PAD_T + 12} textAnchor="middle" fontSize="9" fill="white" fontWeight="900" fontFamily="Outfit,sans-serif" dominantBaseline="middle">
-                {m.num}
+                {m.label}
               </text>
             </g>
           );
