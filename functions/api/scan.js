@@ -35,8 +35,8 @@ Extract the data into a JSON object with the following fields. Do not translate 
   "bold_amount": "The large bold amount displayed under the asset name (e.g. total currency amount or unit count like '[number] หุ้น' or '[number] หน่วย')",
   "symbol": "The uppercase stock ticker symbol from the header",
   "actual_price": "The executed price per share. Next to 'ราคาที่ได้จริง' or under the column header 'ราคาที่ได้จริง' (transcribe exact numeric text and currency like '[number] USD')",
-  "stock_value": "The total stock value next to 'มูลค่าหุ้น' (transcribe exact numeric text and currency)",
-  "qty_table": "The quantity of shares. Next to 'จำนวนหุ้น'/'จำนวนหน่วย' or under the column header 'จำนวนหุ้น'/'จำนวนหน่วย' in the details table (transcribe the exact number, or 'N/A' if the row does not exist)",
+  "stock_value": "The total stock value next to 'มูลค่าหุ้น' (transcribe exact numeric text and currency like '74,999.87 THB' or '11,541.59 USD'). DO NOT transcribe the share quantity (long decimal number) here.",
+  "qty_table": "The quantity of shares. Under the column header 'จำนวนหุ้น'/'จำนวนหน่วย' in the details table (transcribe the exact long decimal number like '17.5941041', or 'N/A' if the row does not exist). DO NOT confuse this with commission, VAT, or stock value.",
   "raw_date": "The date-time string next to 'วันที่ส่งคำสั่ง', 'วันที่สำเร็จ', or inside the top card 'สถานะ (ณ ...)' (transcribe the exact text, e.g., '[day] [month] [year] - [time]')",
   "has_received_cash_back_label": true or false, indicating if the label 'ยอดที่จะได้รับคืน' or phrase 'เงินค่าขายคืน' appears anywhere on the receipt,
   "has_payment_amount_label": true or false, indicating if the label 'ยอดที่ต้องชำระ' appears anywhere on the receipt
@@ -52,10 +52,11 @@ CRITICAL TRANSCRIPTION DIRECTIONS:
 
 2. NO CALCULATION OR MATH: Do NOT perform any mathematical division or calculation yourself. Transcribe the exact numbers visible in the image. For "qty_table", do NOT divide "bold_amount" by "actual_price" to calculate it; copy the exact digits printed next to or under the "จำนวนหุ้น" / "จำนวนหน่วย" header.
 
-3. QUANTITY VS COMMISSION ACCURACY: When transcribing "qty_table", be extremely careful not to confuse the share quantity with other numbers in the table:
+3. QUANTITY VS COMMISSION/STOCK VALUE ACCURACY: When transcribing "qty_table", be extremely careful not to confuse the share quantity with other numbers in the table:
+   - Do NOT confuse "จำนวนหุ้น" (Share quantity, e.g., 17.5941041) with "มูลค่าหุ้น" (Stock Value, e.g., 74,999.87 THB). They are separate rows/columns.
    - Do NOT transcribe "ค่าคอมมิชชัน" (Commission, e.g., 0.25, 2.50, 6.07) or "ภาษีมูลค่าเพิ่ม" (VAT, e.g., 0.00, 0.18) as the quantity. These are fees, not shares.
    - Do NOT transcribe the ticker price or transaction total as quantity.
-   - Share quantity ("จำนวนหุ้น") is typically a long fractional decimal number with 6 to 8 decimal places (e.g., 75.9920476, 84.0939307). Commission and fees are always 2 decimal places and usually very low numbers. Look closely at the header "จำนวนหุ้น" or "จำนวนหน่วย" and grab only the number directly below or next to it.
+   - Share quantity ("จำนวนหุ้น" / "จำนวนหน่วย") is typically a long fractional decimal number with 6 to 8 decimal places (e.g., 75.9920476, 84.0939307). Commission and fees are always 2 decimal places and usually very low numbers. Look closely at the header "จำนวนหุ้น" or "จำนวนหน่วย" and grab only the number directly below or next to it.
 
 4. NO FILLER: Output Raw JSON only. No markdown, no explanation. Start with '{', end with '}'.`;
 
@@ -311,8 +312,17 @@ function validateSlipData(raw) {
   // If boldNum * price equals stockValue (converted to USD), then boldNum is the quantity!
   const isBoldQty = stockValueUsd > 0 && Math.abs(boldNum * price - stockValueUsd) / stockValueUsd < 0.15;
 
+  // Get decimal count of qty_table raw string to detect long fractional share amounts
+  const rawQtyStr = String(raw.qty_table || "").trim();
+  const decimalPart = rawQtyStr.split(".")[1] || "";
+  const decimalCount = decimalPart.length;
+
   if ((isBoldUnitCount || isBoldQty) && boldNum > 0) {
     share_amount = boldNum;
+  } else if (qtyTable > 0 && decimalCount >= 5) {
+    // If the qtyTable has a long fractional decimal part (5+ decimals), it is definitely the fractional share count!
+    // We trust it directly and bypass expectedQty checks to avoid AI mismatch errors in stock_value.
+    share_amount = qtyTable;
   } else {
     // 4.2 Fractional share case: table has quantity, boldNum is total currency
     let totalUsd = stockValueUsd > 0 ? stockValueUsd : 0;
