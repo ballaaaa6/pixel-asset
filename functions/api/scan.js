@@ -2,7 +2,7 @@
  * /api/scan — Cloudflare Pages Function (Workers AI Only)
  *
  * Receives one or more base64-encoded financial asset slip images,
- * uses Cloudflare Workers AI (@cf/meta/llama-3.2-11b-vision-instruct)
+ * uses Cloudflare Workers AI (@cf/google/gemma-4-26b-a4b-it)
  * to extract transaction data, and returns the structured results.
  *
  * POST /api/scan
@@ -482,7 +482,7 @@ function mergeLotIntoPortfolio(portfolio, slip) {
 }
 
 /**
- * Call Cloudflare Workers AI Vision Llama-3.2-11b-vision-instruct model.
+ * Call Cloudflare Workers AI Vision google/gemma-4-26b-a4b-it model.
  */
 async function callWorkersAIVision(ai, base64, mime) {
   let binaryString;
@@ -499,7 +499,7 @@ async function callWorkersAIVision(ai, base64, mime) {
   }
   const imageBytes = Array.from(bytes);
 
-  const model = "@cf/meta/llama-3.2-11b-vision-instruct";
+  const model = "@cf/google/gemma-4-26b-a4b-it";
 
   let response;
   try {
@@ -519,7 +519,7 @@ async function callWorkersAIVision(ai, base64, mime) {
     // If terms of service code 5016, or license consent is required
     if (err.message && (err.message.includes("5016") || err.message.includes("license") || err.message.includes("agree") || err.message.includes("Acceptable Use Policy"))) {
       try {
-        console.log("Agreeing to Meta license terms for llama-3.2...");
+        console.log("Agreeing to terms for model...");
         try {
           await ai.run(model, { prompt: "agree" });
         } catch (agreeErr) {
