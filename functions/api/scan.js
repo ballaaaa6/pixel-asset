@@ -34,9 +34,9 @@ Extract the data into a JSON object with the following fields. Do not translate 
   "status_text": "The status section text near the top (e.g. จับคู่แล้ว or สำเร็จ. คุณได้รับเงินค่าขายคืนแล้ว)",
   "bold_amount": "The large bold amount displayed under the asset name (e.g. total currency amount or unit count like '[number] หุ้น' or '[number] หน่วย')",
   "symbol": "The uppercase stock ticker symbol from the header",
-  "actual_price": "The executed price per share next to 'ราคาที่ได้จริง' (transcribe exact numeric text and currency like '[number] USD')",
+  "actual_price": "The executed price per share. Next to 'ราคาที่ได้จริง' or under the column header 'ราคาที่ได้จริง' (transcribe exact numeric text and currency like '[number] USD')",
   "stock_value": "The total stock value next to 'มูลค่าหุ้น' (transcribe exact numeric text and currency)",
-  "qty_table": "The quantity of shares next to 'จำนวนหุ้น' or 'จำนวนหน่วย' in the details table (transcribe the exact number, or 'N/A' if the row does not exist)",
+  "qty_table": "The quantity of shares. Next to 'จำนวนหุ้น'/'จำนวนหน่วย' or under the column header 'จำนวนหุ้น'/'จำนวนหน่วย' in the details table (transcribe the exact number, or 'N/A' if the row does not exist)",
   "raw_date": "The date-time string next to 'วันที่ส่งคำสั่ง', 'วันที่สำเร็จ', or inside the top card 'สถานะ (ณ ...)' (transcribe the exact text, e.g., '[day] [month] [year] - [time]')",
   "has_received_cash_back_label": true or false, indicating if the label 'ยอดที่จะได้รับคืน' or phrase 'เงินค่าขายคืน' appears anywhere on the receipt,
   "has_payment_amount_label": true or false, indicating if the label 'ยอดที่ต้องชำระ' appears anywhere on the receipt
