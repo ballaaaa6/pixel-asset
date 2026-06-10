@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { X } from "lucide-react";
 import {
   getRealizedPnL,
@@ -9,6 +9,7 @@ import {
 } from "../../utils/assetHelpers";
 import { fmtUSD, fmtTHB, fmtPct, fmtQty } from "../../utils/formatters";
 import BrokerBadge from "../common/BrokerBadge";
+import { registerModal } from "../../utils/modalStack";
 
 const CATEGORY_LABELS = { stock: "หุ้น", crypto: "คริปโต", gold: "ทองคำ/น้ำมัน", fiat: "เงินสด" };
 
@@ -30,6 +31,11 @@ export default function PnLDetailsModal({
   onDeleteAsset
 }) {
   const [searchTerm, setSearchTerm] = useState("");
+
+  useEffect(() => {
+    if (!isOpen) return;
+    return registerModal(onClose);
+  }, [isOpen, onClose]);
 
   const fmt = useMemo(() => ({
     usd: (n) => fmtUSD(n, false), // Always show value inside PnLDetailsModal

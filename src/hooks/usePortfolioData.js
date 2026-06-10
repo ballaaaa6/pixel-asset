@@ -6,7 +6,7 @@ import { CATEGORY_LABELS } from "../utils/constants";
 import { processTransactions } from "../utils/portfolioTransactionHelpers";
 import { calculatePortfolioValuation } from "../utils/portfolioValuationHelpers";
 
-export function usePortfolioData({ user, showToast, onSessionExpired }) {
+export function usePortfolioData({ user, showToast, onSessionExpired, askConfirm }) {
   const [assets, setAssets] = useState([]);
   const [prices, setPrices] = useState({});
   const [sparklines, setSparklines] = useState({});
@@ -234,7 +234,7 @@ export function usePortfolioData({ user, showToast, onSessionExpired }) {
     const asset = assets.find(a => a.id === assetId);
     if (!asset) return;
     const displaySym = asset.broker ? `${getDisplaySymbol(asset.symbol)} (${asset.broker})` : getDisplaySymbol(asset.symbol);
-    if (!confirm(`คุณแน่ใจหรือไม่ที่จะล้างผลตอบแทนสะสมของ ${displaySym}?`)) return;
+    if (!await askConfirm(`คุณแน่ใจหรือไม่ที่จะล้างผลตอบแทนสะสมของ ${displaySym}?`, "ล้างผลตอบแทนสะสม")) return;
 
     const isThai = asset.symbol.toUpperCase().endsWith(".BK");
     const rawRealized = getRealizedPnL(asset.lots || [], isThai, exchangeRate);
@@ -253,10 +253,10 @@ export function usePortfolioData({ user, showToast, onSessionExpired }) {
     if (!asset) return;
     const displaySym = asset.broker ? `${getDisplaySymbol(asset.symbol)} (${asset.broker})` : getDisplaySymbol(asset.symbol);
     if (fromModal && asset.qty > 0) {
-      alert(`❌ ไม่สามารถลบ ${displaySym} เนื่องจากยังมีถือหุ้นอยู่`);
+      await askConfirm(`ไม่สามารถลบ ${displaySym} เนื่องจากยังมีถือหุ้นอยู่\nกรุณาขายหุ้นทั้งหมดออกก่อนทำการลบสินทรัพย์`, "⚠️ ไม่สามารถลบสินทรัพย์ได้");
       return;
     }
-    if (!confirm(`คุณแน่ใจหรือไม่ที่จะลบ ${displaySym}?`)) return;
+    if (!await askConfirm(`คุณแน่ใจหรือไม่ที่จะลบ ${displaySym}?`, "⚠️ ยืนยันการลบสินทรัพย์")) return;
     const updated = assets.filter(a => a.id !== assetId);
     try {
       await savePortfolio(updated);
@@ -292,7 +292,7 @@ export function usePortfolioData({ user, showToast, onSessionExpired }) {
     }
 
     if (skippedTxs.length > 0 && isBatch) {
-      alert(`ทำรายการสำเร็จบางส่วน โดยมี ${skippedTxs.length} รายการที่ถูกข้าม:\n\n` + skippedTxs.map(s => `- ${s.tx.symbol}: ${s.reason}`).join("\n"));
+      await askConfirm(`ทำรายการสำเร็จบางส่วน โดยมี ${skippedTxs.length} รายการที่ถูกข้าม:\n\n` + skippedTxs.map(s => `- ${s.tx.symbol}: ${s.reason}`).join("\n"), "⚠️ นำเข้าสำเร็จบางส่วน");
     }
 
     await savePortfolio(updatedAssets);

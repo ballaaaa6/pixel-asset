@@ -7,6 +7,7 @@ import { usePortfolioData } from "../hooks/usePortfolioData";
 import { useProfile } from "../hooks/useProfile";
 import { getCurrencyTicker, getDisplaySymbol } from "../utils/assetHelpers";
 import { isTransactionDuplicate } from "../utils/portfolioTransactionHelpers";
+import CustomConfirmModal from "./common/CustomConfirmModal";
 
 import DashboardHeader from "./dashboard/DashboardHeader";
 import KPIRow from "./dashboard/KPIRow";
@@ -18,6 +19,9 @@ import ProfileModal from "./dashboard/ProfileModal";
 import PortfolioChart from "./charts/PortfolioChart";
 
 export default function Dashboard({ user, onLogout, showToast, onSessionExpired }) {
+  const [confirmConfig, setConfirmConfig] = useState(null);
+  const askConfirm = (message, title = "ยืนยันการทำรายการ") => new Promise(r => setConfirmConfig({ title, message, resolve: r }));
+
   const [hideValues, setHideValues] = useState(() => {
     return localStorage.getItem("hide_portfolio_values") === "true";
   });
@@ -69,7 +73,7 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
     totalGainUSD,
     totalGainPct,
     todayChangePct
-  } = usePortfolioData({ user, showToast, onSessionExpired });
+  } = usePortfolioData({ user, showToast, onSessionExpired, askConfirm });
 
   const filteredAssets = useMemo(() => {
     return chartCategory === "all"
@@ -116,7 +120,7 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
 
   /* ── CLEAR PORTFOLIO ── */
   const handleClearPortfolio = async () => {
-    if (!confirm("⚠️ คุณต้องการล้างข้อมูลหุ้นและธุรกรรมทั้งหมดในพอร์ตใช่หรือไม่? (ชื่อเล่นและรูปโปรไฟล์ของคุณจะไม่ถูกลบ)")) return;
+    if (!await askConfirm("คุณต้องการล้างข้อมูลหุ้นและธุรกรรมทั้งหมดในพอร์ตใช่หรือไม่? (ชื่อเล่นและรูปโปรไฟล์ของคุณจะไม่ถูกลบ)", "⚠️ ยืนยันการล้างข้อมูลพอร์ต")) return;
     try {
       await savePortfolio([]); showToast("🗑️ ล้างข้อมูลพอร์ตหุ้นเรียบร้อยแล้ว!", "success"); setProfileModalOpen(false);
     } catch (err) { showToast("ล้างข้อมูลไม่สำเร็จ: " + err.message, "error"); }
@@ -124,13 +128,15 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
 
   /* ── CLEAR ALL DATA ── */
   const handleClearAllData = async () => {
-    if (!confirm("⚠️ คำเตือน: คุณต้องการล้างข้อมูลทุกอย่างทั้งหมด (ทั้งข้อมูลหุ้น, ชื่อเล่น, และรูปโปรไฟล์) กลับเป็นค่าเริ่มต้นใช่หรือไม่?")) return;
+    if (!await askConfirm("คำเตือน: คุณต้องการล้างข้อมูลทุกอย่างทั้งหมด (ทั้งข้อมูลหุ้น, ชื่อเล่น, และรูปโปรไฟล์) กลับเป็นค่าเริ่มต้นใช่หรือไม่?", "⚠️ ยืนยันการล้างข้อมูลทั้งหมด")) return;
     try {
       await savePortfolio([]); setProfilePic(""); setNickname(""); setNewNickname(""); setPortfolioName("StockVault");
       localStorage.removeItem(`profile_pic_${user.username}`); localStorage.removeItem(`profile_nickname_${user.username}`); localStorage.removeItem(`portfolio_name_${user.username}`);
       await syncProfileToServer("StockVault", "", ""); showToast("🗑️ ล้างข้อมูลทั้งหมดในระบบเรียบร้อยแล้ว!", "success"); setProfileModalOpen(false);
     } catch (err) { showToast("ล้างข้อมูลไม่สำเร็จ: " + err.message, "error"); }
   };
+
+  const handleLogoutConfirm = async () => { if (await askConfirm("คุณแน่ใจหรือไม่ที่จะออกจากระบบพอร์ตของคุณ?", "🚪 ยืนยันการออกจากระบบ")) onLogout(); };
 
   /* ── EXPORT / IMPORT ── */
   const handleExport = () => {
@@ -297,7 +303,7 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
                 const priceText = (tx.type === "fiat" || tx.category === "fiat") ? "" : ` @ ${currencySymbol}${priceVal}`;
 
                 const confirmMsg = `⚠️ ตรวจพบธุรกรรมที่อาจซ้ำซ้อน:\nมีรายการ ${typeText} ${sym} จำนวน ${qtyText}${priceText} วันที่ ${tx.date} ${tx.time ? "เวลา " + tx.time + " น." : ""} อยู่ในระบบแล้ว\n\nคุณต้องการบันทึกธุรกรรมนี้เพิ่มอีกรายการใช่หรือไม่?`;
-                if (!confirm(confirmMsg)) {
+                if (!await askConfirm(confirmMsg, "⚠️ ตรวจพบธุรกรรมซ้ำซ้อน")) {
                   continue;
                 }
               }
@@ -319,6 +325,7 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
           onSessionExpired={onSessionExpired}
         />
       )}
+      {confirmConfig && <CustomConfirmModal title={confirmConfig.title} message={confirmConfig.message} onConfirm={() => { confirmConfig.resolve(true); setConfirmConfig(null); }} onCancel={() => { confirmConfig.resolve(false); setConfirmConfig(null); }} />}
 
       {showPnLDetailsModal && (
         <PnLDetailsModal
@@ -380,7 +387,8 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
         handleImport={handleImport}
         handleClearPortfolio={handleClearPortfolio}
         handleClearAllData={handleClearAllData}
-        onLogout={onLogout}
+        onLogout={handleLogoutConfirm}
+        askConfirm={askConfirm}
       />
     </>
   );

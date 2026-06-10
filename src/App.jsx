@@ -40,12 +40,10 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    if (window.confirm("คุณแน่ใจหรือไม่ที่จะออกจากระบบพอร์ตของคุณ?")) {
-      localStorage.removeItem("portfolio_user");
-      setUser(null);
-      setCurrentPage("login");
-      showToast("ออกจากระบบพอร์ตของคุณสำเร็จแล้ว!", "info");
-    }
+    localStorage.removeItem("portfolio_user");
+    setUser(null);
+    setCurrentPage("login");
+    showToast("ออกจากระบบพอร์ตของคุณสำเร็จแล้ว!", "info");
   };
 
   const handleSessionExpired = () => {

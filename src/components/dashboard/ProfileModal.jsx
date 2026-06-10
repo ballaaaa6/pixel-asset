@@ -1,39 +1,13 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { X, Eye, Plus, Download, Upload, LogOut, Sparkles } from "lucide-react";
 import { PRESET_AVATARS } from "../../utils/constants";
+import { registerModal } from "../../utils/modalStack";
 
 /**
  * ProfileModal
  * Settings modal extracted from Dashboard.jsx.
  * Handles: profile info, avatar upload/preview/preset, password change,
  * backup/restore, data management, and logout.
- *
- * Props:
- *  - isOpen            {boolean}
- *  - onClose           {() => void}
- *  - profilePic        {string}
- *  - setProfilePic     {(v: string) => void}
- *  - nickname          {string}
- *  - newNickname       {string}
- *  - setNewNickname    {(v: string) => void}
- *  - oldPassword       {string}
- *  - setOldPassword    {(v: string) => void}
- *  - newPassword       {string}
- *  - setNewPassword    {(v: string) => void}
- *  - avatarHovered     {boolean}
- *  - setAvatarHovered  {(v: boolean) => void}
- *  - avatarPreviewOpen {boolean}
- *  - setAvatarPreviewOpen {(v: boolean) => void}
- *  - presetModalOpen   {boolean}
- *  - setPresetModalOpen {(v: boolean) => void}
- *  - handleAvatarUpload {(e: Event) => void}
- *  - handleSaveProfile {() => void}
- *  - handleChangePassword {() => void}
- *  - handleExport      {() => void}
- *  - handleImport      {(e: Event) => void}
- *  - handleClearPortfolio {() => void}
- *  - handleClearAllData {() => void}
- *  - onLogout          {() => void}
  */
 export default function ProfileModal({
   isOpen,
@@ -61,7 +35,23 @@ export default function ProfileModal({
   handleClearPortfolio,
   handleClearAllData,
   onLogout,
+  askConfirm,
 }) {
+  useEffect(() => {
+    if (!isOpen) return;
+    return registerModal(onClose);
+  }, [isOpen, onClose]);
+
+  useEffect(() => {
+    if (!presetModalOpen) return;
+    return registerModal(() => setPresetModalOpen(false));
+  }, [presetModalOpen, setPresetModalOpen]);
+
+  useEffect(() => {
+    if (!avatarPreviewOpen) return;
+    return registerModal(() => setAvatarPreviewOpen(false));
+  }, [avatarPreviewOpen, setAvatarPreviewOpen]);
+
   if (!isOpen) return null;
 
   return (
@@ -117,7 +107,7 @@ export default function ProfileModal({
                   {/* Red Delete Button */}
                   {profilePic && (
                     <button type="button"
-                      onClick={() => { if (confirm("คุณต้องการลบรูปโปรไฟล์นี้ใช่หรือไม่?")) setProfilePic(""); }}
+                      onClick={async () => { if (await askConfirm("คุณต้องการลบรูปโปรไฟล์นี้ใช่หรือไม่?", "🗑️ ยืนยันการลบรูปโปรไฟล์")) setProfilePic(""); }}
                       style={{ position: "absolute", top: "-4px", right: "-4px", background: "#EF4444", color: "white", width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 2px 8px rgba(239,68,68,0.4)", border: "2px solid white", zIndex: 10, transition: "transform 0.2s, background 0.2s" }}
                       onMouseEnter={(e) => { e.currentTarget.style.transform = "scale(1.15)"; e.currentTarget.style.background = "#DC2626"; }}
                       onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.background = "#EF4444"; }}

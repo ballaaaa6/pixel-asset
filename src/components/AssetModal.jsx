@@ -10,6 +10,7 @@ import AssetHistoryTable from "./modal/AssetHistoryTable.jsx";
 import AssetSearchSelector from "./modal/AssetSearchSelector.jsx";
 import BrokerSelectBadges from "./modal/BrokerSelectBadges.jsx";
 import { getShortEngName } from "../utils/brokerHelpers.js";
+import { registerModal } from "../utils/modalStack.js";
 
 export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exchangeRate, showToast, onSessionExpired }) {
   const [type, setType] = useState("stock");
@@ -38,7 +39,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
   const qtyInputRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  const triggerToast = (msg, toastType = "success") => showToast ? showToast(msg, toastType) : alert(msg);
+  const triggerToast = (msg, toastType = "success") => showToast && showToast(msg, toastType);
 
   const { scanning, scanningStatus, handleDropReceipt, handleFileSelect } = useReceiptScanner({
     scannedQueue, setScannedQueue, setSymbol, setQuery, setName, setType, setQty, setPrice, setDate, setTime, setBroker, setTxType, setConfirmed, triggerToast, onSessionExpired
@@ -46,11 +47,14 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
 
   const filteredCurrencies = useMemo(() => {
     const q = currencyQuery.trim().toLowerCase();
-    const pinned = CURRENCIES.filter(c => c.code === "THB" || c.code === "USD");
-    const others = CURRENCIES.filter(c => c.code !== "THB" && c.code !== "USD");
-    if (!q) return [...pinned, ...others];
-    return [...pinned, ...others].filter(c => c.code.toLowerCase().includes(q) || c.name.toLowerCase().includes(q));
+    const all = [...CURRENCIES.filter(c => c.code === "THB" || c.code === "USD"), ...CURRENCIES.filter(c => c.code !== "THB" && c.code !== "USD")];
+    return q ? all.filter(c => c.code.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)) : all;
   }, [currencyQuery]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    return registerModal(onClose);
+  }, [isOpen, onClose]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -107,22 +111,17 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
   if (!isOpen) return null;
 
   const pickSuggestion = (item) => {
-    setSymbol(item.symbol); setName(item.name); setQuery(item.symbol);
-    setShowDrop(false); setConfirmed(true); setSuggestions([]);
+    setSymbol(item.symbol); setName(item.name); setQuery(item.symbol); setShowDrop(false); setConfirmed(true); setSuggestions([]);
     setTimeout(() => qtyInputRef.current?.focus(), 50);
   };
-  const clearSymbol = () => {
-    setSymbol(""); setName(""); setQuery(""); setConfirmed(false); setShowDrop(false); setSuggestions([]);
-  };
+  const clearSymbol = () => { setSymbol(""); setName(""); setQuery(""); setConfirmed(false); setShowDrop(false); setSuggestions([]); };
   const pickCategory = (c) => {
     if (editingAsset) return;
     setType(c); clearSymbol();
-    if (c === "gold") applyPreset("GC=F", "Spot Gold (ทองคำตลาดโลก)");
-    else if (c === "fiat") applyPreset("THB", "Thai Baht (บาท 🇹🇭)");
+    if (c === "gold") applyPreset("GC=F", "Spot Gold (ทองคำตลาดโลก)"); else if (c === "fiat") applyPreset("THB", "Thai Baht (บาท 🇹🇭)");
   };
   const applyPreset = (s, n) => {
-    setSymbol(s); setName(n); setQuery(s); setConfirmed(true);
-    setShowDrop(false); setSuggestions([]);
+    setSymbol(s); setName(n); setQuery(s); setConfirmed(true); setShowDrop(false); setSuggestions([]);
     if (type === "fiat") setCurrencyQuery(s);
     setTimeout(() => qtyInputRef.current?.focus(), 50);
   };

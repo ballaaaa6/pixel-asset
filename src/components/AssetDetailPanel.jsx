@@ -5,10 +5,15 @@ import { getDisplaySymbol, getAssetFullName, getCurrencyTicker, getRealizedPnL, 
 import AssetLogo from "./common/AssetLogo";
 import { AssetChart } from "./charts/AssetChart";
 import { AssetTransactionHistory } from "./dashboard/AssetTransactionHistory";
+import { registerModal } from "../utils/modalStack";
 
 const TF_OPTIONS = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "5Y", "ตั้งแต่ซื้อ"];
 
 export default function AssetDetailPanel({ asset, price, exchangeRate, historicalRates, onClose, hideValues }) {
+  useEffect(() => {
+    return registerModal(onClose);
+  }, [onClose]);
+
   const fmtUSD = useCallback((n) => rawFmtUSD(n, hideValues), [hideValues]);
   const fmtTHB = useCallback((n) => rawFmtTHB(n, 2, hideValues), [hideValues]);
   const fmtQty = useCallback((n) => rawFmtQty(n, hideValues), [hideValues]);
