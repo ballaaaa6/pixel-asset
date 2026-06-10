@@ -28,7 +28,8 @@ export function calculatePortfolioHistoryTimeline(sparklines, assets, prices, ex
 
   const getPriceOnDate = (sym, targetDateStr) => {
     const points = symbolPriceHistories[sym.toUpperCase()];
-    if (targetDateStr === latestIso || targetDateStr === latestDateOnly || targetDateStr.startsWith(latestDateOnly)) {
+    const isLatestPoint = isShortTF ? (targetDateStr === latestIso) : (targetDateStr === latestDateOnly);
+    if (isLatestPoint) {
       const livePrice = prices[sym.toUpperCase()]?.price;
       if (livePrice != null && livePrice > 0) {
         return livePrice;
