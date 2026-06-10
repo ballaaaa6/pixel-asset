@@ -55,7 +55,7 @@ export function usePortfolioData({ user, showToast, onSessionExpired }) {
     }
   };
 
-  const fetchPrices = async (portfolioAssets) => {
+  const fetchPrices = async (portfolioAssets, isManual = false) => {
     setRefreshing(true);
     try {
       const symbols = portfolioAssets
@@ -69,7 +69,8 @@ export function usePortfolioData({ user, showToast, onSessionExpired }) {
 
       let res = null;
       try {
-        res = await fetch(`/api/prices?symbols=${encodeURIComponent(symbols)}`);
+        const url = `/api/prices?symbols=${encodeURIComponent(symbols)}${isManual ? "&nocache=true" : ""}`;
+        res = await fetch(url);
       } catch (err) {
         console.warn("fetchPrices API offline:", err.message);
       }

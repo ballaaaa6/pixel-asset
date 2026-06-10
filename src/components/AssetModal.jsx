@@ -8,6 +8,7 @@ import ReceiptUploadZone from "./modal/ReceiptUploadZone.jsx";
 import ScannedQueueList from "./modal/ScannedQueueList.jsx";
 import AssetHistoryTable from "./modal/AssetHistoryTable.jsx";
 import AssetSearchSelector from "./modal/AssetSearchSelector.jsx";
+import BrokerSelectBadges from "./modal/BrokerSelectBadges.jsx";
 
 export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exchangeRate, showToast, onSessionExpired }) {
   const [type, setType] = useState("stock");
@@ -19,7 +20,6 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
   const [time, setTime] = useState("");
   const [broker, setBroker] = useState("");
   const [txType, setTxType] = useState("BUY");
-
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -32,7 +32,6 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
   const [currencyRateLoading, setCurrencyRateLoading] = useState(false);
   const [scannedQueue, setScannedQueue] = useState([]);
   const [customRate, setCustomRate] = useState("");
-
   const debounceRef = useRef(null);
   const qtyInputRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -360,6 +359,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
                 <div className="form-group" style={{ marginTop: 14, marginBottom: 0 }}>
                   <label className="form-label">{type === "fiat" ? "ธนาคาร" : "โบรกเกอร์"}</label>
                   <input type="text" className="form-input" placeholder={type === "fiat" ? "พิมพ์ธนาคารที่ฝากเงิน" : "พิมพ์โบรกเกอร์ที่ซื้อขาย"} value={broker} onChange={e => setBroker(e.target.value)} />
+                  <BrokerSelectBadges type={type} symbol={symbol} value={broker} onChange={setBroker} />
                 </div>
 
                 <AssetHistoryTable lots={lots} editingAsset={editingAsset} showHistory={showHistory} setShowHistory={setShowHistory} fmtDate={fmtDate} fmtQty={fmtQty} fmtUSD={fmtUSD} />

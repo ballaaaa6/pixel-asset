@@ -1,5 +1,5 @@
 import React from "react";
-import { getDynamicDateFormat } from "../../utils/formatters";
+import { getDynamicDateFormat, fmtTHB } from "../../utils/formatters";
 
 export function PortfolioChartTooltip({
   hovered,
@@ -13,7 +13,9 @@ export function PortfolioChartTooltip({
   diffEndIdx,
   findClosestPtByTimestamp,
   history,
-  fmt
+  fmt,
+  exchangeRate,
+  hideValues
 }) {
   return (
     <>
@@ -149,28 +151,42 @@ export function PortfolioChartTooltip({
 
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 2 }}>
                 <span style={{ color: "#94A3B8" }}>เริ่ม:</span>
-                <span style={{ color: "white", fontWeight: 700 }}>{fmt.usd(valA)}</span>
+                <span style={{ color: "white", fontWeight: 700 }}>
+                  {fmt.usd(valA)} <span style={{ fontSize: 10, color: "#94A3B8", fontWeight: 400 }}>({fmtTHB(valA * exchangeRate, 2, hideValues)})</span>
+                </span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
                 <span style={{ color: "#94A3B8" }}>สิ้นสุด:</span>
-                <span style={{ color: "white", fontWeight: 700 }}>{fmt.usd(valB)}</span>
+                <span style={{ color: "white", fontWeight: 700 }}>
+                  {fmt.usd(valB)} <span style={{ fontSize: 10, color: "#94A3B8", fontWeight: 400 }}>({fmtTHB(valB * exchangeRate, 2, hideValues)})</span>
+                </span>
               </div>
 
               <div style={{
                 display: "flex",
-                justifyContent: "space-between",
-                fontSize: 11,
+                flexDirection: "column",
                 borderTop: "1px dashed rgba(255,255,255,0.15)",
                 paddingTop: 4,
                 marginTop: 2
               }}>
-                <span style={{ color: "#94A3B8" }}>ส่วนต่าง:</span>
-                <span style={{
-                  fontWeight: 900,
-                  color: diffVal >= 0 ? "#10B981" : "#EF4444"
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
+                  <span style={{ color: "#94A3B8" }}>ส่วนต่าง:</span>
+                  <span style={{
+                    fontWeight: 900,
+                    color: diffVal >= 0 ? "#10B981" : "#EF4444"
+                  }}>
+                    {diffVal >= 0 ? "+" : ""}{fmt.usd(diffVal)} ({diffVal >= 0 ? "+" : ""}{diffPct.toFixed(2)}%)
+                  </span>
+                </div>
+                <div style={{
+                  textAlign: "right",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: diffVal >= 0 ? "#10B981" : "#EF4444",
+                  marginTop: 1
                 }}>
-                  {diffVal >= 0 ? "+" : ""}{fmt.usd(diffVal)} ({diffVal >= 0 ? "+" : ""}{diffPct.toFixed(2)}%)
-                </span>
+                  ({diffVal >= 0 ? "+" : ""}{fmtTHB(diffVal * exchangeRate, 2, hideValues)})
+                </div>
               </div>
               <div style={{ fontSize: 9, color: "#94A3B8", textAlign: "center", marginTop: 4, fontStyle: "italic" }}>
                 คลิก 1 ครั้งบนกราฟเพื่อล้างข้อมูลเปรียบเทียบ

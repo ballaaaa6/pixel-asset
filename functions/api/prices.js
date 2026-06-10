@@ -152,7 +152,8 @@ export async function onRequestGet(context) {
       const quotesMap = {};
       const missingSymbols = [];
 
-      if (kv) {
+      const noCache = url.searchParams.get("nocache") === "true";
+      if (kv && !noCache) {
         const cachePromises = symbolsList.map(async (symbol) => {
           const key = `cache:price:${symbol}`;
           try {
@@ -249,7 +250,7 @@ export async function onRequestGet(context) {
             if (kv && entry.price > 0) {
               const key = `cache:price:${symbol}`;
               try {
-                await kv.put(key, JSON.stringify(entry), { expirationTtl: 120 });
+                await kv.put(key, JSON.stringify(entry), { expirationTtl: 30 });
               } catch {}
             }
 

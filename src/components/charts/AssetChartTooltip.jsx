@@ -164,23 +164,17 @@ export function AssetChartTooltip({
                 {fmtDateShort(pA.date)} ➔ {fmtDateShort(pB.date)} ({timeStr})
               </div>
 
-              <div style={{ display: "flex", flexDirection: "column", fontSize: 11, marginTop: 2 }}>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: "#94A3B8" }}>เริ่ม:</span>
-                  <span style={{ color: "white", fontWeight: 700 }}>{fmtUSD(valA, hideValues)}</span>
-                </div>
-                <div style={{ textAlign: "right", fontSize: 10, color: "#94A3B8" }}>
-                  ({fmtTHB(valA * getHistoricalRate(pA.date), hideValues)})
-                </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 2 }}>
+                <span style={{ color: "#94A3B8" }}>เริ่ม:</span>
+                <span style={{ color: "white", fontWeight: 700 }}>
+                  {fmtUSD(valA, hideValues)} <span style={{ fontSize: 10, color: "#94A3B8", fontWeight: 400 }}>({fmtTHB(valA * getHistoricalRate(pA.date), hideValues)})</span>
+                </span>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", fontSize: 11 }}>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: "#94A3B8" }}>สิ้นสุด:</span>
-                  <span style={{ color: "white", fontWeight: 700 }}>{fmtUSD(valB, hideValues)}</span>
-                </div>
-                <div style={{ textAlign: "right", fontSize: 10, color: "#94A3B8" }}>
-                  ({fmtTHB(valB * getHistoricalRate(pB.date), hideValues)})
-                </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
+                <span style={{ color: "#94A3B8" }}>สิ้นสุด:</span>
+                <span style={{ color: "white", fontWeight: 700 }}>
+                  {fmtUSD(valB, hideValues)} <span style={{ fontSize: 10, color: "#94A3B8", fontWeight: 400 }}>({fmtTHB(valB * getHistoricalRate(pB.date), hideValues)})</span>
+                </span>
               </div>
 
               <div style={{

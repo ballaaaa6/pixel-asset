@@ -149,6 +149,8 @@ export function PortfolioChart({ history, range, onRangeChange, assets, exchange
           findClosestPtByTimestamp={findClosestPtByTimestamp}
           history={history}
           fmt={fmt}
+          exchangeRate={exchangeRate}
+          hideValues={hideValues}
         />
       </div>
     </div>

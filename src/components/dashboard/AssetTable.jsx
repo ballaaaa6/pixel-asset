@@ -29,7 +29,7 @@ export default function AssetTable({
 }) {
   const fmt = useMemo(() => ({
     usd: (n) => fmtUSD(n, hideValues),
-    thb: (n, decimals = 0) => fmtTHB(n, decimals, hideValues),
+    thb: (n, decimals = 2) => fmtTHB(n, decimals, hideValues),
     pct: fmtPct,
     qty: (n) => fmtQty(n, hideValues),
   }), [hideValues]);
@@ -74,7 +74,7 @@ export default function AssetTable({
           </button>
           <button
             className={`btn-icon ripple-btn${refreshing ? " spin" : ""}`}
-            onClick={() => fetchPrices(assets)}
+            onClick={() => fetchPrices(assets, true)}
             title="รีเฟรชราคา"
           >
             <RefreshCw size={16} />

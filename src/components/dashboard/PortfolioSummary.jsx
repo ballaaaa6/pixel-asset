@@ -19,7 +19,7 @@ export default function PortfolioSummary({
 }) {
   const fmt = useMemo(() => ({
     usd: (n) => fmtUSD(n, hideValues),
-    thb: (n, decimals = 0) => fmtTHB(n, decimals, hideValues),
+    thb: (n, decimals = 2) => fmtTHB(n, decimals, hideValues),
     pct: fmtPct,
   }), [hideValues]);
 
@@ -86,7 +86,7 @@ export default function PortfolioSummary({
           <span className="hero-meta-label">ต้นทุนรวม</span>
           <span className="hero-meta-value" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
             <span>{fmt.usd(totalCostUSD)}</span>
-            <span style={{ fontSize: 11, color: "rgba(255, 255, 255, 0.9)", fontWeight: 600 }}>({fmt.thb(totalCostUSD * exchangeRate, 0)})</span>
+            <span style={{ fontSize: 11, color: "rgba(255, 255, 255, 0.9)", fontWeight: 600 }}>({fmt.thb(totalCostUSD * exchangeRate, 2)})</span>
           </span>
         </div>
       </div>
@@ -142,7 +142,7 @@ export default function PortfolioSummary({
           <span style={{ fontSize: 14, fontWeight: 800, color: todayChangeUSD >= 0 ? "#6EE7B7" : "#FCA5A5" }}>
             {todayChangeUSD >= 0 ? "+" : ""}{fmt.usd(todayChangeUSD)}{" "}
             <span style={{ fontSize: 11, opacity: 0.85, fontWeight: 700 }}>
-              ({todayChangeUSD >= 0 ? "+" : ""}{fmt.thb(todayChangeUSD * exchangeRate, 0)})
+              ({todayChangeUSD >= 0 ? "+" : ""}{fmt.thb(todayChangeUSD * exchangeRate, 2)})
             </span>
           </span>
         </div>

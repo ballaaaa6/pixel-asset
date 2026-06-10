@@ -1791,3 +1791,40 @@ html, body {
     padding: 6px 10px;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   BROKER & BANK SELECTION BADGES
+═══════════════════════════════════════════════════════════════ */
+.broker-badges-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+  margin-bottom: 4px;
+}
+
+.broker-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 8px;
+  cursor: pointer;
+  background-color: var(--bg-card);
+  transition: var(--transition);
+  user-select: none;
+  height: 28px;
+  box-sizing: border-box;
+}
+
+.broker-badge:hover {
+  transform: translateY(-1.5px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+  opacity: 0.95;
+}
+
+.broker-badge:active {
+  transform: translateY(0) scale(0.96);
+}
