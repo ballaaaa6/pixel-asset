@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { Plus, RefreshCw, LogOut, Trash2, Download, Upload, PieChart, Pencil, X, Settings, Eye, EyeOff, Sparkles } from "lucide-react";
 import AssetModal from "./AssetModal";
 import AssetDetailPanel from "./AssetDetailPanel";
+import { CATEGORY_LABELS, PRESET_AVATARS } from "../utils/constants";
 
 import { 
   fmtUSD, 
@@ -27,46 +28,7 @@ import AssetTable from "./dashboard/AssetTable";
 import PnLDetailsModal from "./dashboard/PnLDetailsModal";
 import PortfolioChart from "./charts/PortfolioChart";
 
-const CATEGORY_LABELS = { stock: "หุ้น", crypto: "คริปโต", gold: "ทองคำ/น้ำมัน", fiat: "เงินสด" };
 
-const PRESET_AVATARS = [
-  {
-    id: "bull",
-    emoji: "📈",
-    bg: "linear-gradient(135deg, #3B82F6 0%, #10B981 100%)",
-    svg: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><defs><linearGradient id="bull-g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%233B82F6"/><stop offset="100%" stop-color="%2310B981"/></linearGradient></defs><rect width="100" height="100" rx="50" fill="url(%23bull-g)"/><text x="50%" y="65%" font-size="50" text-anchor="middle" font-family="sans-serif">📈</text></svg>`
-  },
-  {
-    id: "bear",
-    emoji: "🐻",
-    bg: "linear-gradient(135deg, #8B5CF6 0%, #EF4444 100%)",
-    svg: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><defs><linearGradient id="bear-g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%238B5CF6"/><stop offset="100%" stop-color="%23EF4444"/></linearGradient></defs><rect width="100" height="100" rx="50" fill="url(%23bear-g)"/><text x="50%" y="68%" font-size="50" text-anchor="middle" font-family="sans-serif">🐻</text></svg>`
-  },
-  {
-    id: "lion",
-    emoji: "🦁",
-    bg: "linear-gradient(135deg, #F59E0B 0%, #EF4444 100%)",
-    svg: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><defs><linearGradient id="lion-g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%23F59E0B"/><stop offset="100%" stop-color="%23EF4444"/></linearGradient></defs><rect width="100" height="100" rx="50" fill="url(%23lion-g)"/><text x="50%" y="68%" font-size="50" text-anchor="middle" font-family="sans-serif">🦁</text></svg>`
-  },
-  {
-    id: "koala",
-    emoji: "🐨",
-    bg: "linear-gradient(135deg, #0D9488 0%, #06B6D4 100%)",
-    svg: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><defs><linearGradient id="koala-g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%230D9488"/><stop offset="100%" stop-color="%2306B6D4"/></linearGradient></defs><rect width="100" height="100" rx="50" fill="url(%23koala-g)"/><text x="50%" y="68%" font-size="50" text-anchor="middle" font-family="sans-serif">🐨</text></svg>`
-  },
-  {
-    id: "unicorn",
-    emoji: "🦄",
-    bg: "linear-gradient(135deg, #6366F1 0%, #EC4899 100%)",
-    svg: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><defs><linearGradient id="uni-g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%236366F1"/><stop offset="100%" stop-color="%23EC4899"/></linearGradient></defs><rect width="100" height="100" rx="50" fill="url(%23uni-g)"/><text x="50%" y="68%" font-size="50" text-anchor="middle" font-family="sans-serif">🦄</text></svg>`
-  },
-  {
-    id: "fox",
-    emoji: "🦊",
-    bg: "linear-gradient(135deg, #8B5CF6 0%, #D946EF 100%)",
-    svg: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><defs><linearGradient id="fox-g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%238B5CF6"/><stop offset="100%" stop-color="%23D946EF"/></linearGradient></defs><rect width="100" height="100" rx="50" fill="url(%23fox-g)"/><text x="50%" y="68%" font-size="50" text-anchor="middle" font-family="sans-serif">🦊</text></svg>`
-  }
-];
 
 export default function Dashboard({ user, onLogout, showToast }) {
   const [hideValues, setHideValues] = useState(() => {
