@@ -18,18 +18,12 @@ export async function onRequestGet(context) {
     "Content-Type": "application/json"
   };
 
-  const kv = context.env?.PORTFOLIOS;
-
   // ─── 1. Autocomplete Search (?q=) ────────────────────────────────────────
   if (q) {
     try {
-      const cacheKey = `cache:search:${q.trim().toLowerCase()}`;
-      if (kv) {
-        try {
-          const cached = await kv.get(cacheKey);
-          if (cached) return new Response(cached, { status: 200, headers: corsHeaders });
-        } catch {}
-      }
+      const cacheKey = `https://cache.local/search/${encodeURIComponent(q.trim().toLowerCase())}`;
+      const cached = await getCache(cacheKey);
+      if (cached) return new Response(cached, { status: 200, headers: corsHeaders });
 
       const searchUrl = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=10&newsCount=0`;
       const resp = await fetch(searchUrl, { headers: YF_HEADERS });
@@ -44,11 +38,7 @@ export async function onRequestGet(context) {
         exchange: item.exchDisp || item.exchange || "GLOBAL"
       }));
       const jsonStr = JSON.stringify(results);
-      if (kv) {
-        try {
-          await kv.put(cacheKey, jsonStr, { expirationTtl: 3600 });
-        } catch {}
-      }
+      putCache(context, cacheKey, jsonStr, 3600);
       return new Response(jsonStr, { status: 200, headers: corsHeaders });
     } catch (err) {
       return new Response(JSON.stringify({ error: "ข้อผิดพลาดค้นหา: " + err.message }), { status: 500, headers: corsHeaders });
@@ -79,22 +69,18 @@ export async function onRequestGet(context) {
       const sparklineMap = {};
       const missingSymbols = [];
 
-      if (kv) {
-        const cachePromises = symbols.map(async (symbol) => {
-          const key = `cache:sparkline:${tf}:${symbol}`;
-          try {
-            const cached = await kv.get(key);
-            if (cached) {
-              sparklineMap[symbol] = JSON.parse(cached);
-              return;
-            }
-          } catch {}
-          missingSymbols.push(symbol);
-        });
-        await Promise.all(cachePromises);
-      } else {
-        missingSymbols.push(...symbols);
-      }
+      const cachePromises = symbols.map(async (symbol) => {
+        const cacheKey = `https://cache.local/sparkline/${tf}/${symbol}`;
+        try {
+          const cached = await getCache(cacheKey);
+          if (cached) {
+            sparklineMap[symbol] = JSON.parse(cached);
+            return;
+          }
+        } catch {}
+        missingSymbols.push(symbol);
+      });
+      await Promise.all(cachePromises);
 
       if (missingSymbols.length > 0) {
         const historyFetches = missingSymbols.map(async (symbol) => {
@@ -120,11 +106,9 @@ export async function onRequestGet(context) {
               closes: paired.map(p => p.close)
             };
 
-            if (kv && entry.closes.length > 0) {
-              const key = `cache:sparkline:${tf}:${symbol}`;
-              try {
-                await kv.put(key, JSON.stringify(entry), { expirationTtl: 300 });
-              } catch {}
+            if (entry.closes.length > 0) {
+              const cacheKey = `https://cache.local/sparkline/${tf}/${symbol}`;
+              putCache(context, cacheKey, JSON.stringify(entry), 300);
             }
 
             return { symbol, ...entry };
@@ -153,11 +137,11 @@ export async function onRequestGet(context) {
       const missingSymbols = [];
 
       const noCache = url.searchParams.get("nocache") === "true";
-      if (kv && !noCache) {
+      if (!noCache) {
         const cachePromises = symbolsList.map(async (symbol) => {
-          const key = `cache:price:${symbol}`;
+          const cacheKey = `https://cache.local/price/${symbol}`;
           try {
-            const cached = await kv.get(key);
+            const cached = await getCache(cacheKey);
             if (cached) {
               quotesMap[symbol] = JSON.parse(cached);
               return;
@@ -247,11 +231,9 @@ export async function onRequestGet(context) {
                 : null
             };
 
-            if (kv && entry.price > 0) {
-              const key = `cache:price:${symbol}`;
-              try {
-                await kv.put(key, JSON.stringify(entry), { expirationTtl: 30 });
-              } catch {}
+            if (entry.price > 0) {
+              const cacheKey = `https://cache.local/price/${symbol}`;
+              putCache(context, cacheKey, JSON.stringify(entry), 30);
             }
 
             return entry;
@@ -280,13 +262,9 @@ export async function onRequestGet(context) {
       const symbol = historyParam.trim().toUpperCase();
       const tf = (url.searchParams.get("tf") || "1M").toUpperCase();
 
-      const cacheKey = `cache:history:${tf}:${symbol}`;
-      if (kv) {
-        try {
-          const cached = await kv.get(cacheKey);
-          if (cached) return new Response(cached, { status: 200, headers: corsHeaders });
-        } catch {}
-      }
+      const cacheKey = `https://cache.local/history/${tf}/${symbol}`;
+      const cached = await getCache(cacheKey);
+      if (cached) return new Response(cached, { status: 200, headers: corsHeaders });
 
       const tfMap = {
         "1D":  { range: "1d",  interval: "5m"  },
@@ -344,10 +322,8 @@ export async function onRequestGet(context) {
         candles,
       });
 
-      if (kv && candles.length > 0) {
-        try {
-          await kv.put(cacheKey, responseBody, { expirationTtl: 300 });
-        } catch {}
+      if (candles.length > 0) {
+        putCache(context, cacheKey, responseBody, 300);
       }
 
       return new Response(responseBody, { status: 200, headers: corsHeaders });
@@ -369,4 +345,30 @@ export async function onRequestOptions() {
       "Access-Control-Allow-Headers": "Content-Type"
     }
   });
+}
+
+// ─── Cache API Helper Functions ──────────────────────────────────────────────
+async function getCache(cacheKey) {
+  if (typeof caches === "undefined" || !caches.default) return null;
+  try {
+    const response = await caches.default.match(new Request(cacheKey));
+    if (response) {
+      return await response.text();
+    }
+  } catch {}
+  return null;
+}
+
+function putCache(context, cacheKey, value, ttlSeconds) {
+  if (typeof caches === "undefined" || !caches.default) return;
+  try {
+    const response = new Response(value, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": `s-maxage=${ttlSeconds}`
+      }
+    });
+    context.waitUntil(caches.default.put(new Request(cacheKey), response));
+  } catch {}
 }
