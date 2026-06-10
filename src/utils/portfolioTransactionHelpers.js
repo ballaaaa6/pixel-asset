@@ -130,3 +130,27 @@ export function processTransactions({ formData, assets, exchangeRate, historical
 
   return { updatedAssets, skippedTxs };
 }
+
+export function isTransactionDuplicate(tx, assets) {
+  const sym = (tx.symbol || "").trim().toUpperCase();
+  const broker = (tx.broker || "").trim();
+  const qtyVal = parseFloat(tx.qty);
+  const priceVal = parseFloat(tx.avgPrice ?? tx.price ?? 0);
+  const txType = tx.transactionType || "BUY";
+  
+  const existingAsset = assets.find(a => 
+    a.symbol.toUpperCase() === sym && 
+    (a.broker || "").toUpperCase() === broker.toUpperCase()
+  );
+
+  if (!existingAsset || !existingAsset.lots) return false;
+
+  return existingAsset.lots.some(l => {
+    const sameDate = l.date === tx.date;
+    const sameTime = (l.time || "") === (tx.time || "");
+    const targetQty = txType === "BUY" ? qtyVal : -qtyVal;
+    const sameQty = Math.abs(l.qty - targetQty) < 0.00001;
+    const samePrice = Math.abs(l.price - priceVal) < 0.00001;
+    return sameDate && sameTime && sameQty && samePrice;
+  });
+}
