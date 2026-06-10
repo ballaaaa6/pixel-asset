@@ -203,8 +203,54 @@ export function calculatePortfolioHistoryCost(interpolated, assets, prices, exch
       totalCostUSD += costUSD;
     });
 
-    return { ...d, cost: hasPurchasedAny ? totalCostUSD : null };
+    return { ...d, cost: (hasPurchasedAny && totalCostUSD) ? totalCostUSD : null };
   });
 }
 
+export function getHistoricalExchangeRate(dateStr, historicalRates, exchangeRate) {
+  if (!dateStr) return exchangeRate;
+  const targetDate = dateStr.split("T")[0];
+  if (historicalRates && historicalRates[targetDate]) {
+    return historicalRates[targetDate];
+  }
+  const dates = Object.keys(historicalRates || {}).sort();
+  if (dates.length === 0) return exchangeRate;
+  let bestRate = exchangeRate;
+  for (const d of dates) {
+    if (d <= targetDate) {
+      bestRate = historicalRates[d];
+    } else {
+      break;
+    }
+  }
+  return bestRate;
+}
 
+export function getRealizedPnLInTHB(lots, isThai, historicalRates, exchangeRate) {
+  if (!lots || !lots.length) return 0;
+  const sortedLots = [...lots].sort((a, b) => new Date(a.date) - new Date(b.date));
+  let realizedTHB = 0;
+  let currentQty = 0;
+  let currentAvgCostUSD = 0;
+  for (const lot of sortedLots) {
+    const lotQty = lot.qty;
+    let lotPriceUSD = lot.price || 0;
+    const txRate = getHistoricalExchangeRate(lot.date, historicalRates, exchangeRate);
+    if (isThai && txRate) {
+      lotPriceUSD = lotPriceUSD / txRate;
+    }
+    if (lotQty > 0) {
+      const newQty = currentQty + lotQty;
+      const newCost = (currentQty * currentAvgCostUSD) + (lotQty * lotPriceUSD);
+      currentAvgCostUSD = newQty > 0 ? newCost / newQty : 0;
+      currentQty = newQty;
+    } else if (lotQty < 0) {
+      const sellQty = Math.abs(lotQty);
+      const gainUSD = (lotPriceUSD - currentAvgCostUSD) * sellQty;
+      const gainTHB = gainUSD * txRate;
+      realizedTHB += gainTHB;
+      currentQty = Math.max(0, currentQty - sellQty);
+    }
+  }
+  return realizedTHB;
+};

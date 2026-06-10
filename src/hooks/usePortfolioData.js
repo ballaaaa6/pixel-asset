@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { getRealizedPnL, getCurrencyPriceUSD, getCurrencyTicker, getDisplaySymbol } from "../utils/assetHelpers";
+import { getRealizedPnL, getCurrencyPriceUSD, getCurrencyTicker, getDisplaySymbol, getHistoricalExchangeRate, getRealizedPnLInTHB as rawGetRealizedPnLInTHB } from "../utils/assetHelpers";
 import { calculatePortfolioHistoryTimeline } from "../utils/portfolioHistoryHelpers";
 import { generateMockPrices, generateMockSparklines, generateMockHistoricalRates } from "../utils/mockDataHelpers";
 import { CATEGORY_LABELS } from "../utils/constants";
@@ -25,40 +25,12 @@ export function usePortfolioData({ user, showToast }) {
   assetsRef.current = assets;
 
   const getHistoricalRate = useCallback((dateStr) => {
-    if (!dateStr) return exchangeRate;
-    const targetDate = dateStr.split("T")[0];
-    if (historicalRates[targetDate]) return historicalRates[targetDate];
-    const dates = Object.keys(historicalRates).sort();
-    if (dates.length === 0) return exchangeRate;
-    let bestRate = exchangeRate;
-    for (const d of dates) {
-      if (d <= targetDate) bestRate = historicalRates[d];
-      else break;
-    }
-    return bestRate;
+    return getHistoricalExchangeRate(dateStr, historicalRates, exchangeRate);
   }, [historicalRates, exchangeRate]);
 
   const getRealizedPnLInTHB = useCallback((lots, isThai) => {
-    if (!lots || !lots.length) return 0;
-    const sortedLots = [...lots].sort((a, b) => new Date(a.date) - new Date(b.date));
-    let realizedTHB = 0, currentQty = 0, currentAvgCostUSD = 0;
-    for (const lot of sortedLots) {
-      const lotQty = lot.qty;
-      let lotPriceUSD = lot.price || 0;
-      const txRate = getHistoricalRate(lot.date);
-      if (isThai && txRate) lotPriceUSD = lotPriceUSD / txRate;
-      if (lotQty > 0) {
-        const newQty = currentQty + lotQty;
-        currentAvgCostUSD = newQty > 0 ? ((currentQty * currentAvgCostUSD) + (lotQty * lotPriceUSD)) / newQty : 0;
-        currentQty = newQty;
-      } else if (lotQty < 0) {
-        const sellQty = Math.abs(lotQty);
-        realizedTHB += (lotPriceUSD - currentAvgCostUSD) * sellQty * txRate;
-        currentQty = Math.max(0, currentQty - sellQty);
-      }
-    }
-    return realizedTHB;
-  }, [getHistoricalRate]);
+    return rawGetRealizedPnLInTHB(lots, isThai, historicalRates, exchangeRate);
+  }, [historicalRates, exchangeRate]);
 
   const savePortfolio = async (updatedAssets) => {
     setAssets(updatedAssets);
