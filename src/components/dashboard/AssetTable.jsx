@@ -1,26 +1,9 @@
 import React, { useMemo } from "react";
-import { Eye, EyeOff, RefreshCw, Plus, Trash2 } from "lucide-react";
-import AssetLogo from "../common/AssetLogo";
-import SparklineChart from "../charts/SparklineChart";
+import { Eye, EyeOff, RefreshCw, Plus } from "lucide-react";
+import AssetTableRow from "./AssetTableRow";
+import AssetCardMobile from "./AssetCardMobile";
+import MarketBadge from "./MarketBadge";
 import { fmtUSD, fmtTHB, fmtPct, fmtQty } from "../../utils/formatters";
-import { getDisplaySymbol, getAssetFullName } from "../../utils/assetHelpers";
-
-const CATEGORY_LABELS = { stock: "หุ้น", crypto: "คริปโต", gold: "ทองคำ/น้ำมัน", fiat: "เงินสด" };
-
-const MarketBadge = ({ state }) => {
-  if (!state || state === "REGULAR") return null;
-  const map = {
-    PRE: { label: "PRE", cls: "pre" },
-    POST: { label: "POST", cls: "post" },
-    CLOSED: { label: "CLOSED", cls: "post" }
-  };
-  const info = map[state] || { label: state, cls: "post" };
-  return (
-    <span className={`badge-market ${info.cls}`} style={{ fontSize: 9, fontWeight: 800 }}>
-      {info.label}
-    </span>
-  );
-};
 
 export default function AssetTable({
   sortedAssets,
@@ -135,279 +118,54 @@ export default function AssetTable({
                 </tr>
               </thead>
               <tbody>
-                {sortedAssets.map((asset, idx) => {
-                  const pData = prices[asset.symbol];
-                  const flash = priceFlash[asset.symbol];
-                  const weightPct = totalUSD > 0 ? (asset.valueUSD / totalUSD) * 100 : 0;
-                  const isBest = bestAsset?.symbol === asset.symbol;
-                  const isCashAsset = asset.type === "fiat" || asset.category === "fiat";
-                  const isSelected = selectedAsset?.id === asset.id;
-
-                  return (
-                    <tr key={asset.id || asset.symbol}
-                      className={`asset-row-clickable ${isSelected ? "selected" : ""} ${flash ? `price-flash-${flash}` : ""}`}
-                      onClick={(e) => {
-                        if (e.target.closest("button") || e.target.closest("td:last-child")) return;
-                        setSelectedAsset(asset);
-                      }}
-                      style={{ animationDelay: `${idx * 0.04}s` }}>
-
-                      <td>
-                        <div className="asset-name-col">
-                          <AssetLogo symbol={asset.symbol} category={asset.category} />
-                          <div>
-                            <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 4 }}>
-                              <span className="asset-symbol">{getDisplaySymbol(asset.symbol)}</span>
-                              <span className={`badge-type ${asset.category || "stock"}`}>
-                                {asset.category === "gold" ? (asset.symbol === "CL=F" ? "น้ำมัน" : "ทองคำ") : (CATEGORY_LABELS[asset.category] || asset.category || "stock")}
-                              </span>
-                              {asset.broker && (
-                                <span style={{
-                                  fontSize: 10,
-                                  fontWeight: 800,
-                                  color: "var(--primary)",
-                                  background: "var(--primary-light)",
-                                  padding: "1px 6px",
-                                  borderRadius: 4,
-                                  border: "1px solid rgba(82,54,255,0.15)",
-                                  whiteSpace: "nowrap"
-                                }}>
-                                  {asset.broker}
-                                </span>
-                              )}
-                              {!isCashAsset && isBest && (
-                                <span className="best-badge">🏆 Best</span>
-                              )}
-                            </div>
-                            <div className="asset-fullname">{getAssetFullName(asset.symbol, asset.name, asset.category)}</div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
-                              <MarketBadge state={pData?.marketState} />
-                              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", background: "#F1F5F9", padding: "1px 6px", borderRadius: 4 }}>
-                                {weightPct.toFixed(2)}%
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td style={{ textAlign: "right" }}>
-                        {!hasPrices ? (
-                          <div className="skeleton skeleton-text" style={{ width: 70, height: 16, marginLeft: "auto" }} />
-                        ) : isCashAsset ? (
-                          <span style={{ color: "var(--text-faint)", fontSize: 13 }}>—</span>
-                        ) : (
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10 }}>
-                            <div>
-                              <div className="num-tick" style={{ fontWeight: 700, fontSize: 14 }}>
-                                {fmt.usd(asset.regPriceUSD)}
-                              </div>
-                              <div className="price-thb">{fmt.thb(asset.regPriceUSD * exchangeRate)}</div>
-                              {asset.extPrice != null && (
-                                <div style={{ fontSize: 10, fontWeight: 700, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 2 }}>
-                                  {asset.extType}: {fmt.usd(asset.extPriceUSD)} ({fmt.pct(asset.extChangePct)})
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </td>
-
-                      <td style={{ textAlign: "right" }}>
-                        {!hasPrices ? (
-                          <div className="skeleton skeleton-text" style={{ width: 80, height: 16, marginLeft: "auto" }} />
-                        ) : (
-                          <div>
-                            <div style={{ fontWeight: 700, fontSize: 14 }}>
-                              {fmt.usd(isCashAsset ? asset.valueUSD : asset.regValueUSD)}
-                            </div>
-                            <div className="price-thb">
-                              {isCashAsset ? (
-                                `${fmt.qty(asset.qty)} ${asset.symbol}`
-                              ) : (
-                                fmt.thb(asset.regValueTHB)
-                              )}
-                            </div>
-                            {!isCashAsset && asset.extPrice != null && (
-                              <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 2 }}>
-                                {asset.extType}: {fmt.usd(asset.extValueUSD)} ({fmt.thb(asset.extValueTHB)})
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </td>
-
-                      <td style={{ textAlign: "right" }}>
-                        {!hasPrices || asset.costUSD === 0 || isCashAsset ? (
-                          <span style={{ color: "var(--text-faint)", fontSize: 13 }}>—</span>
-                        ) : (
-                          <div>
-                            <div className={`pnl-cell ${asset.regGainUSD >= 0 ? "positive" : "negative"}`}>
-                              <div>{asset.regGainUSD >= 0 ? "+" : ""}{fmt.usd(asset.regGainUSD)}</div>
-                              <div style={{ fontSize: 12 }}>{fmt.pct(asset.regGainPct)}</div>
-                            </div>
-                            {asset.extPrice != null && (
-                              <div className={`pnl-cell ${asset.extGainUSD >= 0 ? "positive" : "negative"}`} style={{ fontSize: 10, marginTop: 2 }}>
-                                <div>{asset.extType}: {asset.extGainUSD >= 0 ? "+" : ""}{fmt.usd(asset.extGainUSD)} ({fmt.pct(asset.extGainPct)})</div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </td>
-
-                      <td style={{ textAlign: "right" }}>
-                        {!hasPrices || isCashAsset ? (
-                          <span style={{ color: "var(--text-faint)", fontSize: 13 }}>—</span>
-                        ) : (
-                          <div>
-                            <div className={`pnl-cell ${asset.regTodayPct >= 0 ? "positive" : "negative"}`}>
-                              <div style={{ fontSize: 13 }}>{fmt.pct(asset.regTodayPct)}</div>
-                            </div>
-                            {asset.extPrice != null && (
-                              <div className={`pnl-cell ${asset.extChangePct >= 0 ? "positive" : "negative"}`} style={{ fontSize: 10, marginTop: 2 }}>
-                                <div>{asset.extType}: {fmt.pct(asset.extChangePct)}</div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </td>
-
-                      <td>
-                        <div style={{ display: "flex", gap: 4 }}>
-                          <button className="btn-delete" title={asset.category === "fiat" || asset.type === "fiat" ? "ฝากเงินสด / ถอนเงินสด" : "ซื้อ / ขายสินทรัพย์"} style={{ color: "var(--primary)" }}
-                            onClick={() => { setEditingAsset(asset); setModalOpen(true); }}>
-                            <Plus size={14} />
-                          </button>
-                          <button className="btn-delete" title="ลบออกจากพอร์ต" onClick={() => handleDeleteAsset(asset)}>
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {sortedAssets.map((asset, idx) => (
+                  <AssetTableRow
+                    key={asset.id || asset.symbol}
+                    asset={asset}
+                    idx={idx}
+                    prices={prices}
+                    priceFlash={priceFlash}
+                    totalUSD={totalUSD}
+                    bestAsset={bestAsset}
+                    exchangeRate={exchangeRate}
+                    selectedAsset={selectedAsset}
+                    setSelectedAsset={setSelectedAsset}
+                    setEditingAsset={setEditingAsset}
+                    setModalOpen={setModalOpen}
+                    handleDeleteAsset={handleDeleteAsset}
+                    hasPrices={hasPrices}
+                    fmt={fmt}
+                  />
+                ))}
               </tbody>
             </table>
           </div>
 
           {/* MOBILE CARDS */}
           <div className="mobile-assets-list">
-            {sortedAssets.map((asset, idx) => {
-              const pData = prices[asset.symbol];
-              const flash = priceFlash[asset.symbol];
-              const sp = (asset.symbol === "THB" || asset.symbol === "USD") ? [1.0, 1.0, 1.0] : sparklines[asset.symbol]?.closes;
-              const isBest = bestAsset?.symbol === asset.symbol;
-              const isCashAsset = asset.type === "fiat" || asset.category === "fiat";
-
-              return (
-                <div key={asset.id || asset.symbol}
-                  className={`mobile-asset-card${flash ? ` price-flash-${flash}` : ""}`}
-                  onClick={(e) => {
-                    if (e.target.closest("button")) return;
-                    setSelectedAsset(asset);
-                  }}
-                  style={{ animationDelay: `${idx * 0.06}s`, cursor: "pointer" }}>
-
-                  <div className="mobile-card-top">
-                    <div className="mobile-card-left">
-                      <AssetLogo symbol={asset.symbol} category={asset.category} />
-                      <div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
-                          <span className="asset-symbol">{getDisplaySymbol(asset.symbol)}</span>
-                          <span className={`badge-type ${asset.category || "stock"}`}>
-                            {asset.category === "gold" ? (asset.symbol === "CL=F" ? "น้ำมัน" : "ทองคำ") : (CATEGORY_LABELS[asset.category] || asset.category || "stock")}
-                          </span>
-                          {asset.broker && (
-                            <span style={{
-                              fontSize: 10,
-                              fontWeight: 800,
-                              color: "var(--primary)",
-                              background: "var(--primary-light)",
-                              padding: "1px 6px",
-                              borderRadius: 4,
-                              border: "1px solid rgba(82,54,255,0.15)",
-                              whiteSpace: "nowrap"
-                            }}>
-                              {asset.broker}
-                            </span>
-                          )}
-                          {!isCashAsset && isBest && <span className="best-badge" style={{ padding: "1px 6px", borderRadius: 4 }}>🏆 Best</span>}
-                        </div>
-                        <div className="asset-fullname">{getAssetFullName(asset.symbol, asset.name, asset.category)}</div>
-                        <MarketBadge state={pData?.marketState} />
-                      </div>
-                    </div>
-                    <div className="mobile-card-right">
-                      {hasPrices ? (
-                        isCashAsset ? (
-                          <span style={{ color: "var(--text-faint)", fontSize: 13 }}>—</span>
-                        ) : (
-                          <>
-                            <div className="mobile-card-price">{fmt.usd(asset.regPriceUSD)}</div>
-                            <div className="price-thb">{fmt.thb(asset.regPriceUSD * exchangeRate)}</div>
-                            {!isCashAsset && asset.extPrice != null && (
-                              <div style={{ fontSize: 9, fontWeight: 700, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 2 }}>
-                                {asset.extType}: {fmt.usd(asset.extPriceUSD)} ({fmt.pct(asset.extChangePct)})
-                              </div>
-                            )}
-                          </>
-                        )
-                      ) : (
-                        <div className="skeleton skeleton-text" style={{ width: 80, height: 18 }} />
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="mobile-card-stats">
-                    <div className="mobile-stat">
-                      <span className="mobile-stat-label">มูลค่า</span>
-                      <span className="mobile-stat-value">
-                        {hasPrices ? (
-                          isCashAsset ? (
-                            `${fmt.qty(asset.qty)} ${asset.symbol} (≈ ${fmt.usd(asset.valueUSD)})`
-                          ) : (
-                            fmt.usd(asset.valueUSD)
-                          )
-                        ) : "—"}
-                      </span>
-                    </div>
-                    <div className="mobile-stat">
-                      <span className="mobile-stat-label">กำไร/ขาดทุน</span>
-                      <span className="mobile-stat-value" style={{ color: isCashAsset ? "var(--text-faint)" : (asset.gainUSD >= 0 ? "var(--gain)" : "var(--loss)") }}>
-                        {isCashAsset ? "—" : (hasPrices && asset.costUSD > 0 ? fmt.pct(asset.gainPct) : "—")}
-                      </span>
-                    </div>
-                    <div className="mobile-stat">
-                      <span className="mobile-stat-label">วันนี้</span>
-                      <span className="mobile-stat-value" style={{ color: isCashAsset ? "var(--text-faint)" : (asset.todayPct >= 0 ? "var(--gain)" : "var(--loss)") }}>
-                        {isCashAsset ? "—" : (hasPrices ? fmt.pct(asset.todayPct) : "—")}
-                      </span>
-                    </div>
-                  </div>
-
-                  {sp && sp.length > 2 && (
-                    <div style={{ display: "flex", justifyContent: "center", padding: "8px 0" }}>
-                      <SparklineChart closes={sp} />
-                    </div>
-                  )}
-
-                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                    <button className="btn btn-secondary ripple-btn"
-                      style={{ height: 38, fontSize: 12, flex: 1 }}
-                      onClick={() => { setEditingAsset(asset); setModalOpen(true); }}>
-                      {isCashAsset ? "📥 ฝาก / 📤 ถอน" : "🛒 ซื้อ / ขาย"}
-                    </button>
-                    <button className="btn-icon ripple-btn" style={{ flex: "0 0 38px" }}
-                      onClick={() => handleDeleteAsset(asset)} title="ลบ">
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+            {sortedAssets.map((asset, idx) => (
+              <AssetCardMobile
+                key={asset.id || asset.symbol}
+                asset={asset}
+                idx={idx}
+                prices={prices}
+                priceFlash={priceFlash}
+                bestAsset={bestAsset}
+                exchangeRate={exchangeRate}
+                setSelectedAsset={setSelectedAsset}
+                setEditingAsset={setEditingAsset}
+                setModalOpen={setModalOpen}
+                handleDeleteAsset={handleDeleteAsset}
+                hasPrices={hasPrices}
+                sparklines={sparklines}
+                fmt={fmt}
+              />
+            ))}
           </div>
         </>
       )}
     </div>
   );
 }
+
 export { MarketBadge };
