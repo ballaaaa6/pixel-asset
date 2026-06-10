@@ -16,7 +16,7 @@ import PnLDetailsModal from "./dashboard/PnLDetailsModal";
 import ProfileModal from "./dashboard/ProfileModal";
 import PortfolioChart from "./charts/PortfolioChart";
 
-export default function Dashboard({ user, onLogout, showToast }) {
+export default function Dashboard({ user, onLogout, showToast, onSessionExpired }) {
   const [hideValues, setHideValues] = useState(() => {
     return localStorage.getItem("hide_portfolio_values") === "true";
   });
@@ -66,7 +66,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
     totalGainUSD,
     totalGainPct,
     todayChangePct
-  } = usePortfolioData({ user, showToast });
+  } = usePortfolioData({ user, showToast, onSessionExpired });
 
   const {
     portfolioName,
@@ -98,7 +98,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
     handleSaveProfile,
     handleChangePassword,
     syncProfileToServer
-  } = useProfile({ user, showToast });
+  } = useProfile({ user, showToast, onSessionExpired });
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState(null);
@@ -291,6 +291,7 @@ export default function Dashboard({ user, onLogout, showToast }) {
           onSave={handleSaveAsset}
           exchangeRate={exchangeRate}
           showToast={showToast}
+          onSessionExpired={onSessionExpired}
         />
       )}
 

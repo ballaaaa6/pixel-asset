@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 
-export function useProfile({ user, showToast }) {
+export function useProfile({ user, showToast, onSessionExpired }) {
   const [portfolioName, setPortfolioName] = useState(() => localStorage.getItem(`portfolio_name_${user.username}`) || "StockVault");
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState("");
@@ -27,7 +27,7 @@ export function useProfile({ user, showToast }) {
   const syncProfileToServer = async (name, pic, nick) => {
     if (user.username === "local_user") return;
     try {
-      await fetch("/api/profile", {
+      const res = await fetch("/api/profile", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -39,6 +39,10 @@ export function useProfile({ user, showToast }) {
           nickname: nick
         })
       });
+      if (res.status === 401 && onSessionExpired) {
+        onSessionExpired();
+        return;
+      }
     } catch (err) {
       console.error("Profile sync failed:", err);
     }
@@ -50,6 +54,10 @@ export function useProfile({ user, showToast }) {
         const res = await fetch("/api/profile", {
           headers: { "Authorization": `Bearer ${user.token}` }
         });
+        if (res.status === 401 && onSessionExpired) {
+          onSessionExpired();
+          return;
+        }
         if (res.ok) {
           const data = await res.json();
           if (data.portfolioName) {

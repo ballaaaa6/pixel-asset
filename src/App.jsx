@@ -48,6 +48,13 @@ export default function App() {
     }
   };
 
+  const handleSessionExpired = () => {
+    localStorage.removeItem("portfolio_user");
+    setUser(null);
+    setCurrentPage("login");
+    showToast("เซสชันของคุณหมดอายุ กรุณาเข้าสู่ระบบใหม่", "error");
+  };
+
   return (
     <>
       {/* Basic router logic */}
@@ -71,6 +78,7 @@ export default function App() {
           user={user}
           onLogout={handleLogout}
           showToast={showToast}
+          onSessionExpired={handleSessionExpired}
         />
       )}
 

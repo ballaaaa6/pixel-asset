@@ -6,7 +6,7 @@ import { CATEGORY_LABELS } from "../utils/constants";
 import { processTransactions } from "../utils/portfolioTransactionHelpers";
 import { calculatePortfolioValuation } from "../utils/portfolioValuationHelpers";
 
-export function usePortfolioData({ user, showToast }) {
+export function usePortfolioData({ user, showToast, onSessionExpired }) {
   const [assets, setAssets] = useState([]);
   const [prices, setPrices] = useState({});
   const [sparklines, setSparklines] = useState({});
@@ -43,6 +43,10 @@ export function usePortfolioData({ user, showToast }) {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
         body: JSON.stringify(updatedAssets),
       });
+      if (res.status === 401 && onSessionExpired) {
+        onSessionExpired();
+        return;
+      }
       if (!res.ok) throw new Error("HTTP " + res.status);
     } catch (err) {
       console.warn("Server sync failed, saved locally:", err.message);
@@ -146,6 +150,10 @@ export function usePortfolioData({ user, showToast }) {
   const fetchPortfolio = async () => {
     try {
       const res = await fetch("/api/portfolio", { headers: { Authorization: `Bearer ${user.token}` } });
+      if (res.status === 401 && onSessionExpired) {
+        onSessionExpired();
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         setAssets(data);

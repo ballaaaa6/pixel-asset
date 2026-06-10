@@ -16,7 +16,8 @@ export function useReceiptScanner({
   setBroker,
   setTxType,
   setConfirmed,
-  triggerToast
+  triggerToast,
+  onSessionExpired
 }) {
   const [scanning, setScanning] = useState(false);
   const [scanningStatus, setScanningStatus] = useState({ active: false, total: 0, completed: 0 });
@@ -71,6 +72,10 @@ export function useReceiptScanner({
         });
 
         if (!res.ok) {
+          if (res.status === 401 && onSessionExpired) {
+            onSessionExpired();
+            return;
+          }
           const errData = await res.json().catch(() => ({}));
           throw new Error(errData.error || `Server status ${res.status}`);
         }

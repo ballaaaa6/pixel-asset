@@ -9,7 +9,7 @@ import ScannedQueueList from "./modal/ScannedQueueList.jsx";
 import AssetHistoryTable from "./modal/AssetHistoryTable.jsx";
 import AssetSearchSelector from "./modal/AssetSearchSelector.jsx";
 
-export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exchangeRate, showToast }) {
+export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exchangeRate, showToast, onSessionExpired }) {
   const [type, setType] = useState("stock");
   const [symbol, setSymbol] = useState("");
   const [name, setName] = useState("");
@@ -40,7 +40,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
   const triggerToast = (msg, toastType = "success") => showToast ? showToast(msg, toastType) : alert(msg);
 
   const { scanning, scanningStatus, handleDropReceipt, handleFileSelect } = useReceiptScanner({
-    scannedQueue, setScannedQueue, setSymbol, setQuery, setName, setType, setQty, setPrice, setDate, setTime, setBroker, setTxType, setConfirmed, triggerToast
+    scannedQueue, setScannedQueue, setSymbol, setQuery, setName, setType, setQty, setPrice, setDate, setTime, setBroker, setTxType, setConfirmed, triggerToast, onSessionExpired
   });
 
   const filteredCurrencies = useMemo(() => {
