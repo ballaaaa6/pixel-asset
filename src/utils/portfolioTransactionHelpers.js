@@ -1,0 +1,132 @@
+/**
+ * portfolioTransactionHelpers.js
+ * Logic for processing and validating transactions in the portfolio.
+ */
+
+export function processTransactions({ formData, assets, exchangeRate, historicalRates }) {
+  const isBatch = Array.isArray(formData);
+  const transactions = isBatch ? formData : [formData];
+  const sortedTx = [...transactions].sort((a, b) => {
+    const isABuy = a.transactionType === "BUY";
+    const isBBuy = b.transactionType === "BUY";
+    if (isABuy !== isBBuy) return isABuy ? -1 : 1;
+    return new Date(`${a.date || "1970-01-01"}T${a.time || "00:00"}`) - new Date(`${b.date || "1970-01-01"}T${b.time || "00:00"}`);
+  });
+
+  const getTodayLocalDate = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
+  const getHistoricalRate = (dateStr) => {
+    if (!dateStr) return exchangeRate;
+    const targetDate = dateStr.split("T")[0];
+    if (historicalRates && historicalRates[targetDate]) return historicalRates[targetDate];
+    const dates = Object.keys(historicalRates || {}).sort();
+    if (dates.length === 0) return exchangeRate;
+    let bestRate = exchangeRate;
+    for (const d of dates) {
+      if (d <= targetDate) bestRate = historicalRates[d];
+      else break;
+    }
+    return bestRate;
+  };
+
+  const skippedTxs = [];
+  let updatedAssets = [...assets];
+
+  for (const tx of sortedTx) {
+    const sym = (tx.symbol || "").trim().toUpperCase();
+    const name = (tx.name || sym).trim();
+    const newQty = parseFloat(tx.qty);
+    const newPrice = parseFloat(tx.avgPrice ?? tx.price ?? 0);
+    const category = tx.type ?? tx.category ?? "stock";
+    const broker = (tx.broker || "").trim();
+
+    let buyDate = tx.date ? tx.date.trim() : getTodayLocalDate();
+    let buyTime = tx.time ? tx.time.trim() : "00:00";
+
+    if (!sym || isNaN(newQty) || newQty <= 0 || isNaN(newPrice) || newPrice < 0) {
+      skippedTxs.push({ tx, reason: "ข้อมูลไม่ครบถ้วนหรือไม่ถูกต้อง" });
+      continue;
+    }
+
+    const isThai = sym.endsWith(".BK");
+    const transactionType = tx.transactionType || "BUY";
+
+    let existing = updatedAssets.find(a => a.symbol.toUpperCase() === sym && (a.broker || "").toUpperCase() === broker.toUpperCase());
+
+    if (!existing) {
+      if (transactionType === "SELL") {
+        skippedTxs.push({ tx, reason: `ไม่สามารถขาย ${sym} ได้เนื่องจากยังไม่มีในพอร์ต` });
+        continue;
+      }
+      existing = {
+        id: Math.random().toString(36).substr(2, 9),
+        symbol: sym,
+        name: name || sym,
+        qty: 0,
+        avgCost: 0,
+        avgPrice: 0,
+        category,
+        broker,
+        lots: []
+      };
+      updatedAssets.push(existing);
+    }
+
+    const newLot = {
+      id: Math.random().toString(36).substr(2, 9),
+      date: buyDate,
+      time: buyTime,
+      qty: transactionType === "BUY" ? newQty : -newQty,
+      price: newPrice,
+      type: transactionType
+    };
+
+    const currentLots = existing.lots || [];
+    const updatedLots = [...currentLots, newLot].sort((a, b) => new Date(a.date + "T" + (a.time || "00:00")) - new Date(b.date + "T" + (b.time || "00:00")));
+
+    let runningQty = 0;
+    let runningAvgCostUSD = 0;
+    let valid = true;
+
+    for (const lot of updatedLots) {
+      const lotQty = lot.qty;
+      let lotPriceUSD = lot.price || 0;
+      const txRate = getHistoricalRate(lot.date);
+      if (isThai && txRate) lotPriceUSD = lotPriceUSD / txRate;
+
+      if (lotQty > 0) {
+        const newTotalQty = runningQty + lotQty;
+        runningAvgCostUSD = newTotalQty > 0 ? ((runningQty * runningAvgCostUSD) + (lotQty * lotPriceUSD)) / newTotalQty : 0;
+        runningQty = newTotalQty;
+      } else {
+        const sellQty = Math.abs(lotQty);
+        if (runningQty < sellQty) {
+          valid = false;
+          break;
+        }
+        runningQty = Math.max(0, runningQty - sellQty);
+      }
+    }
+
+    if (!valid) {
+      skippedTxs.push({ tx, reason: `ไม่สามารถทำรายการได้เนื่องจากจะทำให้จำนวนหุ้นติดลบ` });
+      continue;
+    }
+
+    existing.lots = updatedLots;
+    existing.qty = runningQty;
+    existing.avgCost = runningAvgCostUSD;
+    existing.avgPrice = isThai ? runningAvgCostUSD * getHistoricalRate(buyDate) : runningAvgCostUSD;
+    existing.category = category;
+    existing.name = name || existing.name;
+
+    if (existing.qty < 0.00001 && (!existing.lots || existing.lots.length === 0)) {
+      updatedAssets = updatedAssets.filter(a => a.id !== existing.id);
+    }
+  }
+
+  return { updatedAssets, skippedTxs };
+}

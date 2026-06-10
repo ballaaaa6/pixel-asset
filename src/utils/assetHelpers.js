@@ -253,4 +253,94 @@ export function getRealizedPnLInTHB(lots, isThai, historicalRates, exchangeRate)
     }
   }
   return realizedTHB;
-};
+}
+
+export function computeSingleAssetData(asset, prices, exchangeRate) {
+  const isThai = asset.symbol.endsWith(".BK");
+  const isCashAsset = asset.type === "fiat" || asset.category === "fiat";
+
+  if (isCashAsset) {
+    const price = 1.0;
+    const priceUSD = getCurrencyPriceUSD(asset.symbol, prices, exchangeRate);
+    const valueUSD = priceUSD * asset.qty;
+    const valueTHB = valueUSD * exchangeRate;
+    const avgCost = asset.avgCost ?? asset.avgPrice ?? priceUSD;
+    const costUSD = avgCost * asset.qty;
+    const gainUSD = valueUSD - costUSD;
+    const gainPct = costUSD > 0 ? (gainUSD / costUSD) * 100 : 0;
+
+    let todayChg = 0, todayPct = 0;
+    if (asset.symbol !== "USD") {
+      const ticker = getCurrencyTicker(asset.symbol);
+      const pData = prices[ticker];
+      if (pData) {
+        const prevPriceVal = pData.previousClose || pData.price;
+        if (prevPriceVal > 0) {
+          const prevPriceUSD = ["EUR", "GBP", "AUD", "NZD"].includes(asset.symbol) ? prevPriceVal : 1.0 / prevPriceVal;
+          todayChg = (priceUSD - prevPriceUSD) * asset.qty;
+          todayPct = prevPriceUSD > 0 ? ((priceUSD - prevPriceUSD) / prevPriceUSD) * 100 : 0;
+        }
+      }
+    }
+
+    return {
+      price, priceUSD, valueUSD, valueTHB, costUSD, gainUSD, gainPct, todayChg, todayPct,
+      extPrice: null, extChangePct: null, extType: null
+    };
+  }
+
+  const pData = prices[asset.symbol];
+  const regPrice = pData?.price ?? 0;
+  const isPre = pData?.marketState === "PRE" || pData?.marketState === "PREPRE";
+  const isPost = pData?.marketState === "POST" || pData?.marketState === "POSTPOST";
+
+  let extPrice = null, extChangePct = null, extType = null;
+  if (isPre && pData.prePrice != null && pData.prePrice > 0) {
+    extPrice = pData.prePrice;
+    extChangePct = regPrice > 0 ? ((pData.prePrice - regPrice) / regPrice) * 100 : 0;
+    extType = "Pre";
+  } else if (isPost && pData.postPrice != null && pData.postPrice > 0) {
+    extPrice = pData.postPrice;
+    extChangePct = regPrice > 0 ? ((pData.postPrice - regPrice) / regPrice) * 100 : 0;
+    extType = "After";
+  }
+
+  const price = extPrice ?? regPrice;
+  const priceUSD = isThai ? price / exchangeRate : price;
+  const valueUSD = priceUSD * asset.qty;
+  const valueTHB = valueUSD * exchangeRate;
+  const avgCost = asset.avgCost ?? asset.avgPrice ?? 0;
+  const costUSD = avgCost * asset.qty;
+  const gainUSD = valueUSD - costUSD;
+  const gainPct = costUSD > 0 ? (gainUSD / costUSD) * 100 : 0;
+
+  const activePrice = price;
+  const prevClose = pData?.previousClose ?? activePrice;
+  const todayChg = ((activePrice - prevClose) * asset.qty);
+  const todayPct = (prevClose > 0 ? ((activePrice - prevClose) / prevClose) * 100 : 0);
+
+  const regPriceUSD = isThai ? regPrice / exchangeRate : regPrice;
+  const regValueUSD = regPriceUSD * asset.qty;
+  const regValueTHB = regValueUSD * exchangeRate;
+  const regGainUSD = regValueUSD - costUSD;
+  const regGainPct = costUSD > 0 ? (regGainUSD / costUSD) * 100 : 0;
+  const regTodayChg = pData?.change ? (isThai ? pData.change / exchangeRate : pData.change) * asset.qty : 0;
+  const regTodayPct = pData?.changePercent ?? 0;
+
+  let extPriceUSD = null, extValueUSD = null, extValueTHB = null, extGainUSD = null, extGainPct = null, extTodayPct = null;
+  if (extPrice != null) {
+    extPriceUSD = isThai ? extPrice / exchangeRate : extPrice;
+    extValueUSD = extPriceUSD * asset.qty;
+    extValueTHB = extValueUSD * exchangeRate;
+    extGainUSD = extValueUSD - costUSD;
+    extGainPct = costUSD > 0 ? (extGainUSD / costUSD) * 100 : 0;
+    extTodayPct = extChangePct ?? 0;
+  }
+
+  return {
+    price, priceUSD, valueUSD, valueTHB, costUSD, gainUSD, gainPct, todayChg, todayPct,
+    extPrice, extChangePct, extType,
+    regPrice, regPriceUSD, regValueUSD, regValueTHB, regGainUSD, regGainPct, regTodayChg, regTodayPct,
+    extPriceUSD, extValueUSD, extValueTHB, extGainUSD, extGainPct, extTodayPct
+  };
+}

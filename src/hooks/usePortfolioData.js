@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { getRealizedPnL, getCurrencyPriceUSD, getCurrencyTicker, getDisplaySymbol, getHistoricalExchangeRate, getRealizedPnLInTHB as rawGetRealizedPnLInTHB } from "../utils/assetHelpers";
+import { getRealizedPnL, getCurrencyTicker, getDisplaySymbol, getHistoricalExchangeRate, getRealizedPnLInTHB as rawGetRealizedPnLInTHB } from "../utils/assetHelpers";
 import { calculatePortfolioHistoryTimeline } from "../utils/portfolioHistoryHelpers";
 import { generateMockPrices, generateMockSparklines, generateMockHistoricalRates } from "../utils/mockDataHelpers";
 import { CATEGORY_LABELS } from "../utils/constants";
+import { processTransactions } from "../utils/portfolioTransactionHelpers";
+import { calculatePortfolioValuation } from "../utils/portfolioValuationHelpers";
 
 export function usePortfolioData({ user, showToast }) {
   const [assets, setAssets] = useState([]);
@@ -255,127 +257,16 @@ export function usePortfolioData({ user, showToast }) {
 
   const handleSaveAsset = async (formData) => {
     const isBatch = Array.isArray(formData);
-    const transactions = isBatch ? formData : [formData];
-    const sortedTx = [...transactions].sort((a, b) => {
-      const isABuy = a.transactionType === "BUY";
-      const isBBuy = b.transactionType === "BUY";
-      if (isABuy !== isBBuy) return isABuy ? -1 : 1;
-      return new Date(`${a.date || "1970-01-01"}T${a.time || "00:00"}`) - new Date(`${b.date || "1970-01-01"}T${b.time || "00:00"}`);
+    const { updatedAssets, skippedTxs } = processTransactions({
+      formData,
+      assets,
+      exchangeRate,
+      historicalRates
     });
 
-    const skippedTxs = [];
-    const getTodayLocalDate = () => {
-      const d = new Date();
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    };
-
-    let updatedAssets = [...assets];
-
-    for (const tx of sortedTx) {
-      const sym = (tx.symbol || "").trim().toUpperCase();
-      const name = (tx.name || sym).trim();
-      const newQty = parseFloat(tx.qty);
-      const newPrice = parseFloat(tx.avgPrice ?? tx.price ?? 0);
-      const category = tx.type ?? tx.category ?? "stock";
-      const broker = (tx.broker || "").trim();
-
-      let buyDate = tx.date ? tx.date.trim() : getTodayLocalDate();
-      let buyTime = tx.time ? tx.time.trim() : "00:00";
-
-      if (!sym) {
-        if (!isBatch) showToast("เลือกสินทรัพย์ก่อนนะครับ", "error");
-        else skippedTxs.push({ tx, reason: "ไม่พบสัญลักษณ์สินทรัพย์" });
-        continue;
-      }
-      if (isNaN(newQty) || newQty <= 0) {
-        if (!isBatch) showToast("ใส่จำนวนให้ถูกต้อง", "error");
-        else skippedTxs.push({ tx, reason: "จำนวนหุ้นไม่ถูกต้อง" });
-        continue;
-      }
-      if (isNaN(newPrice) || newPrice < 0) {
-        if (!isBatch) showToast("ใส่ราคาให้ถูกต้อง", "error");
-        else skippedTxs.push({ tx, reason: "ราคาหุ้นไม่ถูกต้อง" });
-        continue;
-      }
-
-      const isThai = sym.endsWith(".BK");
-      const transactionType = tx.transactionType || "BUY";
-
-      let existing = updatedAssets.find(a => a.symbol.toUpperCase() === sym && (a.broker || "").toUpperCase() === broker.toUpperCase());
-
-      if (!existing) {
-        if (transactionType === "SELL") {
-          if (!isBatch) showToast(`ไม่สามารถขาย ${sym} ได้เนื่องจากยังไม่มีในพอร์ต`, "error");
-          else skippedTxs.push({ tx, reason: `ไม่สามารถขาย ${sym} ได้เนื่องจากยังไม่มีในพอร์ต` });
-          continue;
-        }
-        existing = {
-          id: Math.random().toString(36).substr(2, 9),
-          symbol: sym,
-          name: name || sym,
-          qty: 0,
-          avgCost: 0,
-          avgPrice: 0,
-          category,
-          broker,
-          lots: []
-        };
-        updatedAssets.push(existing);
-      }
-
-      const newLot = {
-        id: Math.random().toString(36).substr(2, 9),
-        date: buyDate,
-        time: buyTime,
-        qty: transactionType === "BUY" ? newQty : -newQty,
-        price: newPrice,
-        type: transactionType
-      };
-
-      const currentLots = existing.lots || [];
-      const updatedLots = [...currentLots, newLot].sort((a, b) => new Date(a.date + "T" + (a.time || "00:00")) - new Date(b.date + "T" + (b.time || "00:00")));
-
-      let runningQty = 0;
-      let runningAvgCostUSD = 0;
-      let valid = true;
-
-      for (const lot of updatedLots) {
-        const lotQty = lot.qty;
-        let lotPriceUSD = lot.price || 0;
-        const txRate = getHistoricalRate(lot.date);
-        if (isThai && txRate) lotPriceUSD = lotPriceUSD / txRate;
-
-        if (lotQty > 0) {
-          const newTotalQty = runningQty + lotQty;
-          runningAvgCostUSD = newTotalQty > 0 ? ((runningQty * runningAvgCostUSD) + (lotQty * lotPriceUSD)) / newTotalQty : 0;
-          runningQty = newTotalQty;
-        } else {
-          const sellQty = Math.abs(lotQty);
-          if (runningQty < sellQty) {
-            valid = false;
-            break;
-          }
-          runningQty = Math.max(0, runningQty - sellQty);
-        }
-      }
-
-      if (!valid) {
-        const msg = `ไม่สามารถประมวลผลธุรกรรม ${transactionType} ของ ${sym} ณ วันที่ ${buyDate} ${buyTime} ได้ เนื่องจากจะทำให้จำนวนถือครองติดลบ`;
-        if (!isBatch) showToast(msg, "error");
-        else skippedTxs.push({ tx, reason: msg });
-        continue;
-      }
-
-      existing.lots = updatedLots;
-      existing.qty = runningQty;
-      existing.avgCost = runningAvgCostUSD;
-      existing.avgPrice = isThai ? runningAvgCostUSD * getHistoricalRate(buyDate) : runningAvgCostUSD;
-      existing.category = category;
-      existing.name = name || existing.name;
-
-      if (existing.qty < 0.00001 && (!existing.lots || existing.lots.length === 0)) {
-        updatedAssets = updatedAssets.filter(a => a.id !== existing.id);
-      }
+    if (!isBatch && skippedTxs.length > 0) {
+      showToast(skippedTxs[0].reason, "error");
+      return;
     }
 
     if (skippedTxs.length > 0 && isBatch) {
@@ -388,199 +279,15 @@ export function usePortfolioData({ user, showToast }) {
     if (!isBatch) showToast("บันทึกธุรกรรมเรียบร้อยแล้ว", "success");
   };
 
-  const computeAsset = useCallback((asset) => {
-    const isThai = asset.symbol.endsWith(".BK");
-    const isCashAsset = asset.type === "fiat" || asset.category === "fiat";
-
-    if (isCashAsset) {
-      const price = 1.0;
-      const priceUSD = getCurrencyPriceUSD(asset.symbol, prices, exchangeRate);
-      const valueUSD = priceUSD * asset.qty;
-      const valueTHB = valueUSD * exchangeRate;
-      const avgCost = asset.avgCost ?? asset.avgPrice ?? priceUSD;
-      const costUSD = avgCost * asset.qty;
-      const gainUSD = valueUSD - costUSD;
-      const gainPct = costUSD > 0 ? (gainUSD / costUSD) * 100 : 0;
-
-      let todayChg = 0, todayPct = 0;
-      if (asset.symbol !== "USD") {
-        const ticker = getCurrencyTicker(asset.symbol);
-        const pData = prices[ticker];
-        if (pData) {
-          const prevPriceVal = pData.previousClose || pData.price;
-          if (prevPriceVal > 0) {
-            const prevPriceUSD = ["EUR", "GBP", "AUD", "NZD"].includes(asset.symbol) ? prevPriceVal : 1.0 / prevPriceVal;
-            todayChg = (priceUSD - prevPriceUSD) * asset.qty;
-            todayPct = prevPriceUSD > 0 ? ((priceUSD - prevPriceUSD) / prevPriceUSD) * 100 : 0;
-          }
-        }
-      }
-
-      return {
-        price, priceUSD, valueUSD, valueTHB, costUSD, gainUSD, gainPct, todayChg, todayPct,
-        extPrice: null, extChangePct: null, extType: null
-      };
-    }
-
-    const pData = prices[asset.symbol];
-    const regPrice = pData?.price ?? 0;
-    const isPre = pData?.marketState === "PRE" || pData?.marketState === "PREPRE";
-    const isPost = pData?.marketState === "POST" || pData?.marketState === "POSTPOST";
-
-    let extPrice = null, extChangePct = null, extType = null;
-    if (isPre && pData.prePrice != null && pData.prePrice > 0) {
-      extPrice = pData.prePrice;
-      extChangePct = regPrice > 0 ? ((pData.prePrice - regPrice) / regPrice) * 100 : 0;
-      extType = "Pre";
-    } else if (isPost && pData.postPrice != null && pData.postPrice > 0) {
-      extPrice = pData.postPrice;
-      extChangePct = regPrice > 0 ? ((pData.postPrice - regPrice) / regPrice) * 100 : 0;
-      extType = "After";
-    }
-
-    const price = extPrice ?? regPrice;
-    const priceUSD = isThai ? price / exchangeRate : price;
-    const valueUSD = priceUSD * asset.qty;
-    const valueTHB = valueUSD * exchangeRate;
-    const avgCost = asset.avgCost ?? asset.avgPrice ?? 0;
-    const costUSD = avgCost * asset.qty;
-    const gainUSD = valueUSD - costUSD;
-    const gainPct = costUSD > 0 ? (gainUSD / costUSD) * 100 : 0;
-
-    const activePrice = price;
-    const prevClose = pData?.previousClose ?? activePrice;
-    const todayChg = ((activePrice - prevClose) * asset.qty);
-    const todayPct = (prevClose > 0 ? ((activePrice - prevClose) / prevClose) * 100 : 0);
-
-    const regPriceUSD = isThai ? regPrice / exchangeRate : regPrice;
-    const regValueUSD = regPriceUSD * asset.qty;
-    const regValueTHB = regValueUSD * exchangeRate;
-    const regGainUSD = regValueUSD - costUSD;
-    const regGainPct = costUSD > 0 ? (regGainUSD / costUSD) * 100 : 0;
-    const regTodayChg = pData?.change ? (isThai ? pData.change / exchangeRate : pData.change) * asset.qty : 0;
-    const regTodayPct = pData?.changePercent ?? 0;
-
-    let extPriceUSD = null, extValueUSD = null, extValueTHB = null, extGainUSD = null, extGainPct = null, extTodayPct = null;
-    if (extPrice != null) {
-      extPriceUSD = isThai ? extPrice / exchangeRate : extPrice;
-      extValueUSD = extPriceUSD * asset.qty;
-      extValueTHB = extValueUSD * exchangeRate;
-      extGainUSD = extValueUSD - costUSD;
-      extGainPct = costUSD > 0 ? (extGainUSD / costUSD) * 100 : 0;
-      extTodayPct = extChangePct ?? 0;
-    }
-
-    return {
-      price, priceUSD, valueUSD, valueTHB, costUSD, gainUSD, gainPct, todayChg, todayPct,
-      extPrice, extChangePct, extType,
-      regPrice, regPriceUSD, regValueUSD, regValueTHB, regGainUSD, regGainPct, regTodayChg, regTodayPct,
-      extPriceUSD, extValueUSD, extValueTHB, extGainUSD, extGainPct, extTodayPct
-    };
-  }, [prices, exchangeRate]);
-
   const valuation = useMemo(() => {
-    if (!assets.length) {
-      return {
-        totalUSD: 0, totalCostUSD: 0, todayChangeUSD: 0, totalRealizedUSD: 0, totalRealizedTHB: 0,
-        bestAsset: null, sortedAssets: [], donutSegments: [], initialCapitalUSD: 0,
-        totalUnrealizedUSD: 0, totalUnrealizedTHB: 0, totalGainTHB: 0, totalGainUSD: 0, totalGainPct: 0, todayChangePct: 0
-      };
-    }
-
-    let totVal = 0, totCost = 0, totToday = 0, totRealized = 0, totRealizedTHB = 0;
-    let bestSym = null, bestPct = -Infinity;
-
-    const computed = assets.map(a => {
-      const c = computeAsset(a);
-      totVal += c.valueUSD;
-      totCost += c.costUSD;
-      totToday += c.todayChg;
-
-      const isThai = a.symbol.toUpperCase().endsWith(".BK");
-      const rawRealized = getRealizedPnL(a.lots || [], isThai, exchangeRate);
-      const realized = rawRealized - (a.clearedRealizedUSD || 0);
-      totRealized += realized;
-
-      const rawRealizedTHB = getRealizedPnLInTHB(a.lots || [], isThai);
-      const realizedTHB = rawRealizedTHB - (a.clearedRealizedTHB || 0);
-      totRealizedTHB += realizedTHB;
-
-      const assetWithPnL = {
-        ...a, ...c,
-        realizedPnL: realized,
-        realizedPnLTHB: realizedTHB,
-        unrealizedPnL: a.qty > 0 ? (c.valueUSD - c.costUSD) : 0,
-        totalPnL: realized + (a.qty > 0 ? (c.valueUSD - c.costUSD) : 0)
-      };
-
-      if (c.gainPct > bestPct && a.qty > 0 && (a.avgCost > 0 || a.avgPrice > 0)) {
-        bestPct = c.gainPct;
-        bestSym = a;
-      }
-      return assetWithPnL;
+    return calculatePortfolioValuation({
+      assets,
+      prices,
+      exchangeRate,
+      sortConfig,
+      historicalRates
     });
-
-    const activeAssets = computed.filter(a => a.qty > 0.00001);
-    const sorted = [...activeAssets].sort((a, b) => {
-      if (!sortConfig.key) return b.valueUSD - a.valueUSD;
-      const dir = sortConfig.dir === "asc" ? 1 : -1;
-      switch (sortConfig.key) {
-        case "value" : return dir * (a.valueUSD - b.valueUSD);
-        case "gain" : return dir * (a.gainPct - b.gainPct);
-        case "today" : return dir * (a.todayPct - b.todayPct);
-        case "symbol" : return dir * a.symbol.localeCompare(b.symbol);
-        default : return 0;
-      }
-    });
-
-    const catMap = {};
-    activeAssets.forEach(a => {
-      const cat = a.category || "stock";
-      catMap[cat] = (catMap[cat] || 0) + a.valueUSD;
-    });
-    const donut = Object.entries(catMap)
-      .map(([cat, val]) => ({ id: cat, label: CATEGORY_LABELS[cat] || cat, pct: totVal > 0 ? (val / totVal) * 100 : 0, value: val }))
-      .filter(s => s.pct > 0)
-      .sort((a, b) => b.pct - a.pct);
-
-    let sumBuys = 0, hasBuys = false;
-    assets.forEach(a => {
-      if (a.type !== "fiat" && a.category !== "fiat") {
-        const isThai = a.symbol.toUpperCase().endsWith(".BK");
-        (a.lots || []).forEach(l => {
-          if (l.qty > 0) {
-            sumBuys += l.qty * (isThai ? l.price / exchangeRate : l.price);
-            hasBuys = true;
-          }
-        });
-      }
-    });
-    const initialCap = (hasBuys && sumBuys > 0) ? sumBuys : totCost;
-    const totalUnrealizedUSD = totVal - totCost;
-    const totalUnrealizedTHB = totalUnrealizedUSD * exchangeRate;
-    const totalGainTHB = totalUnrealizedTHB + totRealizedTHB;
-    const totalGainUSD = totalUnrealizedUSD + totRealized;
-    const totalGainPct = initialCap > 0 ? (totalGainUSD / initialCap) * 100 : 0;
-    const todayChangePct = totCost > 0 ? (totToday / (totVal - totToday)) * 100 : 0;
-
-    return {
-      totalUSD: totVal,
-      totalCostUSD: totCost,
-      todayChangeUSD: totToday,
-      totalRealizedUSD: totRealized,
-      totalRealizedTHB: totRealizedTHB,
-      bestAsset: bestSym ? { symbol: bestSym.symbol, pct: bestPct } : null,
-      sortedAssets: sorted,
-      donutSegments: donut,
-      initialCapitalUSD: initialCap,
-      totalUnrealizedUSD,
-      totalUnrealizedTHB,
-      totalGainTHB,
-      totalGainUSD,
-      totalGainPct,
-      todayChangePct
-    };
-  }, [assets, prices, exchangeRate, sortConfig, computeAsset, getRealizedPnLInTHB]);
+  }, [assets, prices, exchangeRate, sortConfig, historicalRates]);
 
   return {
     assets,
