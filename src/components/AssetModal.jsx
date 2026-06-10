@@ -31,6 +31,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
   const [currencyRate, setCurrencyRate] = useState(1.0);
   const [currencyRateLoading, setCurrencyRateLoading] = useState(false);
   const [scannedQueue, setScannedQueue] = useState([]);
+  const [customRate, setCustomRate] = useState("");
 
   const debounceRef = useRef(null);
   const qtyInputRef = useRef(null);
@@ -58,10 +59,12 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
       setQuery(editingAsset.symbol || ""); setCurrencyQuery(cat === "fiat" ? (editingAsset.symbol || "") : "");
       setQty(""); setPrice(""); setDate(new Date().toISOString().split("T")[0]); setTime("");
       setBroker(editingAsset.broker || ""); setConfirmed(true); setShowDrop(false); setShowCurrencyDrop(false); setSuggestions([]);
+      setCustomRate("");
     } else {
       setType("stock"); setSymbol(""); setName(""); setQuery(""); setCurrencyQuery("");
       setQty(""); setPrice(""); setDate(new Date().toISOString().split("T")[0]); setTime("");
       setBroker(""); setConfirmed(false); setShowDrop(false); setShowCurrencyDrop(false); setSuggestions([]);
+      setCustomRate("");
     }
     setShowHistory(false); setScannedQueue([]);
   }, [isOpen, editingAsset]);
@@ -134,7 +137,16 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
     const pQty = parseFloat(qty);
     if (!symbol.trim()) { triggerToast("เลือกสินทรัพย์ก่อนนะครับ", "error"); return; }
     if (isNaN(pQty) || pQty <= 0) { triggerToast("ใส่จำนวนให้ถูกต้อง (มากกว่า 0)", "error"); return; }
-    const pPrice = type === "fiat" ? currencyRate : parseFloat(price);
+    let pPrice = parseFloat(price);
+    if (type === "fiat") {
+      if (symbol === "USD") {
+        pPrice = 1.0;
+      } else if (["EUR", "GBP", "AUD", "NZD"].includes(symbol)) {
+        pPrice = customRate ? parseFloat(customRate) : currencyRate;
+      } else {
+        pPrice = customRate ? (1.0 / parseFloat(customRate)) : currencyRate;
+      }
+    }
     if (type !== "fiat" && (isNaN(pPrice) || pPrice < 0)) { triggerToast("ใส่ราคาทุนให้ถูกต้อง", "error"); return; }
 
     onSave({
@@ -288,12 +300,38 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
                 )}
 
                 {type === "fiat" ? (
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <label className="form-label">จำนวนเงินสด</label>
-                      {currencyRateLoading && <span style={{ fontSize: 11, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 4 }}><span className="spinner sm" style={{ width: 12, height: 12, borderWidth: "1.5px" }} /> ดึงอัตราแลกเปลี่ยน...</span>}
+                  <div style={{ display: "grid", gridTemplateColumns: symbol === "USD" ? "1fr" : "1fr 1fr", gap: 14 }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <label className="form-label">จำนวนเงินสด</label>
+                        {currencyRateLoading && <span style={{ fontSize: 11, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 4 }}><span className="spinner sm" style={{ width: 12, height: 12, borderWidth: "1.5px" }} /> ดึงอัตรา...</span>}
+                      </div>
+                      <input ref={qtyInputRef} type="number" step="any" min="0.01" className="form-input" placeholder={`กรอกจำนวนเงินสด (${symbol || "สกุลเงิน"})`} value={qty} onChange={(e) => setQty(e.target.value)} required autoFocus />
                     </div>
-                    <input ref={qtyInputRef} type="number" step="any" min="0.01" className="form-input" placeholder={`กรอกจำนวนเงินสด (${symbol || "สกุลเงิน"})`} value={qty} onChange={(e) => setQty(e.target.value)} required autoFocus />
+                    {symbol !== "USD" && (
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">
+                          {["EUR", "GBP", "AUD", "NZD"].includes(symbol)
+                            ? `อัตราแลกเปลี่ยนทุน (USD/${symbol})`
+                            : `อัตราแลกเปลี่ยนทุน (${symbol}/USD)`}
+                        </label>
+                        <input
+                          type="number"
+                          step="any"
+                          min="0.000001"
+                          className="form-input"
+                          placeholder={
+                            currencyRate
+                              ? (["EUR", "GBP", "AUD", "NZD"].includes(symbol)
+                                  ? currencyRate.toFixed(4)
+                                  : (1.0 / currencyRate).toFixed(2))
+                              : "35.20"
+                          }
+                          value={customRate}
+                          onChange={(e) => setCustomRate(e.target.value)}
+                        />
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
