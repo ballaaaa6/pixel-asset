@@ -101,7 +101,8 @@ export function useReceiptScanner({
             price:           resObj.actual_price,
             date:            dateStr,
             time:            timeStr,
-            transactionType: resObj.action
+            transactionType: resObj.action,
+            broker:          resObj.broker
           }, idx);
 
           if (validated) {
@@ -135,7 +136,7 @@ export function useReceiptScanner({
               avgPrice:        String(validated.price),
               date:            validated.date,
               time:            validated.time,
-              broker:          "Dime! (Kiatnakin Phatra / เกียรตินาคินภัทร)",
+              broker:          validated.broker,
               transactionType: validated.transactionType
             });
             delete fileErrors[idx];

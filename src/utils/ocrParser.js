@@ -187,6 +187,7 @@ export function validateParsedReceipt(data, imageIndex) {
     qty,
     price: Math.round(price * 100) / 100,
     date,
-    time
+    time,
+    broker: data.broker || "Dime! (Kiatnakin Phatra / เกียรตินาคินภัทร)"
   };
 }

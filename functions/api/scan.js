@@ -24,49 +24,32 @@ const CORS = {
 };
 
 // ─── Prompt & Schema Context ──────────────────────────────────────────────────
-const SYSTEM_PROMPT = `You are an expert OCR transcription tool for Dime! (by SCB) trading receipts.
+const SYSTEM_PROMPT = `You are an expert OCR transcription tool for Dime! (by SCB) and Webull Thailand trading receipts.
 Your task is to transcribe specific text fields from the receipt image.
 Extract the data into a JSON object with the following fields. Do not translate the text, just transcribe exactly what is visible on the image:
 
 {
-  "header_text": "The green/red text showing the transaction type and ticker (e.g. ซื้อ [ticker] or ขาย [ticker])",
-  "header_color": "The color of the header text (either 'green' or 'red/pink')",
-  "status_text": "The status section text near the top (e.g. จับคู่แล้ว or สำเร็จ. คุณได้รับเงินค่าขายคืนแล้ว)",
-  "bold_amount": "The large bold green/red text displayed under the asset name. Transcribe EXACTLY including the unit (e.g. '74,999.87 THB', '11,541.59 USD', '60 หุ้น', '100.5480039 หุ้น', '10 หุ้น')",
-  "symbol": "The uppercase stock ticker symbol from the header",
-  "actual_price": "The executed price per share. Next to 'ราคาที่ได้จริง' or under the column header 'ราคาที่ได้จริง' (transcribe exact numeric text and currency like '[number] USD')",
-  "stock_value": "The total stock value next to 'มูลค่าหุ้น' (transcribe exact numeric text and currency like '74,999.87 THB' or '11,541.59 USD'). DO NOT transcribe the share quantity (long decimal number) here.",
-  "qty_table": "IMPORTANT: This is ONLY the number next to or under the label 'จำนวนหุ้น'/'จำนวนหน่วย'. It appears on the SAME LINE as 'ราคาที่ได้จริง' in Market orders (e.g. left side shows 'ราคาที่ได้จริง 130.60 USD', right side shows 'จำนวนหุ้น 17.5941041'). If no 'จำนวนหุ้น'/'จำนวนหน่วย' label exists on the receipt, return 'N/A'. NEVER return a commission, VAT, stock value, or any other number here.",
-  "exchange_rate": "The exchange rate if visible on the receipt, next to 'อัตราแลกเปลี่ยน' (e.g. '1 USD = 32.64 THB' → return '32.64'). Return 'N/A' if not visible.",
-  "order_type": "The order type: 'Market' if the receipt shows 'ใช้ราคาตลาด (Market)' or 'ราคาตลาด (Market)', or 'Limit' if it shows 'ตั้งราคาเอง (Limit)'. Look near 'ประเภทคำสั่ง' label or below the bold amount.",
-  "raw_date": "The date-time string next to 'วันที่ส่งคำสั่ง', 'วันที่สำเร็จ', or inside the top card 'สถานะ (ณ ...)' (transcribe the exact text, e.g., '[day] [month] [year] - [time]')",
-  "has_received_cash_back_label": true or false, indicating if the label 'ยอดที่จะได้รับคืน' or phrase 'เงินค่าขายคืน' appears anywhere on the receipt,
-  "has_payment_amount_label": true or false, indicating if the label 'ยอดที่ต้องชำระ' appears anywhere on the receipt
+  "header_text": "The transaction type and ticker (e.g. 'ซื้อ NVDA', 'ขาย NVDA' for Dime; or 'ซื้อ RKLB', 'ขาย RKLB' for Webull based on 'คำสั่ง' value)",
+  "header_color": "The color of the main header text or transaction badge (either 'green' for buy or 'red/pink/purple' for sell)",
+  "status_text": "The status section text near the top (e.g. 'จับคู่แล้ว', 'สำเร็จ', 'Filled')",
+  "bold_amount": "The main bold quantity or value (e.g. '11,541.59 USD', '60 หุ้น'). For Webull, use the number next to 'จำนวนทั้งหมด' (e.g. '85')",
+  "symbol": "The uppercase stock ticker symbol (e.g. 'NVDA', 'RKLB')",
+  "actual_price": "The executed price per share. For Dime: under 'ราคาที่ได้จริง'. For Webull: next to 'ราคาเฉลี่ย' (e.g. 'US$45.70' or '45.70')",
+  "stock_value": "The total stock value. For Dime: next to 'มูลค่าหุ้น'. For Webull: calculate as qty * actual_price",
+  "qty_table": "For Dime: next to 'จำนวนหุ้น'/'จำนวนหน่วย'. For Webull: the number next to 'จำนวนทั้งหมด' or 'จำนวนที่จับคู่แล้ว' (e.g. '85')",
+  "exchange_rate": "The exchange rate if visible (e.g. '1 USD = 32.64 THB' → '32.64', return 'N/A' if not visible)",
+  "order_type": "The order type: 'Market' or 'Limit' (For Webull, 'กำหนดราคา' is 'Limit')",
+  "raw_date": "The date-time string. For Dime: next to 'วันที่ส่งคำสั่ง'. For Webull: next to 'คำสั่งถูกจับคู่สำเร็จ' (e.g. '11/08/2025 13:36:05 EDT')",
+  "broker": "The broker name if visible or identifiable from the receipt layout (e.g. 'Dime!' or 'Webull' or 'Webull Thailand')",
+  "has_received_cash_back_label": true or false, indicating if a sell-related label like 'ยอดที่จะได้รับคืน' or 'เงินค่าขายคืน' or a 'ขาย' (sell) order is present,
+  "has_payment_amount_label": true or false, indicating if a buy-related label like 'ยอดที่ต้องชำระ' or 'ซื้อ' (buy) order is present
 }
 
 CRITICAL TRANSCRIPTION DIRECTIONS:
-1. DATE ACCURACY: Look extremely closely at the Thai month abbreviation in raw_date. The loopless modern Thai font (ไม่มีหัว) used by the app makes some letters look highly similar:
-   - "ก.ค." = กรกฎาคม (July). Starts with 'ก' (arch shape, open bottom, no curve inside).
-   - "ม.ค." = มกราคม (January). Starts with 'ม' (has a subtle loop/curve at the bottom left).
-   - "มิ.ย." = มิถุนายน (June). Has 'ม' with a curve vowel symbol 'ิ' on top, and ends with 'ย'.
-   - "มี.ค." = มีนาคม (March). Has 'ม' with a loop vowel symbol 'ี' on top, and ends with 'ค'.
-   Be extremely careful not to confuse "ก.ค." (July) with "ม.ค." (January) or "มิ.ย." (June) with "ม.ค." (January).
-
-2. NO CALCULATION OR MATH: Do NOT perform any mathematical division or calculation yourself. Transcribe the exact numbers visible in the image. For "qty_table", do NOT divide "bold_amount" by "actual_price" to calculate it; copy the exact digits printed next to or under the "จำนวนหุ้น" / "จำนวนหน่วย" header.
-
-3. RECEIPT LAYOUT TYPES — There are exactly 4 layouts. Understanding them helps you find qty_table correctly:
-   a. Fractional BUY (Market): bold_amount is a CURRENCY amount (e.g. "11,541.59 USD" or "74,999.87 THB"). The จำนวนหุ้น appears on the SAME LINE as ราคาที่ได้จริง, on the RIGHT SIDE. It is a LONG DECIMAL like 75.9920476. This is the qty_table value.
-   b. Whole-share BUY (Limit): bold_amount is "N หุ้น" (e.g. "10 หุ้น"). There is NO จำนวนหุ้น label or row anywhere. qty_table should be "N/A".
-   c. Whole-share SELL (Limit): bold_amount is "N หุ้น" (e.g. "60 หุ้น", "114 หุ้น"). There is NO จำนวนหุ้น label or row. qty_table should be "N/A".
-   d. Fractional SELL (Market): bold_amount is "N.NNNNNNN หุ้น" (e.g. "100.5480039 หุ้น"). There is NO จำนวนหุ้น label or row. qty_table should be "N/A".
-   KEY RULE: qty_table exists ONLY in layout (a) — Fractional BUY Market orders. For all other layouts, return "N/A".
-
-4. QUANTITY VS COMMISSION/STOCK VALUE ACCURACY: When transcribing "qty_table", be extremely careful:
-   - The จำนวนหุ้น value is on the SAME LINE as ราคาที่ได้จริง, positioned to its RIGHT. It is NOT in the fee table below.
-   - Do NOT confuse it with "มูลค่าหุ้น" (Stock Value, e.g., 74,999.87), "ค่าคอมมิชชัน" (Commission, e.g., 6.07), or "ภาษีมูลค่าเพิ่ม" (VAT, e.g., 0.18). These are in separate rows BELOW.
-   - The share quantity has 6-8 decimal places (e.g., 75.9920476). Fees always have exactly 2 decimal places.
-
-5. NO FILLER: Output Raw JSON only. No markdown, no explanation. Start with '{', end with '}'.`;
+1. DATE ACCURACY: Look extremely closely at the date and month. For Webull, dates are formatted as DD/MM/YYYY (e.g. 11/08/2025). Transcribe exactly what is visible in the raw_date.
+2. NO CALCULATION OR MATH: Do NOT perform any mathematical division or calculation yourself. Transcribe the exact numbers visible in the image.
+3. RECEIPT LAYOUT TYPES: Understand both Dime! and Webull Thailand layouts.
+4. NO FILLER: Output Raw JSON only. No markdown, no explanation. Start with '{', end with '}'.`;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -222,7 +205,7 @@ function validateSlipData(raw) {
 
   // Heuristic 1.2: Check header_color (very reliable indicator of green vs red/pink)
   if (!action) {
-    if (color.includes("red") || color.includes("pink")) {
+    if (color.includes("red") || color.includes("pink") || color.includes("purple")) {
       action = "SELL";
     } else if (color.includes("green")) {
       action = "BUY";
@@ -231,9 +214,9 @@ function validateSlipData(raw) {
 
   // Heuristic 1.3: Check header_text
   if (!action) {
-    if (header.includes("ซื้อ")) {
+    if (header.includes("ซื้อ") || header.includes("buy")) {
       action = "BUY";
-    } else if (header.includes("ขาย")) {
+    } else if (header.includes("ขาย") || header.includes("sell")) {
       action = "SELL";
     }
   }
@@ -258,19 +241,28 @@ function validateSlipData(raw) {
 
   // Heuristic 1.6: Check general text fallback
   if (!action) {
-    if (allText.includes("ขายคืน") || allText.includes("ขาย") || allText.includes("ยอดที่จะได้รับคืน")) {
+    if (allText.includes("ขายคืน") || allText.includes("ขาย") || allText.includes("sell") || allText.includes("ยอดที่จะได้รับคืน")) {
       action = "SELL";
-    } else if (allText.includes("ซื้อ") || allText.includes("จับคู่") || allText.includes("ยอดที่ต้องชำระ")) {
+    } else if (allText.includes("ซื้อ") || allText.includes("buy") || allText.includes("จับคู่") || allText.includes("ยอดที่ต้องชำระ")) {
       action = "BUY";
     } else {
       action = "BUY"; // Default
     }
   }
 
+  // Heuristic 1.7: Explicit Webull Thailand check
+  let broker = String(raw.broker || "").trim();
+  const isWebull = broker.toLowerCase().includes("webull") || allText.includes("webull");
+  if (isWebull) {
+    broker = "Webull";
+  } else {
+    broker = "Dime!";
+  }
+
   // 2. Parse Symbol
   let symbol = String(raw.symbol || "").trim().toUpperCase();
   if (!symbol && header) {
-    const match = header.match(/(?:ซื้อ|ขาย)\s*([A-Z0-9.\-]+)/i);
+    const match = header.match(/(?:ซื้อ|ขาย|buy|sell)\s*([A-Z0-9.\-]+)/i);
     if (match) {
       symbol = match[1].toUpperCase();
     }
@@ -308,91 +300,67 @@ function validateSlipData(raw) {
   if (price <= 0) return null;
 
   // ─── 4. Resolve Quantity (share_amount) ───
-  //
-  // Dime! receipts have 4 layout types with different quantity locations:
-  //   Layout A (Fractional BUY / Market): bold = currency amount, qty in table (จำนวนหุ้น)
-  //   Layout B (Whole BUY / Limit):       bold = "N หุ้น", NO qty in table
-  //   Layout C (Whole SELL / Limit):      bold = "N หุ้น", NO qty in table
-  //   Layout D (Fractional SELL / Market): bold = "N.NNNN หุ้น", NO qty in table
-  //
-  // RULE: If bold contains "หุ้น" or "หน่วย", the quantity IS in the bold text.
-  //       Otherwise, the quantity is in the table (qty_table) — but only if valid.
   let share_amount = 0;
 
-  // 4.1 Check if bold_amount directly contains the share count
-  const isBoldUnitCount = boldText.includes("หุ้น") || boldText.includes("หน่วย") || boldText.includes("share") || boldText.includes("unit");
-
-  if (isBoldUnitCount && boldNum > 0) {
-    // ══ Layouts B, C, D: Bold text contains the share count ══
-    // Works for both integer ("60 หุ้น") and fractional ("100.5480039 หุ้น")
-    share_amount = boldNum;
+  if (isWebull) {
+    // Webull slips explicitly list qty in qty_table or bold_amount
+    share_amount = qtyTable > 0 ? qtyTable : (boldNum > 0 ? boldNum : 0);
   } else {
-    // ══ Layout A: Bold text is a currency amount, qty should be in table ══
-    // Use exchange rate from AI if available, otherwise default
-    const rate = exchangeRate > 0 ? exchangeRate : 35.0;
+    // Dime! fractional/whole logic
+    const isBoldUnitCount = boldText.includes("หุ้น") || boldText.includes("หน่วย") || boldText.includes("share") || boldText.includes("unit");
 
-    // Convert stock_value to USD for cross-validation
-    const stockValueUsd = stockValue > 0 ? (hasTHBUnit ? stockValue / rate : stockValue) : 0;
+    if (isBoldUnitCount && boldNum > 0) {
+      share_amount = boldNum;
+    } else {
+      const rate = exchangeRate > 0 ? exchangeRate : 35.0;
+      const stockValueUsd = stockValue > 0 ? (hasTHBUnit ? stockValue / rate : stockValue) : 0;
 
-    // Calculate expected quantity from stock_value / price for cross-validation
-    let expectedQty = 0;
-    if (price > 0 && stockValueUsd > 0) {
-      expectedQty = stockValueUsd / price;
-    }
-
-    // Get decimal count of qty_table raw string
-    const rawQtyStr = String(raw.qty_table || "").trim();
-    const decimalPart = rawQtyStr.split(".")[1] || "";
-    const decimalCount = decimalPart.length;
-
-    // Trust qty_table if it has 5+ decimal places (definitely a fractional share count)
-    if (qtyTable > 0 && decimalCount >= 5) {
-      share_amount = qtyTable;
-    } else if (qtyTable > 0 && expectedQty > 0) {
-      // Cross-validate: check if qty_table is close to expected
-      const diffPercent = Math.abs(qtyTable - expectedQty) / expectedQty;
-      if (diffPercent < 0.15) {
-        // qty_table matches expected — use it
-        share_amount = qtyTable;
-      } else {
-        // qty_table is way off (likely commission/VAT/stock_value) — use calculated
-        share_amount = expectedQty;
+      let expectedQty = 0;
+      if (price > 0 && stockValueUsd > 0) {
+        expectedQty = stockValueUsd / price;
       }
-    } else if (expectedQty > 0) {
-      // No valid qty_table, fall back to calculated
-      share_amount = expectedQty;
-    } else if (qtyTable > 0) {
-      // Last resort: use qty_table even without cross-validation
-      share_amount = qtyTable;
-    } else if (boldNum > 0 && price > 0) {
-      // Fallback: compute from boldNum (total) / price
-      const computedBoldUsd = hasTHBUnit ? boldNum / rate : boldNum;
-      share_amount = computedBoldUsd / price;
+
+      const rawQtyStr = String(raw.qty_table || "").trim();
+      const decimalPart = rawQtyStr.split(".")[1] || "";
+      const decimalCount = decimalPart.length;
+
+      if (qtyTable > 0 && decimalCount >= 5) {
+        share_amount = qtyTable;
+      } else if (qtyTable > 0 && expectedQty > 0) {
+        const diffPercent = Math.abs(qtyTable - expectedQty) / expectedQty;
+        if (diffPercent < 0.15) {
+          share_amount = qtyTable;
+        } else {
+          share_amount = expectedQty;
+        }
+      } else if (expectedQty > 0) {
+        share_amount = expectedQty;
+      } else if (qtyTable > 0) {
+        share_amount = qtyTable;
+      } else if (boldNum > 0 && price > 0) {
+        const computedBoldUsd = hasTHBUnit ? boldNum / rate : boldNum;
+        share_amount = computedBoldUsd / price;
+      }
     }
-  }
 
-  // Final safety: if share_amount × price grossly exceeds stock_value, it's likely
-  // the total monetary value was used as quantity — correct it by dividing by price.
-  // We compare against stock_value instead of a hardcoded threshold to avoid
-  // incorrectly "correcting" legitimate large share counts.
-  if (share_amount > 0 && price > 0 && !isBoldUnitCount) {
-    const impliedTotal = share_amount * price;
-    const rate = exchangeRate > 0 ? exchangeRate : 35.0;
-    const stockValueUsd = stockValue > 0 ? (hasTHBUnit ? stockValue / rate : stockValue) : 0;
+    // Final safety cross-check for Dime!
+    if (share_amount > 0 && price > 0) {
+      const impliedTotal = share_amount * price;
+      const rate = exchangeRate > 0 ? exchangeRate : 35.0;
+      const stockValueUsd = stockValue > 0 ? (hasTHBUnit ? stockValue / rate : stockValue) : 0;
 
-    if (stockValueUsd > 0) {
-      // If implied total is more than 3× stock value, share_amount is wrong
-      if (impliedTotal > stockValueUsd * 3) {
-        const corrected = stockValueUsd / price;
+      if (stockValueUsd > 0) {
+        if (impliedTotal > stockValueUsd * 3) {
+          const corrected = stockValueUsd / price;
+          if (corrected > 0.0001) {
+            share_amount = corrected;
+          }
+        }
+      } else if (impliedTotal > 500000) {
+        const corrected = share_amount / price;
         if (corrected > 0.0001) {
           share_amount = corrected;
         }
-      }
-    } else if (impliedTotal > 500000) {
-      // Legacy fallback: no stock_value available, use $500K absolute threshold
-      const corrected = share_amount / price;
-      if (corrected > 0.0001) {
-        share_amount = corrected;
       }
     }
   }
@@ -415,7 +383,7 @@ function validateSlipData(raw) {
     timestamp = "";
   }
 
-  return { action, symbol, actual_price: price, share_amount, timestamp };
+  return { action, symbol, actual_price: price, share_amount, timestamp, broker };
 }
 
 /**
