@@ -2,6 +2,29 @@ import React from "react";
 import { Search, X } from "lucide-react";
 import { getDisplaySymbol } from "../../utils/assetHelpers";
 
+const POPULAR_STOCKS = [
+  { symbol: "AAPL", name: "Apple Inc. (แอปเปิ้ล)", exchange: "NASDAQ", type: "EQUITY" },
+  { symbol: "NVDA", name: "NVIDIA Corporation (เอ็นวิเดีย)", exchange: "NASDAQ", type: "EQUITY" },
+  { symbol: "TSLA", name: "Tesla, Inc. (เทสลา)", exchange: "NASDAQ", type: "EQUITY" },
+  { symbol: "MSFT", name: "Microsoft Corporation (ไมโครซอฟท์)", exchange: "NASDAQ", type: "EQUITY" },
+  { symbol: "AMZN", name: "Amazon.com, Inc. (แอมะซอน)", exchange: "NASDAQ", type: "EQUITY" },
+  { symbol: "PTT.BK", name: "PTT Public Company Limited (ปตท.)", exchange: "SET", type: "EQUITY" },
+  { symbol: "CPALL.BK", name: "CP ALL Public Company Limited (ซีพี ออลล์)", exchange: "SET", type: "EQUITY" },
+  { symbol: "AOT.BK", name: "Airports of Thailand (ท่าอากาศยานไทย)", exchange: "SET", type: "EQUITY" },
+  { symbol: "BDMS.BK", name: "Bangkok Dusit Medical Services (กรุงเทพดุสิตเวชการ)", exchange: "SET", type: "EQUITY" },
+  { symbol: "KBANK.BK", name: "Kasikornbank Public Company (ธนาคารกสิกรไทย)", exchange: "SET", type: "EQUITY" }
+];
+
+const POPULAR_CRYPTOS = [
+  { symbol: "BTC-USD", name: "Bitcoin (บิตคอยน์ / BTC)", exchange: "CCY", type: "CRYPTO" },
+  { symbol: "ETH-USD", name: "Ethereum (อีเธอเรียม / ETH)", exchange: "CCY", type: "CRYPTO" },
+  { symbol: "SOL-USD", name: "Solana (โซลานา / SOL)", exchange: "CCY", type: "CRYPTO" },
+  { symbol: "BNB-USD", name: "BNB (บีเอ็นบี / BNB)", exchange: "CCY", type: "CRYPTO" },
+  { symbol: "XRP-USD", name: "Ripple (ริปเปิล / XRP)", exchange: "CCY", type: "CRYPTO" },
+  { symbol: "ADA-USD", name: "Cardano (คาร์ดาโน / ADA)", exchange: "CCY", type: "CRYPTO" },
+  { symbol: "DOGE-USD", name: "Dogecoin (ดอจคอยน์ / DOGE)", exchange: "CCY", type: "CRYPTO" }
+];
+
 export default function AssetSearchSelector({
   type,
   symbol,
@@ -55,6 +78,11 @@ export default function AssetSearchSelector({
     );
   }
 
+  const isQueryEmpty = !query.trim();
+  const displaySuggestions = isQueryEmpty
+    ? (type === "stock" ? POPULAR_STOCKS : POPULAR_CRYPTOS)
+    : suggestions;
+
   return (
     <div className="form-group">
       <label className="form-label">{!editingAsset ? (type === "stock" ? "ค้นหาหุ้น (ชื่อย่อหรือชื่อบริษัท)" : "ค้นหาเหรียญ (เช่น Bitcoin, SOL)") : "สินทรัพย์"}</label>
@@ -69,11 +97,21 @@ export default function AssetSearchSelector({
       ) : (
         <div style={{ position: "relative" }}>
           <Search size={17} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#94A3B8", pointerEvents: "none" }} />
-          <input type="text" className="form-input" style={{ paddingLeft: 44 }} placeholder={type === "stock" ? "พิมพ์ชื่อหุ้น เช่น Apple, NVDA, PTT, CPALL…" : "พิมพ์ เช่น Bitcoin, ETH, SOL…"} value={query} autoFocus onChange={e => { setQuery(e.target.value); setConfirmed(false); }} onFocus={() => { if (suggestions.length > 0) setShowDrop(true); }} onBlur={() => setTimeout(() => setShowDrop(false), 180)} />
+          <input
+            type="text"
+            className="form-input"
+            style={{ paddingLeft: 44 }}
+            placeholder={type === "stock" ? "พิมพ์ชื่อหุ้น เช่น Apple, NVDA, PTT, CPALL…" : "พิมพ์ เช่น Bitcoin, ETH, SOL…"}
+            value={query}
+            autoFocus
+            onChange={e => { setQuery(e.target.value); setConfirmed(false); setShowDrop(true); }}
+            onFocus={() => setShowDrop(true)}
+            onBlur={() => setTimeout(() => setShowDrop(false), 200)}
+          />
           {searching && <div className="spinner sm" style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)" }} />}
-          {showDrop && suggestions.length > 0 && (
+          {showDrop && displaySuggestions.length > 0 && (
             <div className="suggestions-dropdown">
-              {suggestions.map(item => (
+              {displaySuggestions.map(item => (
                 <div key={item.symbol} className="suggestion-item" onMouseDown={(e) => { e.preventDefault(); pickSuggestion(item); }}>
                   <div className="suggestion-left"><span className="suggestion-symbol">{getDisplaySymbol(item.symbol)}</span><span className="suggestion-name">{item.name}</span></div>
                   <div className="suggestion-right"><span className="suggestion-exchange">{item.exchange}</span><span style={{ fontSize: 9, color: "var(--text-muted)", textTransform: "uppercase" }}>{item.type}</span></div>
@@ -81,13 +119,6 @@ export default function AssetSearchSelector({
               ))}
             </div>
           )}
-        </div>
-      )}
-      {!editingAsset && !confirmed && type === "crypto" && (
-        <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {[["BTC-USD","Bitcoin"],["ETH-USD","Ethereum"],["SOL-USD","Solana"],["BNB-USD","BNB"]].map(([s,n]) => (
-            <button key={s} type="button" className="ripple-btn" style={{ height: 28, borderRadius: 8, padding: "0 10px", fontSize: 11, fontWeight: 700, background: "#FFF7ED", border: "1px solid #FED7AA", cursor: "pointer", fontFamily: "inherit" }} onMouseDown={(e) => { e.preventDefault(); applyPreset(s, n); }}>{s.split("-")[0]}</button>
-          ))}
         </div>
       )}
     </div>

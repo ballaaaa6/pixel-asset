@@ -88,7 +88,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
   useEffect(() => {
     if (confirmed || editingAsset) return;
     clearTimeout(debounceRef.current);
-    if (!query.trim()) { setSuggestions([]); setShowDrop(false); return; }
+    if (!query.trim()) { setSuggestions([]); return; }
     setSearching(true);
     debounceRef.current = setTimeout(async () => {
       try {
