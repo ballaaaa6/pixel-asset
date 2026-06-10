@@ -806,6 +806,96 @@ html, body {
   font-weight: 700;
 }
 
+/* Custom Dropdown Styling */
+.custom-dropdown-container {
+  position: relative;
+  display: inline-block;
+  font-family: var(--font-family);
+  user-select: none;
+}
+
+.custom-dropdown-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #F1F5F9;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 5px 12px;
+  font-family: var(--font-family);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: var(--transition);
+  outline: none;
+}
+
+.custom-dropdown-toggle:hover {
+  background: var(--primary-light);
+  border-color: var(--border-focus);
+  color: var(--primary);
+}
+
+.custom-dropdown-toggle:active {
+  transform: scale(0.97);
+}
+
+.custom-dropdown-toggle .chevron {
+  transition: transform 0.2s ease;
+  color: var(--text-muted);
+}
+
+.custom-dropdown-toggle.open .chevron {
+  transform: rotate(180deg);
+  color: var(--primary);
+}
+
+.custom-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 1000;
+  min-width: 190px;
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px;
+  box-shadow: var(--shadow-md);
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.custom-dropdown-menu.open {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.custom-dropdown-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.custom-dropdown-item:hover {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.custom-dropdown-item.active {
+  background: var(--primary);
+  color: #FFFFFF;
+}
+
 .chart-area-wrapper {
   position: relative;
   min-height: 180px;

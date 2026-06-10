@@ -4,8 +4,17 @@ import { fmtUSD, fmtPct, fmtQty } from "../../utils/formatters";
 import { usePortfolioChart } from "../../hooks/usePortfolioChart";
 import { PortfolioChartSVG } from "./PortfolioChartSVG";
 import { PortfolioChartTooltip } from "./PortfolioChartTooltip";
+import { CustomDropdown } from "../common/CustomDropdown";
 
 const RANGES = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "5Y", "MAX"];
+
+const CATEGORY_OPTIONS = [
+  { value: "all", label: "รวมทั้งหมด (All)" },
+  { value: "stock", label: "หุ้น (Stocks)" },
+  { value: "crypto", label: "คริปโต (Crypto)" },
+  { value: "gold", label: "ทองคำ/น้ำมัน (Gold/Oil)" },
+  { value: "fiat", label: "เงินสด (Cash/Fiat)" }
+];
 
 export function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate, prices, hideValues, chartCategory, setChartCategory }) {
   const {
@@ -46,27 +55,11 @@ export function PortfolioChart({ history, range, onRangeChange, assets, exchange
       <div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <span className="card-section-title" style={{ marginBottom: 0 }}>📈 มูลค่าพอร์ต & ต้นทุนรวม</span>
-          <select
+          <CustomDropdown
             value={chartCategory}
-            onChange={(e) => setChartCategory(e.target.value)}
-            style={{
-              background: "#F1F5F9",
-              border: "none",
-              borderRadius: 8,
-              padding: "4px 8px",
-              fontSize: 12,
-              fontWeight: 700,
-              color: "var(--text-main)",
-              cursor: "pointer",
-              outline: "none"
-            }}
-          >
-            <option value="all">รวมทั้งหมด (All)</option>
-            <option value="stock">หุ้น (Stocks)</option>
-            <option value="crypto">คริปโต (Crypto)</option>
-            <option value="gold">ทองคำ/น้ำมัน (Gold/Oil)</option>
-            <option value="fiat">เงินสด (Cash/Fiat)</option>
-          </select>
+            onChange={setChartCategory}
+            options={CATEGORY_OPTIONS}
+          />
         </div>
         {history && history.length >= 2 && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
