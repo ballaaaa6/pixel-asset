@@ -239,7 +239,7 @@ export default function BrokerBadge({ broker }) {
   return (
     <span style={{
       ...baseStyle,
-      color: "var(--text-main, #0F172A)",
+      color: color1,
       background: `linear-gradient(var(--bg-card, #FFFFFF), var(--bg-card, #FFFFFF)) padding-box, linear-gradient(135deg, ${color1} 50%, ${color2} 50%) border-box`,
       border: "1.5px solid transparent"
     }}>

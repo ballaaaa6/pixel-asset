@@ -41,6 +41,7 @@ Extract the data into a JSON object with the following fields. Do not translate 
   "order_type": "The order type: 'Market' or 'Limit' (For Webull, 'กำหนดราคา' is 'Limit')",
   "raw_date": "The date-time string. For Dime: next to 'วันที่ส่งคำสั่ง'. For Webull: next to 'คำสั่งถูกจับคู่สำเร็จ' (e.g. '11/08/2025 13:36:05 EDT')",
   "broker": "The broker name if visible or identifiable from the receipt layout (e.g. 'Dime!' or 'Webull' or 'Webull Thailand')",
+  "webull_order_type": "For Webull slips, transcribe the exact value next to the label 'คำสั่ง' (e.g. 'ซื้อ' or 'ขาย'). Return 'N/A' if not a Webull slip.",
   "has_received_cash_back_label": true or false, indicating if a sell-related label like 'ยอดที่จะได้รับคืน' or 'เงินค่าขายคืน' or a 'ขาย' (sell) order is present,
   "has_payment_amount_label": true or false, indicating if a buy-related label like 'ยอดที่ต้องชำระ' or 'ซื้อ' (buy) order is present
 }
@@ -96,11 +97,46 @@ function crossValidateShareAmount(shareAmount, actualPrice) {
   return shareAmount;
 }
 
+function parseWebullDateTimeToThaiISO(rawStr) {
+  if (!rawStr) return null;
+  const match = rawStr.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})\s+([A-Z]{3,4})/i);
+  if (!match) return null;
+
+  const day = parseInt(match[1], 10);
+  const month = parseInt(match[2], 10) - 1;
+  const year = parseInt(match[3], 10);
+  const hour = parseInt(match[4], 10);
+  const minute = parseInt(match[5], 10);
+  const second = parseInt(match[6], 10);
+  const tz = match[7].toUpperCase();
+
+  let offsetHours = -5; // Default to EST
+  if (tz === "EDT") offsetHours = -4;
+  else if (tz === "EST") offsetHours = -5;
+  else if (tz === "ICT" || tz === "THA") offsetHours = 7;
+  else if (tz === "UTC" || tz === "GMT") offsetHours = 0;
+
+  const utcDate = new Date(Date.UTC(year, month, day, hour - offsetHours, minute, second));
+  const thaiDate = new Date(utcDate.getTime() + (7 * 60 * 60 * 1000));
+
+  const yyyy = thaiDate.getUTCFullYear();
+  const mm = String(thaiDate.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(thaiDate.getUTCDate()).padStart(2, "0");
+  const hh = String(thaiDate.getUTCHours()).padStart(2, "0");
+  const min = String(thaiDate.getUTCMinutes()).padStart(2, "0");
+  const sec = String(thaiDate.getUTCSeconds()).padStart(2, "0");
+
+  return `${yyyy}-${mm}-${dd}T${hh}:${min}:${sec}`;
+}
+
 /**
  * Parse a raw Thai date string into ISO 8601 (YYYY-MM-DDTHH:MM:SS) format.
  */
 function parseThaiDateToISO(rawStr) {
   if (!rawStr || typeof rawStr !== "string") return "";
+
+  const webullISO = parseWebullDateTimeToThaiISO(rawStr);
+  if (webullISO) return webullISO;
 
   // 1. Try to match Thai Date layout with explicit months: e.g. "22 ก.ค. 68" or "22 ก.ค. 2025" or "22ก.ค.68"
   const dayMatch = rawStr.match(/(?:ณ\s+|ส่งคำสั่ง\s+|สำเร็จ\s+)?(\d{1,2})\s*(ม\.ค\.|ก\.พ\.|มี\.ค\.|เม\.ย\.|พ\.ค\.|มิ\.ย\.|ก\.ค\.|ส\.ค\.|ก\.ย\.|ต\.ค\.|พ\.ย\.|ธ\.ค\.|ม\.ค|ก\.พ|มี\.ค|เม\.ย|พ\.ค|มิ\.ย|ก\.ค|ส\.ค|ก\.ย|ต\.ค|พ\.ย|ธ\.ค|มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)\s*(\d{2,4})/);
@@ -192,6 +228,14 @@ function validateSlipData(raw) {
   const bold = String(raw.bold_amount || "").toLowerCase();
   const color = String(raw.header_color || "").toLowerCase();
   const allText = JSON.stringify(raw).toLowerCase();
+
+  // Heuristic 1.0: Check Webull explicit order type
+  const webullOrder = String(raw.webull_order_type || "").toLowerCase();
+  if (webullOrder.includes("ซื้อ") || webullOrder.includes("buy")) {
+    action = "BUY";
+  } else if (webullOrder.includes("ขาย") || webullOrder.includes("sell")) {
+    action = "SELL";
+  }
 
   // Heuristic 1.1: Check the explicit boolean labels from receipt contents (highly reliable)
   const hasCashBack = raw.has_received_cash_back_label === true || raw.has_received_cash_back_label === "true";
