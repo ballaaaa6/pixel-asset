@@ -79,9 +79,16 @@ export default function AssetSearchSelector({
   }
 
   const isQueryEmpty = !query.trim();
+  const filteredSuggestions = (suggestions || []).filter(item => {
+    const t = (item.type || "").toUpperCase();
+    if (type === "stock") return t === "EQUITY" || t === "ETF" || t === "MUTUALFUND";
+    if (type === "crypto") return t === "CRYPTOCURRENCY" || t === "CCC" || t === "CRYPTO";
+    if (type === "gold") return t === "FUTURE";
+    return true;
+  });
   const displaySuggestions = isQueryEmpty
     ? (type === "stock" ? POPULAR_STOCKS : POPULAR_CRYPTOS)
-    : suggestions;
+    : filteredSuggestions;
 
   return (
     <div className="form-group">
