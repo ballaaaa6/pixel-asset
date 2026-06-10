@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/check-file-size.js 400",
     "build": "vite build",
     "preview": "vite preview",
+    "lint:size": "node scripts/check-file-size.js 400",
     "local-api": "wrangler pages dev dist --kv=PORTFOLIOS --live-reload --compatibility-date 2025-07-18",
     "serve": "npm run build; npx wrangler pages dev dist --port 8788 --compatibility-date 2025-07-18"
   },
