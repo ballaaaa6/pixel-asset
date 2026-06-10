@@ -10,6 +10,8 @@ export function calculatePortfolioHistoryTimeline(sparklines, assets, prices, ex
   }
 
   const isShortTF = chartRange === "1D" || chartRange === "5D" || chartRange === "1W";
+  const latestIso = new Date().toISOString();
+  const latestDateOnly = latestIso.split("T")[0];
 
   const symbolPriceHistories = {};
   Object.keys(sparklines).forEach(sym => {
@@ -26,8 +28,7 @@ export function calculatePortfolioHistoryTimeline(sparklines, assets, prices, ex
 
   const getPriceOnDate = (sym, targetDateStr) => {
     const points = symbolPriceHistories[sym.toUpperCase()];
-    const todayStr = new Date().toISOString().split("T")[0];
-    if (!isShortTF && targetDateStr.startsWith(todayStr)) {
+    if (targetDateStr === latestIso || targetDateStr === latestDateOnly || targetDateStr.startsWith(latestDateOnly)) {
       const livePrice = prices[sym.toUpperCase()]?.price;
       if (livePrice != null && livePrice > 0) {
         return livePrice;
@@ -77,9 +78,9 @@ export function calculatePortfolioHistoryTimeline(sparklines, assets, prices, ex
   }
 
   if (isShortTF) {
-    allDatesSet.add(new Date().toISOString());
+    allDatesSet.add(latestIso);
   } else {
-    allDatesSet.add(new Date().toISOString().split("T")[0]);
+    allDatesSet.add(latestDateOnly);
   }
 
   let timeline = Array.from(allDatesSet).sort((a, b) => a.localeCompare(b));

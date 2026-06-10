@@ -99,7 +99,7 @@ export async function onRequestGet(context) {
       if (missingSymbols.length > 0) {
         const historyFetches = missingSymbols.map(async (symbol) => {
           try {
-            const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`;
+            const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}&includePrePost=true`;
             const resp = await fetch(chartUrl, { headers: YF_HEADERS });
             if (!resp.ok) return { symbol, dates: [], closes: [] };
 
@@ -302,7 +302,7 @@ export async function onRequestGet(context) {
       };
       const { range, interval } = tfMap[tf] || tfMap["1M"];
 
-      const chartUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}&includePrePost=false`;
+      const chartUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}&includePrePost=true`;
       const resp = await fetch(chartUrl, { headers: YF_HEADERS });
       if (!resp.ok) {
         return new Response(JSON.stringify({ error: "ดึงข้อมูลไม่สำเร็จ", status: resp.status }), { status: resp.status, headers: corsHeaders });
