@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { History, ShoppingCart, ChevronUp, ChevronDown } from "lucide-react";
 import { fmtDateShort } from "../../utils/formatters";
+import BrokerBadge from "../common/BrokerBadge";
 
 export function AssetTransactionHistory({
   lots,
@@ -95,17 +96,8 @@ export function AssetTransactionHistory({
                     <td style={{ padding: "9px 12px", color: "var(--text-muted)" }}>
                       <div>{fmtDateShort(lot.date)} {lot.time ? `· ${lot.time} น.` : ""}</div>
                       {lot.broker && (
-                        <div style={{
-                          fontSize: 10,
-                          fontWeight: 700,
-                          color: "var(--primary)",
-                          background: "var(--primary-light)",
-                          padding: "1px 6px",
-                          borderRadius: 4,
-                          display: "inline-block",
-                          marginTop: 3
-                        }}>
-                          {lot.broker}
+                        <div style={{ marginTop: 3 }}>
+                          <BrokerBadge broker={lot.broker} />
                         </div>
                       )}
                     </td>

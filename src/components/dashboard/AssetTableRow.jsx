@@ -3,6 +3,7 @@ import { Plus, Trash2 } from "lucide-react";
 import AssetLogo from "../common/AssetLogo";
 import MarketBadge from "./MarketBadge";
 import { getDisplaySymbol, getAssetFullName } from "../../utils/assetHelpers";
+import BrokerBadge from "../common/BrokerBadge";
 
 const CATEGORY_LABELS = { stock: "หุ้น", crypto: "คริปโต", gold: "ทองคำ/น้ำมัน", fiat: "เงินสด" };
 
@@ -47,20 +48,7 @@ export default function AssetTableRow({
               <span className={`badge-type ${asset.category || "stock"}`}>
                 {asset.category === "gold" ? (asset.symbol === "CL=F" ? "น้ำมัน" : "ทองคำ") : (CATEGORY_LABELS[asset.category] || asset.category || "stock")}
               </span>
-              {asset.broker && (
-                <span style={{
-                  fontSize: 10,
-                  fontWeight: 800,
-                  color: "var(--primary)",
-                  background: "var(--primary-light)",
-                  padding: "1px 6px",
-                  borderRadius: 4,
-                  border: "1px solid rgba(82,54,255,0.15)",
-                  whiteSpace: "nowrap"
-                }}>
-                  {asset.broker}
-                </span>
-              )}
+              <BrokerBadge broker={asset.broker} />
               {!isCashAsset && isBest && (
                 <span className="best-badge">🏆 Best</span>
               )}

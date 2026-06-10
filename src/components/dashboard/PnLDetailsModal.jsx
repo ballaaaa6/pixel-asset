@@ -8,6 +8,7 @@ import {
   getCurrencyPriceUSD
 } from "../../utils/assetHelpers";
 import { fmtUSD, fmtTHB, fmtPct, fmtQty } from "../../utils/formatters";
+import BrokerBadge from "../common/BrokerBadge";
 
 const CATEGORY_LABELS = { stock: "หุ้น", crypto: "คริปโต", gold: "ทองคำ/น้ำมัน", fiat: "เงินสด" };
 
@@ -282,20 +283,7 @@ export default function PnLDetailsModal({
                           <span className={`badge-type ${item.category || "stock"}`} style={{ fontSize: 9, padding: "1px 4px", borderRadius: 4 }}>
                             {item.category === "gold" ? (item.symbol === "CL=F" ? "น้ำมัน" : "ทองคำ") : (CATEGORY_LABELS[item.category] || item.category || "stock")}
                           </span>
-                          {item.broker && (
-                            <span style={{
-                              fontSize: 10,
-                              fontWeight: 800,
-                              color: "var(--primary)",
-                              background: "var(--primary-light)",
-                              padding: "1px 6px",
-                              borderRadius: 4,
-                              border: "1px solid rgba(82,54,255,0.15)",
-                              whiteSpace: "nowrap"
-                            }}>
-                              {item.broker}
-                            </span>
-                          )}
+                          <BrokerBadge broker={item.broker} />
                         </div>
                         <div style={{ fontSize: 11, fontWeight: 500, color: "var(--text-muted)", marginTop: 2 }}>{getAssetFullName(item.symbol, item.name, item.category)}</div>
                       </td>

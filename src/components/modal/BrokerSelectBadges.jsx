@@ -2,55 +2,152 @@ import React from "react";
 
 const OPTIONS_BY_TYPE = {
   stock: [
-    { name: "Dime!", colors: ["#22C55E"] },
-    { name: "Webull", colors: ["#0052FF", "#00C2FF"] },
-    { name: "Streaming", colors: ["#0B3C95"] }
+    { name: "Dime! (Kiatnakin Phatra / เกียรตินาคินภัทร)" },
+    { name: "Webull" },
+    { name: "Streaming (Settrade)" },
+    { name: "InnovestX (อินโนเวสท์ เอกซ์)" },
+    { name: "Liberator (ลิเบอเรเตอร์)" },
+    { name: "Kasikorn Securities (หลักทรัพย์กสิกรไทย / KS)" },
+    { name: "Bualuang Securities (หลักทรัพย์บัวหลวง / BLS)" },
+    { name: "SCB Securities (หลักทรัพย์ไทยพาณิชย์ / SCBS)" },
+    { name: "Krungsri Securities (หลักทรัพย์กรุงศรี / KSS)" },
+    { name: "Thanachart Securities (หลักทรัพย์ธนชาต / TNS)" },
+    { name: "Finansia Syrus (หลักทรัพย์ฟินันเซีย ไซรัส / FSS)" },
+    { name: "Pi Securities (หลักทรัพย์พาย / Pi)" },
+    { name: "Interactive Brokers (IBKR)" },
+    { name: "Robinhood" },
+    { name: "Charles Schwab" },
+    { name: "eToro" },
+    { name: "Trading 212" },
+    { name: "Plus500" }
   ],
   gold: [
-    { name: "Dime!", colors: ["#22C55E"] },
-    { name: "Webull", colors: ["#0052FF", "#00C2FF"] },
-    { name: "Streaming", colors: ["#0B3C95"] }
+    { name: "Dime! (Kiatnakin Phatra / เกียรตินาคินภัทร)" },
+    { name: "Webull" },
+    { name: "Streaming (Settrade)" },
+    { name: "InnovestX (อินโนเวสท์ เอกซ์)" },
+    { name: "Kasikorn Securities (หลักทรัพย์กสิกรไทย / KS)" },
+    { name: "Bualuang Securities (หลักทรัพย์บัวหลวง / BLS)" },
+    { name: "Interactive Brokers (IBKR)" },
+    { name: "eToro" },
+    { name: "Plus500" }
   ],
   crypto: [
-    { name: "Bitkub", colors: ["#00E575"] },
-    { name: "Binance TH", colors: ["#F0B90B", "#181A20"] },
-    { name: "Binance Global", colors: ["#F0B90B", "#181A20"] }
+    { name: "Bitkub (บิทคับ)" },
+    { name: "Binance TH (ไบแนนซ์ ประเทศไทย)" },
+    { name: "Binance Global (ไบแนนซ์ โกลบอล)" },
+    { name: "Orbix (ออร์บิกซ์)" },
+    { name: "Bitazza (บิทาซซ่า)" },
+    { name: "InnovestX Crypto (อินโนเวสท์ เอกซ์ คริปโต)" },
+    { name: "Upbit Thailand (อัพบิต ประเทศไทย)" },
+    { name: "Coinbase" },
+    { name: "OKX" },
+    { name: "Bybit" },
+    { name: "Kraken" },
+    { name: "KuCoin" },
+    { name: "Gate.io" },
+    { name: "Bitfinex" },
+    { name: "Metamask" },
+    { name: "Ledger Wallet" },
+    { name: "Trezor Wallet" },
+    { name: "Trust Wallet" }
   ],
   fiat: {
     THB: [
-      { name: "กสิกรไทย", colors: ["#138F5B"] },
-      { name: "ไทยพาณิชย์", colors: ["#4E2E7F"] },
-      { name: "กรุงเทพ", colors: ["#003399"] },
-      { name: "กรุงศรี", colors: ["#ECC538"] },
-      { name: "กรุงไทย", colors: ["#00A4E4"] },
-      { name: "ทีทีบี", colors: ["#005DFE", "#FF5000"] }
+      { name: "กสิกรไทย (Kasikornbank / KBank)" },
+      { name: "ไทยพาณิชย์ (Siam Commercial Bank / SCB)" },
+      { name: "กรุงเทพ (Bangkok Bank / BBL)" },
+      { name: "กรุงศรีอยุธยา (Bank of Ayudhya / Krungsri)" },
+      { name: "กรุงไทย (Krungthai Bank / KTB)" },
+      { name: "ทหารไทยธนชาต (TMBThanachart / ttb)" },
+      { name: "ออมสิน (Government Savings Bank / GSB)" },
+      { name: "ธ.ก.ส. (Bank for Agriculture and Agricultural Cooperatives / BAAC)" },
+      { name: "อาคารสงเคราะห์ (Government Housing Bank / GH Bank)" },
+      { name: "เกียรตินาคินภัทร (Kiatnakin Phatra Bank / KKP)" },
+      { name: "ซีไอเอ็มบี ไทย (CIMB Thai Bank)" },
+      { name: "ยูโอบี (United Overseas Bank / UOB)" },
+      { name: "แลนด์ แอนด์ เฮ้าส์ (Land and Houses Bank / LH Bank)" }
     ],
     USD: [
-      { name: "JPMorgan Chase", colors: ["#0A4376"] },
-      { name: "Bank of America", colors: ["#E31837", "#0A2540"] },
-      { name: "Wells Fargo", colors: ["#D11241", "#FFD700"] },
-      { name: "Citi", colors: ["#004B87", "#ED1C24"] }
+      { name: "JPMorgan Chase" },
+      { name: "Bank of America" },
+      { name: "Wells Fargo" },
+      { name: "Citigroup (Citi)" },
+      { name: "Goldman Sachs" },
+      { name: "Morgan Stanley" },
+      { name: "U.S. Bank" },
+      { name: "Truist Bank" },
+      { name: "PNC Bank" },
+      { name: "Capital One" }
     ],
     EUR: [
-      { name: "Deutsche Bank", colors: ["#0018A8"] },
-      { name: "BNP Paribas", colors: ["#009A5A"] },
-      { name: "Santander", colors: ["#EC0000"] },
-      { name: "HSBC", colors: ["#DB0011", "#7F7F7F"] }
+      { name: "Deutsche Bank" },
+      { name: "BNP Paribas" },
+      { name: "Banco Santander" },
+      { name: "Crédit Agricole" },
+      { name: "Société Générale" },
+      { name: "Intesa Sanpaolo" },
+      { name: "ING Group" },
+      { name: "Barclays" },
+      { name: "HSBC Bank" },
+      { name: "UBS" }
     ],
     GBP: [
-      { name: "Barclays", colors: ["#00AEEF"] },
-      { name: "HSBC", colors: ["#DB0011", "#7F7F7F"] },
-      { name: "Lloyds Bank", colors: ["#006A4E"] }
+      { name: "Barclays" },
+      { name: "HSBC UK" },
+      { name: "Lloyds Bank" },
+      { name: "NatWest" },
+      { name: "Royal Bank of Scotland (RBS)" },
+      { name: "Santander UK" },
+      { name: "Nationwide Building Society" },
+      { name: "Standard Chartered" }
     ],
     JPY: [
-      { name: "MUFG", colors: ["#E60012"] },
-      { name: "SMBC", colors: ["#00793C", "#FFF100"] },
-      { name: "Mizuho", colors: ["#000099"] }
+      { name: "三菱UFJ銀行 (MUFG Bank)" },
+      { name: "三井住友銀行 (SMBC / Sumitomo Mitsui Banking Corporation)" },
+      { name: "みずほ銀行 (Mizuho Bank)" },
+      { name: "ゆうちょ銀行 (Japan Post Bank)" },
+      { name: "りそな銀行 (Resona Bank)" },
+      { name: "住信SBIネット銀行 (SBI Sumishin Net Bank)" },
+      { name: "楽天銀行 (Rakuten Bank)" }
+    ],
+    CNY: [
+      { name: "中国工商银行 (Industrial and Commercial Bank of China / ICBC)" },
+      { name: "中国建设银行 (China Construction Bank / CCB)" },
+      { name: "中国农业银行 (Agricultural Bank of China / ABC)" },
+      { name: "中国银行 (Bank of China / BOC)" },
+      { name: "交通银行 (Bank of Communications / BOCOM)" }
+    ],
+    KRW: [
+      { name: "KB국민은행 (KB Kookmin Bank)" },
+      { name: "신한은행 (Shinhan Bank)" },
+      { name: "하나은행 (Hana Bank)" },
+      { name: "우리은행 (Woori Bank)" },
+      { name: "IBK기업은행 (Industrial Bank of Korea / IBK)" },
+      { name: "카카오뱅크 (KakaoBank)" }
+    ],
+    SGD: [
+      { name: "DBS Bank" },
+      { name: "OCBC Bank" },
+      { name: "UOB Bank" }
+    ],
+    AUD: [
+      { name: "Commonwealth Bank of Australia (CBA)" },
+      { name: "Westpac" },
+      { name: "ANZ Bank" },
+      { name: "National Australia Bank (NAB)" }
+    ],
+    HKD: [
+      { name: "HSBC Hong Kong" },
+      { name: "中國銀行(香港) (Bank of China Hong Kong / BOCHK)" },
+      { name: "恒生銀行 (Hang Seng Bank)" },
+      { name: "Standard Chartered Hong Kong" }
     ],
     default: [
-      { name: "Revolut", colors: ["#EB008B", "#00A4E4"] },
-      { name: "Wise", colors: ["#9FE870"] },
-      { name: "PayPal", colors: ["#003087", "#0079C1"] }
+      { name: "Wise" },
+      { name: "Revolut" },
+      { name: "PayPal" },
+      { name: "Payoneer" }
     ]
   }
 };
@@ -74,60 +171,6 @@ export default function BrokerSelectBadges({ type, symbol, value, onChange }) {
 
   if (filteredOptions.length === 0) return null;
 
-  const getBadgeStyle = (colors, isSelected) => {
-    const baseStyle = {
-      padding: "8px 12px",
-      fontSize: "12px",
-      borderRadius: "10px",
-      cursor: "pointer",
-      width: "calc(100% - 16px)",
-      margin: "4px 8px",
-      textAlign: "left",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      transition: "var(--transition)",
-      boxSizing: "border-box",
-      fontFamily: "inherit",
-      boxShadow: "var(--shadow-sm)"
-    };
-
-    if (colors.length === 1) {
-      const color = colors[0];
-      return {
-        ...baseStyle,
-        border: `2px solid ${color}`,
-        color: isSelected ? "#FFFFFF" : color,
-        backgroundColor: isSelected ? color : "var(--bg-card, #FFFFFF)",
-        fontWeight: isSelected ? "800" : "700"
-      };
-    }
-    
-    // Two colors (diagonal split border / background)
-    const [color1, color2] = colors;
-    if (isSelected) {
-      return {
-        ...baseStyle,
-        border: "2px solid transparent",
-        backgroundImage: `linear-gradient(135deg, ${color1} 50%, ${color2} 50%)`,
-        backgroundOrigin: "border-box",
-        backgroundClip: "border-box",
-        color: "#FFFFFF",
-        fontWeight: "800"
-      };
-    } else {
-      return {
-        ...baseStyle,
-        border: "2px solid transparent",
-        backgroundImage: `linear-gradient(var(--bg-card, #FFFFFF), var(--bg-card, #FFFFFF)), linear-gradient(135deg, ${color1} 50%, ${color2} 50%)`,
-        backgroundOrigin: "border-box",
-        backgroundClip: "padding-box, border-box",
-        color: "var(--text-main, #0F172A)",
-        fontWeight: "700"
-      };
-    }
-  };
-
   return (
     <div className="suggestions-dropdown" style={{ maxHeight: 200, overflowY: "auto", padding: "4px 0", zIndex: 1000 }}>
       {filteredOptions.map((opt) => {
@@ -135,20 +178,27 @@ export default function BrokerSelectBadges({ type, symbol, value, onChange }) {
         return (
           <div
             key={opt.name}
-            style={{ padding: "2px 0" }}
+            className={`suggestion-item ${isSelected ? "active" : ""}`}
+            style={{
+              background: isSelected ? "var(--primary-light, #EEECFF)" : "transparent",
+              color: isSelected ? "var(--primary, #5236FF)" : "var(--text-main, #0F172A)",
+              fontWeight: isSelected ? "700" : "500",
+              padding: "10px 14px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              transition: "background 0.15s",
+              fontSize: "12.5px"
+            }}
+            onMouseDown={(e) => {
+              // Use onMouseDown and prevent default to prevent input blur from firing before selecting
+              e.preventDefault();
+              onChange(opt.name);
+            }}
           >
-            <button
-              type="button"
-              style={getBadgeStyle(opt.colors, isSelected)}
-              onMouseDown={(e) => {
-                // Use onMouseDown and prevent default to prevent input blur from firing before selecting
-                e.preventDefault();
-                onChange(opt.name);
-              }}
-            >
-              <span>{opt.name}</span>
-              {isSelected && <span style={{ fontSize: 10, opacity: 0.9 }}>✓ เลือกอยู่</span>}
-            </button>
+            <span>{opt.name}</span>
+            {isSelected && <span style={{ fontSize: 10, opacity: 0.9 }}>✓ เลือกอยู่</span>}
           </div>
         );
       })}
