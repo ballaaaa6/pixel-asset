@@ -31,6 +31,8 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
     prices,
     sparklines,
     portfolioHistory,
+    chartCategory,
+    setChartCategory,
     exchangeRate,
     historicalRates,
     loading,
@@ -248,6 +250,8 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
                   exchangeRate={exchangeRate}
                   prices={prices}
                   hideValues={hideValues}
+                  chartCategory={chartCategory}
+                  setChartCategory={setChartCategory}
                 />
               </div>
 

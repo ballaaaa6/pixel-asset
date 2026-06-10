@@ -7,7 +7,7 @@ import { PortfolioChartTooltip } from "./PortfolioChartTooltip";
 
 const RANGES = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "5Y", "MAX"];
 
-export function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate, prices, hideValues }) {
+export function PortfolioChart({ history, range, onRangeChange, assets, exchangeRate, prices, hideValues, chartCategory, setChartCategory }) {
   const {
     containerRef,
     hovered,
@@ -32,25 +32,6 @@ export function PortfolioChart({ history, range, onRangeChange, assets, exchange
     qty: (n) => fmtQty(n, hideValues),
   }), [hideValues]);
 
-  if (!history || history.length < 2) {
-    return (
-      <div ref={containerRef}>
-        <div className="chart-card-header">
-          <span className="card-section-title" style={{ marginBottom: 0 }}>📈 มูลค่าพอร์ต</span>
-          <div className="chart-range-tabs">
-            {RANGES.map(r => (
-              <button key={r} className={`chart-range-tab${range === r ? " active" : ""}`} onClick={() => onRangeChange(r)}>{r}</button>
-            ))}
-          </div>
-        </div>
-        <div className="chart-empty">
-          <BarChart2 size={36} strokeWidth={1.5} />
-          <p style={{ fontSize: 13, textAlign: "center" }}>เพิ่มสินทรัพย์และรอดึงข้อมูลประวัติราคา<br/>กราฟจะแสดงมูลค่าพอร์ตย้อนหลัง</p>
-        </div>
-      </div>
-    );
-  }
-
   const startVal = displayedData[0]?.value || 0;
   const endVal = displayedData[displayedData.length - 1]?.value || 0;
   const totalChange = endVal - startVal;
@@ -60,11 +41,34 @@ export function PortfolioChart({ history, range, onRangeChange, assets, exchange
   const latestVal = displayedData[displayedData.length - 1]?.value || 0;
   const pnlPercent = latestCost > 0 ? ((latestVal - latestCost) / latestCost) * 100 : 0;
 
-  return (
-    <div>
-      <div className="chart-card-header">
-        <div>
+  const renderHeader = () => (
+    <div className="chart-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 10 }}>
+      <div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <span className="card-section-title" style={{ marginBottom: 0 }}>📈 มูลค่าพอร์ต & ต้นทุนรวม</span>
+          <select
+            value={chartCategory}
+            onChange={(e) => setChartCategory(e.target.value)}
+            style={{
+              background: "#F1F5F9",
+              border: "none",
+              borderRadius: 8,
+              padding: "4px 8px",
+              fontSize: 12,
+              fontWeight: 700,
+              color: "var(--text-main)",
+              cursor: "pointer",
+              outline: "none"
+            }}
+          >
+            <option value="all">รวมทั้งหมด (All)</option>
+            <option value="stock">หุ้น (Stocks)</option>
+            <option value="crypto">คริปโต (Crypto)</option>
+            <option value="gold">ทองคำ/น้ำมัน (Gold/Oil)</option>
+            <option value="fiat">เงินสด (Cash/Fiat)</option>
+          </select>
+        </div>
+        {history && history.length >= 2 && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)" }}>
               {range} ประสิทธิภาพ:
@@ -78,14 +82,36 @@ export function PortfolioChart({ history, range, onRangeChange, assets, exchange
               </span>
             )}
           </div>
-        </div>
-        <div className="chart-range-tabs">
-          {RANGES.map(r => (
-            <button key={r} className={`chart-range-tab${range === r ? " active" : ""}`} onClick={() => onRangeChange(r)}>{r}</button>
-          ))}
+        )}
+      </div>
+      <div className="chart-range-tabs">
+        {RANGES.map(r => (
+          <button key={r} className={`chart-range-tab${range === r ? " active" : ""}`} onClick={() => onRangeChange(r)}>{r}</button>
+        ))}
+      </div>
+    </div>
+  );
+
+  if (!history || history.length < 2) {
+    return (
+      <div ref={containerRef}>
+        {renderHeader()}
+        <div className="chart-empty">
+          <BarChart2 size={36} strokeWidth={1.5} />
+          <p style={{ fontSize: 13, textAlign: "center" }}>
+            {assets.some(a => (a.category || a.type || "stock") === chartCategory)
+              ? "รอดึงข้อมูลประวัติราคาสำหรับหมวดหมู่นี้..."
+              : "ไม่มีสินทรัพย์ในหมวดหมู่นี้"}
+            <br/>กราฟจะแสดงมูลค่าพอร์ตย้อนหลัง
+          </p>
         </div>
       </div>
+    );
+  }
 
+  return (
+    <div>
+      {renderHeader()}
       <div className="chart-area-wrapper" ref={containerRef}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}

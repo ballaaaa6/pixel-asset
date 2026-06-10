@@ -13,6 +13,7 @@ export function usePortfolioData({ user, showToast, onSessionExpired }) {
   const [portfolioHistory, setPortfolioHistory] = useState([]);
   const [exchangeRate, setExchangeRate] = useState(35.0);
   const [historicalRates, setHistoricalRates] = useState({});
+  const [chartCategory, setChartCategory] = useState("all");
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -177,9 +178,21 @@ export function usePortfolioData({ user, showToast, onSessionExpired }) {
 
   // Compute portfolio history whenever data/sparklines update
   useEffect(() => {
-    const history = calculatePortfolioHistoryTimeline(sparklines, assets, prices, exchangeRate, chartRange);
+    const filteredAssets = chartCategory === "all"
+      ? assets
+      : assets.filter(a => (a.category || a.type || "stock") === chartCategory);
+
+    const filteredSparklines = {};
+    filteredAssets.forEach(a => {
+      const ticker = (a.type === "fiat" || a.category === "fiat") ? (a.symbol === "USD" ? null : getCurrencyTicker(a.symbol)) : a.symbol;
+      if (ticker && sparklines[ticker]) {
+        filteredSparklines[ticker] = sparklines[ticker];
+      }
+    });
+
+    const history = calculatePortfolioHistoryTimeline(filteredSparklines, filteredAssets, prices, exchangeRate, chartRange);
     setPortfolioHistory(history);
-  }, [sparklines, assets, prices, exchangeRate, chartRange]);
+  }, [sparklines, assets, prices, exchangeRate, chartRange, chartCategory]);
 
   // Handle auto refresh
   useEffect(() => {
@@ -303,6 +316,8 @@ export function usePortfolioData({ user, showToast, onSessionExpired }) {
     prices,
     sparklines,
     portfolioHistory,
+    chartCategory,
+    setChartCategory,
     exchangeRate,
     historicalRates,
     loading,
