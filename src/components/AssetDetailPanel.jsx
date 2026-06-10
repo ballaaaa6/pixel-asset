@@ -9,7 +9,7 @@ import { registerModal } from "../utils/modalStack";
 
 const TF_OPTIONS = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "5Y", "ตั้งแต่ซื้อ"];
 
-export default function AssetDetailPanel({ asset, price, exchangeRate, historicalRates, onClose, hideValues }) {
+export default function AssetDetailPanel({ asset, price, exchangeRate, historicalRates, onClose, hideValues, onEditLot }) {
   useEffect(() => {
     return registerModal(onClose);
   }, [onClose]);
@@ -284,6 +284,7 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, historica
           lots={lots} processedLots={processedLots} isCashAsset={isCashAsset} asset={asset} exchangeRate={exchangeRate} hideValues={hideValues}
           fmtUSD={fmtUSD} fmtTHB={fmtTHB} fmtQty={fmtQty} fmtPct={fmtPct} avgCostUSD={avgCostUSD} totalCostUSD={totalCostUSD}
           totalGainUSD={totalGainUSD} totalGainTHB={totalGainTHB} totalGainPct={totalGainPct} gainUp={gainUp}
+          onEditLot={(lot) => onEditLot && onEditLot(asset, lot)}
         />
       </div>
     </div>

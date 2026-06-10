@@ -32,47 +32,12 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
 
   // Hooks for Data & Profile
   const {
-    assets,
-    prices,
-    sparklines,
-    portfolioHistory,
-    chartCategory,
-    setChartCategory,
-    exchangeRate,
-    historicalRates,
-    loading,
-    refreshing,
-    sparklineLoading,
-    autoRefresh,
-    setAutoRefresh,
-    chartRange,
-    sortConfig,
-    priceFlash,
-    getHistoricalRate,
-    getRealizedPnLInTHB,
-    handleClearAsset,
-    handleDeleteAsset,
-    handleRangeChange,
-    handleSort,
-    handleSaveAsset,
-    fetchPrices,
-    fetchSparklines,
-    savePortfolio,
-    totalUSD,
-    totalCostUSD,
-    todayChangeUSD,
-    totalRealizedUSD,
-    totalRealizedTHB,
-    bestAsset,
-    sortedAssets,
-    donutSegments,
-    initialCapitalUSD,
-    totalUnrealizedUSD,
-    totalUnrealizedTHB,
-    totalGainTHB,
-    totalGainUSD,
-    totalGainPct,
-    todayChangePct
+    assets, prices, sparklines, portfolioHistory, chartCategory, setChartCategory, exchangeRate, historicalRates,
+    loading, refreshing, sparklineLoading, autoRefresh, setAutoRefresh, chartRange, sortConfig, priceFlash,
+    getHistoricalRate, getRealizedPnLInTHB, handleClearAsset, handleDeleteAsset, handleDeleteLot, handleEditLot,
+    handleRangeChange, handleSort, handleSaveAsset, fetchPrices, fetchSparklines, savePortfolio, totalUSD,
+    totalCostUSD, todayChangeUSD, totalRealizedUSD, totalRealizedTHB, bestAsset, sortedAssets, donutSegments,
+    initialCapitalUSD, totalUnrealizedUSD, totalUnrealizedTHB, totalGainTHB, totalGainUSD, totalGainPct, todayChangePct
   } = usePortfolioData({ user, showToast, onSessionExpired, askConfirm });
 
   const filteredAssets = useMemo(() => {
@@ -82,41 +47,23 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
   }, [assets, chartCategory]);
 
   const {
-    portfolioName,
-    setPortfolioName,
-    isEditingName,
-    setIsEditingName,
-    tempName,
-    setTempName,
-    profileModalOpen,
-    setProfileModalOpen,
-    profilePic,
-    setProfilePic,
-    avatarPreviewOpen,
-    setAvatarPreviewOpen,
-    avatarHovered,
-    setAvatarHovered,
-    presetModalOpen,
-    setPresetModalOpen,
-    nickname,
-    setNickname,
-    newNickname,
-    setNewNickname,
-    oldPassword,
-    setOldPassword,
-    newPassword,
-    setNewPassword,
-    handleSaveName,
-    handleAvatarUpload,
-    handleSaveProfile,
-    handleChangePassword,
-    syncProfileToServer
+    portfolioName, setPortfolioName, isEditingName, setIsEditingName, tempName, setTempName, profileModalOpen,
+    setProfileModalOpen, profilePic, setProfilePic, avatarPreviewOpen, setAvatarPreviewOpen, avatarHovered,
+    setAvatarHovered, presetModalOpen, setPresetModalOpen, nickname, setNickname, newNickname, setNewNickname,
+    oldPassword, setOldPassword, newPassword, setNewPassword, handleSaveName, handleAvatarUpload, handleSaveProfile,
+    handleChangePassword, syncProfileToServer
   } = useProfile({ user, showToast, onSessionExpired });
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState(null);
+  const [editingLot, setEditingLot] = useState(null);
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [showPnLDetailsModal, setShowPnLDetailsModal] = useState(false);
+
+  const currentSelectedAsset = useMemo(() => {
+    if (!selectedAsset) return null;
+    return assets.find(a => a.id === selectedAsset.id) || null;
+  }, [assets, selectedAsset]);
 
   /* ── CLEAR PORTFOLIO ── */
   const handleClearPortfolio = async () => {
@@ -276,33 +223,37 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
         <AssetModal
           isOpen={modalOpen}
           editingAsset={editingAsset}
-          onClose={() => { setModalOpen(false); setEditingAsset(null); }}
+          editingLot={editingLot}
+          onClose={() => { setModalOpen(false); setEditingAsset(null); setEditingLot(null); }}
+          onDeleteLot={async (assetId, lotId) => {
+            if (await handleDeleteLot(assetId, lotId)) {
+              setModalOpen(false);
+              setEditingAsset(null);
+              setEditingLot(null);
+            }
+          }}
           onSave={async (formData) => {
+            if (editingLot) {
+              if (await handleEditLot(editingAsset.id, editingLot.id, formData)) {
+                setModalOpen(false);
+                setEditingAsset(null);
+                setEditingLot(null);
+              }
+              return;
+            }
             const isBatch = Array.isArray(formData);
             const transactions = isBatch ? formData : [formData];
             const cleanTransactions = [];
 
             for (const tx of transactions) {
-              const sym = (tx.symbol || "").trim().toUpperCase();
-              const broker = (tx.broker || "").trim();
-              const qtyVal = parseFloat(tx.qty);
-              const priceVal = parseFloat(tx.avgPrice ?? tx.price ?? 0);
-              const txType = tx.transactionType || "BUY";
-              
-              const existingAsset = assets.find(a => 
-                a.symbol.toUpperCase() === sym && 
-                (a.broker || "").toUpperCase() === broker.toUpperCase()
-              );
-
               if (isTransactionDuplicate(tx, assets)) {
-                const typeText = txType === "BUY" 
+                const typeText = tx.transactionType === "BUY" 
                   ? ((tx.type === "fiat" || tx.category === "fiat") ? "ฝากเงินสด" : "ซื้อ")
                   : ((tx.type === "fiat" || tx.category === "fiat") ? "ถอนเงินสด" : "ขาย");
-                const qtyText = (tx.type === "fiat" || tx.category === "fiat") ? `${qtyVal} THB` : `${qtyVal} หน่วย`;
-                const currencySymbol = sym.endsWith(".BK") ? "฿" : "$";
-                const priceText = (tx.type === "fiat" || tx.category === "fiat") ? "" : ` @ ${currencySymbol}${priceVal}`;
+                const qtyText = (tx.type === "fiat" || tx.category === "fiat") ? `${tx.qty} THB` : `${tx.qty} หน่วย`;
+                const priceText = (tx.type === "fiat" || tx.category === "fiat") ? "" : ` @ ${tx.symbol.endsWith(".BK") ? "฿" : "$"}${tx.avgPrice}`;
 
-                const confirmMsg = `⚠️ ตรวจพบธุรกรรมที่อาจซ้ำซ้อน:\nมีรายการ ${typeText} ${sym} จำนวน ${qtyText}${priceText} วันที่ ${tx.date} ${tx.time ? "เวลา " + tx.time + " น." : ""} อยู่ในระบบแล้ว\n\nคุณต้องการบันทึกธุรกรรมนี้เพิ่มอีกรายการใช่หรือไม่?`;
+                const confirmMsg = `⚠️ ตรวจพบธุรกรรมที่อาจซ้ำซ้อน:\nมีรายการ ${typeText} ${tx.symbol} จำนวน ${qtyText}${priceText} วันที่ ${tx.date} ${tx.time ? "เวลา " + tx.time + " น." : ""} อยู่ในระบบแล้ว\n\nคุณต้องการบันทึกธุรกรรมนี้เพิ่มอีกรายการใช่หรือไม่?`;
                 if (!await askConfirm(confirmMsg, "⚠️ ตรวจพบธุรกรรมซ้ำซ้อน")) {
                   continue;
                 }
@@ -347,18 +298,23 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
         />
       )}
 
-      {selectedAsset && (
+      {currentSelectedAsset && (
         <AssetDetailPanel
-          asset={selectedAsset}
+          asset={currentSelectedAsset}
           price={
-            (selectedAsset.type === "fiat" || selectedAsset.category === "fiat")
-              ? prices[getCurrencyTicker(selectedAsset.symbol)]
-              : prices[selectedAsset.symbol]
+            (currentSelectedAsset.type === "fiat" || currentSelectedAsset.category === "fiat")
+              ? prices[getCurrencyTicker(currentSelectedAsset.symbol)]
+              : prices[currentSelectedAsset.symbol]
           }
           exchangeRate={exchangeRate}
           historicalRates={historicalRates}
           onClose={() => setSelectedAsset(null)}
           hideValues={hideValues}
+          onEditLot={(asset, lot) => {
+            setEditingAsset(asset);
+            setEditingLot(lot);
+            setModalOpen(true);
+          }}
         />
       )}
 
