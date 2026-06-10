@@ -146,4 +146,65 @@ export function getRealizedPnL(lots, isThai, exchangeRate) {
   return realized;
 }
 
+export function calculatePortfolioHistoryCost(interpolated, assets, prices, exchangeRate) {
+  if (!interpolated || interpolated.length < 2) return interpolated;
+
+  const assetLotsWithMappedIdx = assets.map(asset => {
+    const isThai = asset.symbol.toUpperCase().endsWith(".BK");
+    const isCashAsset = asset.type === "fiat" || asset.category === "fiat";
+    
+    const rawLots = asset.lots && asset.lots.length > 0
+      ? asset.lots
+      : [{ id: "virtual", date: "1970-01-01", time: "00:00", qty: asset.qty, price: (asset.avgCost ?? asset.avgPrice ?? 0) }];
+      
+    const mappedLots = rawLots.map(lot => {
+      if (!lot || !lot.date) return null;
+      const lotTime = new Date(lot.date + "T" + (lot.time || "00:00") + ":00.000Z").getTime();
+      
+      let bestIdx = 0;
+      let bestDiff = Infinity;
+      interpolated.forEach((d, idx) => {
+        const dTime = new Date(d.date).getTime();
+        const diff = Math.abs(dTime - lotTime);
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          bestIdx = idx;
+        }
+      });
+      
+      return { ...lot, mappedIdx: bestIdx };
+    }).filter(Boolean);
+    
+    return { ...asset, lots: mappedLots, isThai, isCashAsset };
+  });
+
+  return interpolated.map((d, idx) => {
+    let totalCostUSD = 0;
+    let hasPurchasedAny = false;
+
+    assetLotsWithMappedIdx.forEach(asset => {
+      const lotsBeforeOrOn = asset.lots.filter(lot => lot.mappedIdx <= idx);
+      if (lotsBeforeOrOn.length === 0) return;
+      
+      hasPurchasedAny = true;
+
+      const costUSD = lotsBeforeOrOn.reduce((sum, l) => {
+        let priceUSD = asset.isThai ? (l.price || 0) / exchangeRate : (l.price || 0);
+        if (asset.isCashAsset) {
+          if (asset.symbol === "USD") {
+            priceUSD = 1.0;
+          } else {
+            priceUSD = l.price || getCurrencyPriceUSD(asset.symbol, prices, exchangeRate);
+          }
+        }
+        return sum + (l.qty || 0) * priceUSD;
+      }, 0);
+
+      totalCostUSD += costUSD;
+    });
+
+    return { ...d, cost: hasPurchasedAny ? totalCostUSD : null };
+  });
+}
+
 
