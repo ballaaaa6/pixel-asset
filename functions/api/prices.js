@@ -18,9 +18,19 @@ export async function onRequestGet(context) {
     "Content-Type": "application/json"
   };
 
+  const kv = context.env?.PORTFOLIOS;
+
   // ─── 1. Autocomplete Search (?q=) ────────────────────────────────────────
   if (q) {
     try {
+      const cacheKey = `cache:search:${q.trim().toLowerCase()}`;
+      if (kv) {
+        try {
+          const cached = await kv.get(cacheKey);
+          if (cached) return new Response(cached, { status: 200, headers: corsHeaders });
+        } catch {}
+      }
+
       const searchUrl = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=10&newsCount=0`;
       const resp = await fetch(searchUrl, { headers: YF_HEADERS });
       if (!resp.ok) {
@@ -33,7 +43,13 @@ export async function onRequestGet(context) {
         type: item.quoteType || item.typeDisp || "UNKNOWN",
         exchange: item.exchDisp || item.exchange || "GLOBAL"
       }));
-      return new Response(JSON.stringify(results), { status: 200, headers: corsHeaders });
+      const jsonStr = JSON.stringify(results);
+      if (kv) {
+        try {
+          await kv.put(cacheKey, jsonStr, { expirationTtl: 3600 });
+        } catch {}
+      }
+      return new Response(jsonStr, { status: 200, headers: corsHeaders });
     } catch (err) {
       return new Response(JSON.stringify({ error: "ข้อผิดพลาดค้นหา: " + err.message }), { status: 500, headers: corsHeaders });
     }
@@ -60,38 +76,66 @@ export async function onRequestGet(context) {
       };
       const { range, interval } = tfMap[tf] || tfMap["1M"];
 
-      const historyFetches = symbols.map(async (symbol) => {
-        try {
-          const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`;
-          const resp = await fetch(chartUrl, { headers: YF_HEADERS });
-          if (!resp.ok) return { symbol, dates: [], closes: [] };
-
-          const data = await resp.json();
-          const result = data?.chart?.result?.[0];
-          if (!result) return { symbol, dates: [], closes: [] };
-
-          const timestamps = result.timestamp || [];
-          const rawCloses = result.indicators?.quote?.[0]?.close || [];
-
-          // Filter out null values (non-trading days)
-          const paired = timestamps.map((ts, i) => ({
-            date: new Date(ts * 1000).toISOString(),
-            close: rawCloses[i]
-          })).filter(p => p.close != null && p.close > 0);
-
-          return {
-            symbol,
-            dates: paired.map(p => p.date),
-            closes: paired.map(p => p.close)
-          };
-        } catch {
-          return { symbol, dates: [], closes: [] };
-        }
-      });
-
-      const results = await Promise.all(historyFetches);
       const sparklineMap = {};
-      results.forEach(r => { sparklineMap[r.symbol] = { dates: r.dates, closes: r.closes }; });
+      const missingSymbols = [];
+
+      if (kv) {
+        const cachePromises = symbols.map(async (symbol) => {
+          const key = `cache:sparkline:${tf}:${symbol}`;
+          try {
+            const cached = await kv.get(key);
+            if (cached) {
+              sparklineMap[symbol] = JSON.parse(cached);
+              return;
+            }
+          } catch {}
+          missingSymbols.push(symbol);
+        });
+        await Promise.all(cachePromises);
+      } else {
+        missingSymbols.push(...symbols);
+      }
+
+      if (missingSymbols.length > 0) {
+        const historyFetches = missingSymbols.map(async (symbol) => {
+          try {
+            const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`;
+            const resp = await fetch(chartUrl, { headers: YF_HEADERS });
+            if (!resp.ok) return { symbol, dates: [], closes: [] };
+
+            const data = await resp.json();
+            const result = data?.chart?.result?.[0];
+            if (!result) return { symbol, dates: [], closes: [] };
+
+            const timestamps = result.timestamp || [];
+            const rawCloses = result.indicators?.quote?.[0]?.close || [];
+
+            const paired = timestamps.map((ts, i) => ({
+              date: new Date(ts * 1000).toISOString(),
+              close: rawCloses[i]
+            })).filter(p => p.close != null && p.close > 0);
+
+            const entry = {
+              dates: paired.map(p => p.date),
+              closes: paired.map(p => p.close)
+            };
+
+            if (kv && entry.closes.length > 0) {
+              const key = `cache:sparkline:${tf}:${symbol}`;
+              try {
+                await kv.put(key, JSON.stringify(entry), { expirationTtl: 300 });
+              } catch {}
+            }
+
+            return { symbol, ...entry };
+          } catch {
+            return { symbol, dates: [], closes: [] };
+          }
+        });
+
+        const results = await Promise.all(historyFetches);
+        results.forEach(r => { sparklineMap[r.symbol] = { dates: r.dates, closes: r.closes }; });
+      }
 
       return new Response(JSON.stringify(sparklineMap), { status: 200, headers: corsHeaders });
     } catch (err) {
@@ -105,102 +149,123 @@ export async function onRequestGet(context) {
       let symbolsList = symbolsParam.split(",").map(s => s.trim().toUpperCase()).filter(Boolean);
       if (!symbolsList.includes("THB=X")) symbolsList.push("THB=X");
 
-      const priceFetches = symbolsList.map(async (symbol) => {
-        try {
-          const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=5m&range=1d&includePrePost=true`;
-          const resp = await fetch(chartUrl, { headers: YF_HEADERS });
-          if (!resp.ok) return null;
-
-          const data = await resp.json();
-          const result = data?.chart?.result?.[0];
-          if (!result) return null;
-
-          const meta = result.meta;
-          const price = meta.regularMarketPrice || 0;
-          const prevClose = meta.chartPreviousClose || meta.previousClose || price;
-          const change = price - prevClose;
-          const changePercent = prevClose > 0 ? (change / prevClose) * 100 : 0;
-
-          // Determine current market state from trading periods
-          let marketState = "REGULAR";
-          const now = Math.floor(Date.now() / 1000);
-          const ctp = meta.currentTradingPeriod;
-          if (ctp) {
-            const pre = ctp.pre;
-            const reg = ctp.regular;
-            const post = ctp.post;
-            
-            if (pre && now >= pre.start && now < pre.end) {
-              marketState = "PRE";
-            } else if (reg && now >= reg.start && now < reg.end) {
-              marketState = "REGULAR";
-            } else if (post && now >= post.start && now < post.end) {
-              marketState = "POST";
-            } else {
-              marketState = "CLOSED";
-            }
-          }
-
-          // Extract last close from the 5m chart
-          const timestamps = result.timestamp || [];
-          const rawCloses = result.indicators?.quote?.[0]?.close || [];
-          const paired = timestamps.map((ts, i) => ({
-            ts,
-            close: rawCloses[i]
-          })).filter(p => p.close != null && p.close > 0);
-
-          const lastPoint = paired[paired.length - 1];
-          const lastPrice = lastPoint ? lastPoint.close : price;
-
-          let prePrice = null;
-          let postPrice = null;
-
-          if (marketState === "PRE") {
-            prePrice = lastPrice;
-          } else if (marketState === "POST") {
-            postPrice = lastPrice;
-          } else if (marketState === "CLOSED") {
-            // Keep showing after-hours price if the last point lies in the post-market window
-            if (ctp && ctp.post && lastPoint && lastPoint.ts >= ctp.post.start && lastPoint.ts <= ctp.post.end) {
-              postPrice = lastPrice;
-            }
-          }
-
-          return {
-            symbol,
-            price,
-            change,
-            changePercent,
-            previousClose: prevClose,
-            currency: meta.currency || "USD",
-            marketState,
-            prePrice,
-            preChangePercent: prePrice && prevClose
-              ? ((prePrice - prevClose) / prevClose) * 100
-              : null,
-            postPrice,
-            postChangePercent: postPrice && price
-              ? ((postPrice - price) / price) * 100
-              : null
-          };
-        } catch {
-          return null;
-        }
-      });
-
-      const fetched = await Promise.all(priceFetches);
-
-      let exchangeRate = 35.0;
       const quotesMap = {};
+      const missingSymbols = [];
 
-      fetched.forEach(item => {
-        if (!item) return;
-        if (item.symbol === "THB=X") {
-          exchangeRate = item.price || 35.0;
-        }
-        quotesMap[item.symbol] = item;
-      });
+      if (kv) {
+        const cachePromises = symbolsList.map(async (symbol) => {
+          const key = `cache:price:${symbol}`;
+          try {
+            const cached = await kv.get(key);
+            if (cached) {
+              quotesMap[symbol] = JSON.parse(cached);
+              return;
+            }
+          } catch {}
+          missingSymbols.push(symbol);
+        });
+        await Promise.all(cachePromises);
+      } else {
+        missingSymbols.push(...symbolsList);
+      }
 
+      if (missingSymbols.length > 0) {
+        const priceFetches = missingSymbols.map(async (symbol) => {
+          try {
+            const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=5m&range=1d&includePrePost=true`;
+            const resp = await fetch(chartUrl, { headers: YF_HEADERS });
+            if (!resp.ok) return null;
+
+            const data = await resp.json();
+            const result = data?.chart?.result?.[0];
+            if (!result) return null;
+
+            const meta = result.meta;
+            const price = meta.regularMarketPrice || 0;
+            const prevClose = meta.chartPreviousClose || meta.previousClose || price;
+            const change = price - prevClose;
+            const changePercent = prevClose > 0 ? (change / prevClose) * 100 : 0;
+
+            let marketState = "REGULAR";
+            const now = Math.floor(Date.now() / 1000);
+            const ctp = meta.currentTradingPeriod;
+            if (ctp) {
+              const pre = ctp.pre;
+              const reg = ctp.regular;
+              const post = ctp.post;
+              
+              if (pre && now >= pre.start && now < pre.end) {
+                marketState = "PRE";
+              } else if (reg && now >= reg.start && now < reg.end) {
+                marketState = "REGULAR";
+              } else if (post && now >= post.start && now < post.end) {
+                marketState = "POST";
+              } else {
+                marketState = "CLOSED";
+              }
+            }
+
+            const timestamps = result.timestamp || [];
+            const rawCloses = result.indicators?.quote?.[0]?.close || [];
+            const paired = timestamps.map((ts, i) => ({
+              ts,
+              close: rawCloses[i]
+            })).filter(p => p.close != null && p.close > 0);
+
+            const lastPoint = paired[paired.length - 1];
+            const lastPrice = lastPoint ? lastPoint.close : price;
+
+            let prePrice = null;
+            let postPrice = null;
+
+            if (marketState === "PRE") {
+              prePrice = lastPrice;
+            } else if (marketState === "POST") {
+              postPrice = lastPrice;
+            } else if (marketState === "CLOSED") {
+              if (ctp && ctp.post && lastPoint && lastPoint.ts >= ctp.post.start && lastPoint.ts <= ctp.post.end) {
+                postPrice = lastPrice;
+              }
+            }
+
+            const entry = {
+              symbol,
+              price,
+              change,
+              changePercent,
+              previousClose: prevClose,
+              currency: meta.currency || "USD",
+              marketState,
+              prePrice,
+              preChangePercent: prePrice && prevClose
+                ? ((prePrice - prevClose) / prevClose) * 100
+                : null,
+              postPrice,
+              postChangePercent: postPrice && price
+                ? ((postPrice - price) / price) * 100
+                : null
+            };
+
+            if (kv && entry.price > 0) {
+              const key = `cache:price:${symbol}`;
+              try {
+                await kv.put(key, JSON.stringify(entry), { expirationTtl: 120 });
+              } catch {}
+            }
+
+            return entry;
+          } catch {
+            return null;
+          }
+        });
+
+        const fetched = await Promise.all(priceFetches);
+        fetched.forEach(item => {
+          if (item) quotesMap[item.symbol] = item;
+        });
+      }
+
+      const exchangeRate = quotesMap["THB=X"]?.price || 35.0;
       return new Response(JSON.stringify({ quotes: quotesMap, exchangeRate }), { status: 200, headers: corsHeaders });
     } catch (err) {
       return new Response(JSON.stringify({ error: "โหลดราคาไม่สำเร็จ: " + err.message }), { status: 500, headers: corsHeaders });
@@ -214,7 +279,14 @@ export async function onRequestGet(context) {
       const symbol = historyParam.trim().toUpperCase();
       const tf = (url.searchParams.get("tf") || "1M").toUpperCase();
 
-      // Map TF → Yahoo Finance range + interval
+      const cacheKey = `cache:history:${tf}:${symbol}`;
+      if (kv) {
+        try {
+          const cached = await kv.get(cacheKey);
+          if (cached) return new Response(cached, { status: 200, headers: corsHeaders });
+        } catch {}
+      }
+
       const tfMap = {
         "1D":  { range: "1d",  interval: "5m"  },
         "5D":  { range: "5d",  interval: "60m" },
@@ -250,7 +322,6 @@ export async function onRequestGet(context) {
       const closes = quote.close  || [];
       const vols   = quote.volume || [];
 
-      // Build candle array, filter null
       const candles = timestamps.map((ts, i) => ({
         ts,
         date: new Date(ts * 1000).toISOString(),
@@ -263,14 +334,22 @@ export async function onRequestGet(context) {
 
       const meta = result.meta || {};
 
-      return new Response(JSON.stringify({
+      const responseBody = JSON.stringify({
         symbol,
         tf,
         interval,
         currency: meta.currency || "USD",
         regularMarketPrice: meta.regularMarketPrice,
         candles,
-      }), { status: 200, headers: corsHeaders });
+      });
+
+      if (kv && candles.length > 0) {
+        try {
+          await kv.put(cacheKey, responseBody, { expirationTtl: 300 });
+        } catch {}
+      }
+
+      return new Response(responseBody, { status: 200, headers: corsHeaders });
     } catch (err) {
       return new Response(JSON.stringify({ error: "History error: " + err.message }), { status: 500, headers: corsHeaders });
     }
