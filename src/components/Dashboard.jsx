@@ -70,6 +70,12 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
     todayChangePct
   } = usePortfolioData({ user, showToast, onSessionExpired });
 
+  const filteredAssets = useMemo(() => {
+    return chartCategory === "all"
+      ? assets
+      : assets.filter(a => (a.category || a.type || "stock") === chartCategory);
+  }, [assets, chartCategory]);
+
   const {
     portfolioName,
     setPortfolioName,
@@ -246,7 +252,7 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
                   history={portfolioHistory}
                   range={chartRange}
                   onRangeChange={handleRangeChange}
-                  assets={assets}
+                  assets={filteredAssets}
                   exchangeRate={exchangeRate}
                   prices={prices}
                   hideValues={hideValues}
