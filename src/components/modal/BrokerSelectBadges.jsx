@@ -67,16 +67,39 @@ export default function BrokerSelectBadges({ type, symbol, value, onChange }) {
     options = OPTIONS_BY_TYPE.fiat[cur] || OPTIONS_BY_TYPE.fiat.default || [];
   }
 
-  if (options.length === 0) return null;
+  // Filter options based on typed input
+  const filteredOptions = value
+    ? options.filter(opt => opt.name.toLowerCase().includes(value.toLowerCase()))
+    : options;
+
+  if (filteredOptions.length === 0) return null;
 
   const getBadgeStyle = (colors, isSelected) => {
+    const baseStyle = {
+      padding: "8px 12px",
+      fontSize: "12px",
+      borderRadius: "10px",
+      cursor: "pointer",
+      width: "calc(100% - 16px)",
+      margin: "4px 8px",
+      textAlign: "left",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      transition: "var(--transition)",
+      boxSizing: "border-box",
+      fontFamily: "inherit",
+      boxShadow: "var(--shadow-sm)"
+    };
+
     if (colors.length === 1) {
       const color = colors[0];
       return {
+        ...baseStyle,
         border: `2px solid ${color}`,
         color: isSelected ? "#FFFFFF" : color,
-        backgroundColor: isSelected ? color : "transparent",
-        fontWeight: isSelected ? "800" : "600"
+        backgroundColor: isSelected ? color : "var(--bg-card, #FFFFFF)",
+        fontWeight: isSelected ? "800" : "700"
       };
     }
     
@@ -84,6 +107,7 @@ export default function BrokerSelectBadges({ type, symbol, value, onChange }) {
     const [color1, color2] = colors;
     if (isSelected) {
       return {
+        ...baseStyle,
         border: "2px solid transparent",
         backgroundImage: `linear-gradient(135deg, ${color1} 50%, ${color2} 50%)`,
         backgroundOrigin: "border-box",
@@ -93,30 +117,39 @@ export default function BrokerSelectBadges({ type, symbol, value, onChange }) {
       };
     } else {
       return {
+        ...baseStyle,
         border: "2px solid transparent",
         backgroundImage: `linear-gradient(var(--bg-card, #FFFFFF), var(--bg-card, #FFFFFF)), linear-gradient(135deg, ${color1} 50%, ${color2} 50%)`,
         backgroundOrigin: "border-box",
         backgroundClip: "padding-box, border-box",
         color: "var(--text-main, #0F172A)",
-        fontWeight: "600"
+        fontWeight: "700"
       };
     }
   };
 
   return (
-    <div className="broker-badges-container">
-      {options.map((opt) => {
+    <div className="suggestions-dropdown" style={{ maxHeight: 200, overflowY: "auto", padding: "4px 0", zIndex: 1000 }}>
+      {filteredOptions.map((opt) => {
         const isSelected = value === opt.name;
         return (
-          <button
+          <div
             key={opt.name}
-            type="button"
-            className={`broker-badge ${isSelected ? "active" : ""}`}
-            style={getBadgeStyle(opt.colors, isSelected)}
-            onClick={() => onChange(isSelected ? "" : opt.name)}
+            style={{ padding: "2px 0" }}
           >
-            {opt.name}
-          </button>
+            <button
+              type="button"
+              style={getBadgeStyle(opt.colors, isSelected)}
+              onMouseDown={(e) => {
+                // Use onMouseDown and prevent default to prevent input blur from firing before selecting
+                e.preventDefault();
+                onChange(opt.name);
+              }}
+            >
+              <span>{opt.name}</span>
+              {isSelected && <span style={{ fontSize: 10, opacity: 0.9 }}>✓ เลือกอยู่</span>}
+            </button>
+          </div>
         );
       })}
     </div>

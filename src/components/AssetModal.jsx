@@ -32,6 +32,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
   const [currencyRateLoading, setCurrencyRateLoading] = useState(false);
   const [scannedQueue, setScannedQueue] = useState([]);
   const [customRate, setCustomRate] = useState("");
+  const [showBrokerDrop, setShowBrokerDrop] = useState(false);
   const debounceRef = useRef(null);
   const qtyInputRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -109,25 +110,19 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
     setShowDrop(false); setConfirmed(true); setSuggestions([]);
     setTimeout(() => qtyInputRef.current?.focus(), 50);
   };
-
   const clearSymbol = () => {
-    setSymbol(""); setName(""); setQuery("");
-    setConfirmed(false); setShowDrop(false); setSuggestions([]);
+    setSymbol(""); setName(""); setQuery(""); setConfirmed(false); setShowDrop(false); setSuggestions([]);
   };
-
   const pickCategory = (c) => {
     if (editingAsset) return;
     setType(c); clearSymbol();
-    if (c === "gold") {
-      setSymbol("GC=F"); setName("Spot Gold (ทองคำตลาดโลก)"); setQuery("GC=F"); setConfirmed(true);
-    } else if (c === "fiat") {
-      setSymbol("THB"); setName("Thai Baht (บาท 🇹🇭)"); setQuery("THB"); setCurrencyQuery("THB"); setConfirmed(true);
-    }
+    if (c === "gold") applyPreset("GC=F", "Spot Gold (ทองคำตลาดโลก)");
+    else if (c === "fiat") applyPreset("THB", "Thai Baht (บาท 🇹🇭)");
   };
-
   const applyPreset = (s, n) => {
     setSymbol(s); setName(n); setQuery(s); setConfirmed(true);
     setShowDrop(false); setSuggestions([]);
+    if (type === "fiat") setCurrencyQuery(s);
     setTimeout(() => qtyInputRef.current?.focus(), 50);
   };
 
@@ -216,7 +211,6 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
                 handleFileSelect={handleFileSelect}
               />
             )}
-
             {scannedQueue.length > 0 ? (
               <ScannedQueueList
                 scannedQueue={scannedQueue}
@@ -244,7 +238,6 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
                     </div>
                   </div>
                 )}
-
                 {type === "gold" && !editingAsset && (
                   <div className="form-group" style={{ marginBottom: 16 }}>
                     <label className="form-label">เลือกประเภทโภคภัณฑ์</label>
@@ -356,14 +349,22 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
                   </div>
                 </div>
 
-                <div className="form-group" style={{ marginTop: 14, marginBottom: 0 }}>
+                <div className="form-group" style={{ marginTop: 14, marginBottom: 0, position: "relative" }}>
                   <label className="form-label">{type === "fiat" ? "ธนาคาร" : "โบรกเกอร์"}</label>
-                  <input type="text" className="form-input" placeholder={type === "fiat" ? "พิมพ์ธนาคารที่ฝากเงิน" : "พิมพ์โบรกเกอร์ที่ซื้อขาย"} value={broker} onChange={e => setBroker(e.target.value)} />
-                  <BrokerSelectBadges type={type} symbol={symbol} value={broker} onChange={setBroker} />
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder={type === "fiat" ? "พิมพ์ธนาคารที่ฝากเงิน" : "พิมพ์โบรกเกอร์ที่ซื้อขาย"}
+                    value={broker}
+                    onChange={e => { setBroker(e.target.value); setShowBrokerDrop(true); }}
+                    onFocus={() => setShowBrokerDrop(true)}
+                    onBlur={() => setTimeout(() => setShowBrokerDrop(false), 200)}
+                  />
+                  {showBrokerDrop && (
+                    <BrokerSelectBadges type={type} symbol={symbol} value={broker} onChange={(val) => { setBroker(val); setShowBrokerDrop(false); }} />
+                  )}
                 </div>
-
                 <AssetHistoryTable lots={lots} editingAsset={editingAsset} showHistory={showHistory} setShowHistory={setShowHistory} fmtDate={fmtDate} fmtQty={fmtQty} fmtUSD={fmtUSD} />
-
                 {!editingAsset && (
                   <div style={{ marginTop: 14, background: "#FFFBEB", border: "1px solid #FEF3C7", borderRadius: 14, padding: "10px 14px", fontSize: 11, color: "#92400E", lineHeight: 1.6, display: "flex", gap: 8 }}>
                     <span>💡</span>
@@ -378,7 +379,6 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
               </>
             )}
           </div>
-
           <div className="modal-footer">
             <button type="button" className="btn btn-secondary ripple-btn" onClick={onClose} style={{ height: 48, flex: "0 0 100px" }}>ยกเลิก</button>
             <button type="submit" className="btn btn-primary ripple-btn" style={{ height: 48, flex: 1 }} disabled={scannedQueue.length === 0 && !symbol}>
