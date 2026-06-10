@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { PieChart } from "lucide-react";
 
 const DONUT_COLORS = ["#5236FF", "#00B98A", "#F59E0B", "#FF4B55", "#8B5CF6", "#06B6D4", "#EC4899", "#84CC16"];
 const CATEGORY_LABELS = { stock: "หุ้น", crypto: "คริปโต", gold: "ทองคำ/น้ำมัน", fiat: "เงินสด" };
@@ -26,11 +27,50 @@ export default function DonutChart({ segments, activeAssets, hasAssets }) {
     }
   }, [activeAssets]);
 
+  const renderHeader = () => (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, width: "100%" }}>
+      <div className="card-section-title" style={{ display: "flex", alignItems: "center", gap: 8, margin: 0 }}>
+        <PieChart size={16} />
+        <span>สัดส่วนสินทรัพย์</span>
+      </div>
+      {drillCategory ? (
+        <button
+          onClick={() => {
+            setDrillCategory(null);
+            setHoveredSlice(null);
+          }}
+          style={{
+            background: "var(--primary-light)",
+            color: "var(--primary)",
+            border: "none",
+            borderRadius: 10,
+            padding: "6px 14px",
+            fontSize: 12,
+            fontWeight: 800,
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            transition: "var(--transition)",
+            boxShadow: "var(--shadow-xs)",
+            height: 28
+          }}
+          className="ripple-btn"
+        >
+          ← ย้อนกลับ
+        </button>
+      ) : (
+        <div style={{ height: 28 }} />
+      )}
+    </div>
+  );
+
   // If no assets or skeleton state
   if (!segments || segments.length === 0 || !activeAssets) {
     return (
-      <div className="donut-card-body">
-        <div className="chart-container">
+      <div className="donut-card-body" style={{ minHeight: 300, display: "flex", flexDirection: "column", justifyContent: "flex-start", alignItems: "stretch" }}>
+        {renderHeader()}
+        <div className="chart-container" style={{ paddingTop: 0 }}>
           <div className="donut-wrapper">
             <svg viewBox="0 0 160 160" className="donut-chart-svg">
               <circle cx={CX} cy={CY} r={R} fill="none" stroke="#F1F5F9" strokeWidth={SW} />
@@ -120,37 +160,10 @@ export default function DonutChart({ segments, activeAssets, hasAssets }) {
   }
 
   return (
-    <div className="donut-card-body" style={{ position: "relative" }}>
-      {/* Back button for drilldown */}
-      {drillCategory && (
-        <button
-          onClick={() => {
-            setDrillCategory(null);
-            setHoveredSlice(null);
-          }}
-          style={{
-            background: "var(--primary-light)",
-            color: "var(--primary)",
-            border: "none",
-            borderRadius: 10,
-            padding: "6px 14px",
-            fontSize: 12,
-            fontWeight: 800,
-            cursor: "pointer",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            marginBottom: 14,
-            transition: "var(--transition)",
-            boxShadow: "var(--shadow-xs)"
-          }}
-          className="ripple-btn"
-        >
-          ← ย้อนกลับ
-        </button>
-      )}
+    <div className="donut-card-body" style={{ minHeight: 300, display: "flex", flexDirection: "column", justifyContent: "flex-start", alignItems: "stretch", position: "relative" }}>
+      {renderHeader()}
 
-      <div className="chart-container">
+      <div className="chart-container" style={{ paddingTop: 0 }}>
         <div
           className="donut-wrapper"
           onMouseMove={handleMouseMove}

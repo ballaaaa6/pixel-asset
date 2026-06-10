@@ -230,11 +230,6 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
               />
 
               <div className="card stagger-3">
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-                  <div className="card-section-title">
-                    <PieChart size={16} /> สัดส่วนสินทรัพย์
-                  </div>
-                </div>
                 <DonutChart
                   segments={hasPrices && donutSegments.length > 0 ? donutSegments : []}
                   activeAssets={sortedAssets}
