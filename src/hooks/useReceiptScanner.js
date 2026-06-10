@@ -135,7 +135,7 @@ export function useReceiptScanner({
               avgPrice:        String(validated.price),
               date:            validated.date,
               time:            validated.time,
-              broker:          "Dime!",
+              broker:          "Dime! (Kiatnakin Phatra / เกียรตินาคินภัทร)",
               transactionType: validated.transactionType
             });
             delete fileErrors[idx];
@@ -176,7 +176,7 @@ export function useReceiptScanner({
         setPrice(item.avgPrice ? item.avgPrice.toString() : "");
         setDate(item.date);
         setTime(item.time || "");
-        setBroker(item.broker || "Dime!");
+        setBroker(item.broker || "Dime! (Kiatnakin Phatra / เกียรตินาคินภัทร)");
         setTxType(item.transactionType);
         setConfirmed(true);
         triggerToast(`🤖 สแกนใบเสร็จสำเร็จ!\nดึงข้อมูล: ${item.symbol} (${item.transactionType === "BUY" ? "ซื้อ/ฝาก" : "ขาย/ถอน"} · ${item.qty} หน่วย @ $${item.avgPrice})`, "success");

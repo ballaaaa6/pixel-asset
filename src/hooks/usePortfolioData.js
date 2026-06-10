@@ -288,7 +288,7 @@ export function usePortfolioData({ user, showToast, onSessionExpired }) {
 
     if (!isBatch && skippedTxs.length > 0) {
       showToast(skippedTxs[0].reason, "error");
-      return;
+      return false;
     }
 
     if (skippedTxs.length > 0 && isBatch) {
@@ -299,6 +299,7 @@ export function usePortfolioData({ user, showToast, onSessionExpired }) {
     await fetchPrices(updatedAssets);
     fetchSparklines(updatedAssets, chartRange);
     if (!isBatch) showToast("บันทึกธุรกรรมเรียบร้อยแล้ว", "success");
+    return true;
   };
 
   const valuation = useMemo(() => {

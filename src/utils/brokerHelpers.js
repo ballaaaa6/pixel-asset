@@ -5,6 +5,14 @@
 export function getShortEngName(name) {
   if (!name) return "";
   const n = name.trim();
+  const nUpper = n.toUpperCase();
+
+  // 0. Explicit mappings for stock/crypto brokers to avoid incorrect bank matches
+  if (nUpper.includes("DIME")) return "Dime!";
+  if (nUpper.includes("INNOVESTX")) {
+    if (nUpper.includes("CRYPTO")) return "InnovestX Crypto";
+    return "InnovestX";
+  }
 
   // 1. Explicit mappings for banks (where English/short name is inside parentheses)
   // Thai Banks

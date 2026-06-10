@@ -178,7 +178,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
         avgPrice: pPrice,
         date: item.date ? item.date.trim() : today,
         time: item.time ? item.time.trim() : "00:00",
-        broker: getShortEngName(item.broker ? item.broker.trim() : "Dime!")
+        broker: getShortEngName(item.broker ? item.broker.trim() : "Dime! (Kiatnakin Phatra / เกียรตินาคินภัทร)")
       });
     }
     onSave(cleanedQueue);

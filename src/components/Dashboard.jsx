@@ -294,7 +294,13 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
           isOpen={modalOpen}
           editingAsset={editingAsset}
           onClose={() => { setModalOpen(false); setEditingAsset(null); }}
-          onSave={handleSaveAsset}
+          onSave={async (formData) => {
+            const success = await handleSaveAsset(formData);
+            if (success !== false) {
+              setModalOpen(false);
+              setEditingAsset(null);
+            }
+          }}
           exchangeRate={exchangeRate}
           showToast={showToast}
           onSessionExpired={onSessionExpired}
