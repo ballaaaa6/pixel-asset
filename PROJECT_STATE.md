@@ -33,8 +33,9 @@ This document records the current features, pending roadmap items, and immediate
   - Implemented `getAssetFullName` which checks against a curated dictionary `ASSET_NAME_MAP` and formats symbols automatically (e.g. appending "Public Company Limited" to Thai equities and showing descriptive names for gold/oil commodities and cash fiat assets) to guarantee the second line of name displays always renders the correct full asset name instead of duplicate ticker symbols.
 
 - **Receipt Processing Engine & Auto-mapping**:
-  - Multi-file receipt uploader utilizing client-side canvas cropping (Tier 1) and full-image scans (Tier 2).
-  - Auto-fills trade symbol, quantities, prices, action types, and default broker/bank value ("Dime!").
+  - Multi-file receipt uploader integrated with Cloudflare Workers AI + Gemini Vision API (`/api/scan`).
+  - Automatically compresses images client-side to optimize speed and reduce server payloads before processing.
+  - Extracts and auto-fills symbol, quantity, executed price, transaction type, date (converting BE/Gregorian years), time, and broker/bank details.
   - **Dynamic Auto-mapping Fallback**: When OCR parses a plain symbol (e.g., `"PTT"`), the frontend executes a debounced background check against the Yahoo Finance search API (`/api/prices?q=...`) to auto-resolve it to the correct regional symbol (e.g. `PTT.BK`) before loading it into the batch queue.
 
 - **Backend & Database**:

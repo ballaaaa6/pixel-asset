@@ -72,31 +72,24 @@ To improve user experience and readability, the application introduces a global 
 
 ---
 
-## 5. Optical Character Recognition (OCR) 2-Tier Sequence & Auto-mapping
+## 5. Optical Character Recognition (OCR) Server-Side Gemini Vision Engine & Auto-mapping
 
-To parser trade receipts (particularly from Dime! App), the application employs a highly optimized **2-Tier OCR Engine**:
+To parse trade receipts (particularly from the Dime! App), the application employs a serverless **Gemini Vision OCR Engine**:
 
 ```mermaid
 graph TD
-    Receipt[Dime! Receipt Image] --> Tier1[Tier 1: HTML5 Canvas Cropper]
-    Tier1 -->|Segment Image into 3 Bands| OCR1[Extract Key Rectangles]
-    OCR1 -->|Success: Qty, Symbol, Price found| Automap[Dynamic Auto-mapping check]
-    OCR1 -->|Fail: Fields missing| Tier2[Tier 2: Full-Image Scan]
-    Tier2 -->|Run standard Tesseract on whole image| Automap
+    Receipt[Dime! Receipt Image] --> Compress[Client-Side: Compress Image to max 1024px & 75% JPEG]
+    Compress -->|POST /api/scan| CF[Cloudflare Pages Functions API]
+    CF -->|Workers AI| Gemini[Gemini Vision Model + Structured JSON Schema]
+    Gemini -->|Extract Symbol, Qty, Price, Date, Time| Validate[Frontend: Validate & Sanitize Fields]
+    Validate --> Automap[Dynamic Auto-mapping check]
     Automap -->|Resolve Base Symbol to Yahoo Symbol| Process[Deliver Validated Result]
 ```
 
-### Tier 1: HTML5 Canvas Cropping & Split OCR
-- **Logic**: A trade receipt image has a rigid structure but can cause OCR cross-talk (reading numbers from the wrong column/section).
-- **Execution**: The client-side cropping engine divides the uploaded receipt into three distinct vertical coordinate bands:
-  - **Band 1**: Stock Ticker Symbol and Action type (BUY/SELL).
-  - **Band 2**: Transaction Share Quantity.
-  - **Band 3**: Executed Unit Price.
-- Tesseract.js runs separately on each cropped sub-image, resulting in close to 100% data extraction accuracy.
-
-### Tier 2: Full-Image Tesseract Scan (Fallback)
-- **Logic**: Used as a fallback if the canvas division fails or crucial data fields (Symbol, Quantity, Price) are not retrieved during Tier 1.
-- **Execution**: Runs OCR on the full unmodified image and employs regular expression patterns to match values across the text.
+### Server-Side Gemini Vision API
+- **Logic**: Trade receipts are written in Thai/English with intricate layouts. Traditional OCR engine (Tesseract.js) fails on modern Thai UI fonts. The system utilizes Google's Gemini Vision API via Cloudflare Workers AI for near-perfect context-aware data extraction.
+- **Client-Side Pre-processing**: To minimize payload sizes and prevent timeouts, the client compresses uploaded images to a maximum of 1024px (width/height) at 75% JPEG quality before transmitting them as Base64 to `/api/scan`.
+- **Structured JSON Output**: The server requests output structured strictly under a JSON Schema (`getDimeReceiptSchema`). Gemini extracts the stock symbol, transaction quantity, actual executed price per share, date (converting Buddhist Era `พ.ศ.` years to Gregorian `C.E.`), time, and action (BUY/SELL).
 
 ### Dynamic Auto-mapping Check (Yahoo Finance Matcher)
 - **Logic**: Extracted symbols from trade receipts are often raw ticker symbols (e.g. `"PTT"`) without exchange suffixes, which fails Yahoo Finance pricing queries.
