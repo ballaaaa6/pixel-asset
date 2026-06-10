@@ -201,7 +201,7 @@ export function usePortfolioChart({ history, range, assets, exchangeRate, prices
           let origIdx = zoomRange ? zoomRange.start : 0, bestDiff = Infinity;
           history.forEach((h, i) => {
             const d = Math.abs(new Date(h.date) - new Date(displayedData[idx].date));
-            if (d < bestDiff) { d = bestDiff; origIdx = i; }
+            if (d < bestDiff) { bestDiff = d; origIdx = i; }
           });
           touchRef.current = { startX: e.touches[0].clientX, startY: e.touches[0].clientY, lastX: e.touches[0].clientX, lastY: e.touches[0].clientY, type: null, startIdx: origIdx, isPinching: false };
           setHovered(null);

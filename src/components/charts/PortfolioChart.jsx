@@ -92,10 +92,10 @@ export function PortfolioChart({ history, range, onRangeChange, assets, exchange
         <div className="chart-empty">
           <BarChart2 size={36} strokeWidth={1.5} />
           <p style={{ fontSize: 13, textAlign: "center" }}>
-            {assets.some(a => (a.category || a.type || "stock") === chartCategory)
-              ? "รอดึงข้อมูลประวัติราคาสำหรับหมวดหมู่นี้..."
-              : "ไม่มีสินทรัพย์ในหมวดหมู่นี้"}
-            <br/>กราฟจะแสดงมูลค่าพอร์ตย้อนหลัง
+            {chartCategory !== "all" && !assets.some(a => (a.category || a.type || "stock") === chartCategory)
+              ? `No assets in this category yet`
+              : `Add your first trade to see portfolio history`}
+            <br /><span style={{ fontSize: 11, opacity: 0.7 }}>Chart will appear once price history is available</span>
           </p>
         </div>
       </div>

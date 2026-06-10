@@ -114,9 +114,13 @@ export default function AssetCardMobile({
         </div>
       </div>
 
-      {sp && sp.length > 2 && (
+      {!isCashAsset && (
         <div style={{ display: "flex", justifyContent: "center", padding: "8px 0" }}>
-          <SparklineChart closes={sp} />
+          {sp && sp.length > 2 ? (
+            <SparklineChart closes={sp} />
+          ) : (
+            <div className="sparkline-cell skeleton" style={{ borderRadius: 6, width: 70, height: 32 }} />
+          )}
         </div>
       )}
 

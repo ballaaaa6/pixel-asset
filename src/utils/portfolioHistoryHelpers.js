@@ -169,19 +169,30 @@ export function calculatePortfolioHistoryTimeline(sparklines, assets, prices, ex
       const lotsBeforeOrOnDate = asset.lots.filter(lot => lot.mappedIdx <= idx);
       if (lotsBeforeOrOnDate.length === 0) return;
 
-      const qtyOnDate = lotsBeforeOrOnDate.reduce((sum, l) => sum + (l.qty || 0), 0);
-
-      const costOnDateUSD = lotsBeforeOrOnDate.reduce((sum, l) => {
-        let priceUSD = asset.isThai ? (l.price || 0) / exchangeRate : (l.price || 0);
-        if (asset.isCashAsset) {
-          if (asset.symbol === "USD") {
-            priceUSD = 1.0;
-          } else {
-            priceUSD = l.price || getCurrencyPriceUSD(asset.symbol, prices, exchangeRate);
+      // Compute running avg-cost x current holding qty (proper break-even cost basis)
+      let runQty = 0, runAvgCost = 0;
+      lotsBeforeOrOnDate
+        .slice()
+        .sort((a, b) => a.mappedIdx - b.mappedIdx)
+        .forEach(l => {
+          const qty = l.qty || 0;
+          let priceUSD = asset.isThai ? (l.price || 0) / exchangeRate : (l.price || 0);
+          if (asset.isCashAsset) {
+            priceUSD = asset.symbol === "USD"
+              ? 1.0
+              : (l.price || getCurrencyPriceUSD(asset.symbol, prices, exchangeRate));
           }
-        }
-        return sum + (l.qty || 0) * priceUSD;
-      }, 0);
+          if (qty > 0) {
+            const totalCost = runQty * runAvgCost + qty * priceUSD;
+            runQty += qty;
+            runAvgCost = runQty > 0 ? totalCost / runQty : 0;
+          } else if (qty < 0) {
+            runQty = Math.max(0, runQty + qty);
+          }
+        });
+
+      const qtyOnDate = runQty;
+      const costOnDateUSD = runQty * runAvgCost;
 
       if (asset.isCashAsset) {
         let priceUSD = 0;

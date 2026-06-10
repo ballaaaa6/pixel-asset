@@ -2,6 +2,7 @@ import React from "react";
 import { Plus, Trash2 } from "lucide-react";
 import AssetLogo from "../common/AssetLogo";
 import MarketBadge from "./MarketBadge";
+import SparklineChart from "../charts/SparklineChart";
 import { getDisplaySymbol, getAssetFullName } from "../../utils/assetHelpers";
 
 const CATEGORY_LABELS = { stock: "หุ้น", crypto: "คริปโต", gold: "ทองคำ/น้ำมัน", fiat: "เงินสด" };
@@ -20,6 +21,7 @@ export default function AssetTableRow({
   setModalOpen,
   handleDeleteAsset,
   hasPrices,
+  sparklines,
   fmt
 }) {
   const pData = prices[asset.symbol];
@@ -28,6 +30,7 @@ export default function AssetTableRow({
   const isBest = bestAsset?.symbol === asset.symbol;
   const isCashAsset = asset.type === "fiat" || asset.category === "fiat";
   const isSelected = selectedAsset?.id === asset.id;
+  const sp = (asset.symbol === "THB" || asset.symbol === "USD") ? null : sparklines?.[asset.symbol]?.closes;
 
   return (
     <tr
@@ -71,6 +74,9 @@ export default function AssetTableRow({
               <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", background: "#F1F5F9", padding: "1px 6px", borderRadius: 4 }}>
                 {weightPct.toFixed(2)}%
               </span>
+              {sp && sp.length > 2 && (
+                <SparklineChart closes={sp} width={72} height={24} />
+              )}
             </div>
           </div>
         </div>

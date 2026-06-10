@@ -216,6 +216,8 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
             totalGainPct={hasPrices ? totalGainPct : 0}
             bestAsset={hasPrices ? bestAsset : null}
             loading={!hasPrices && assets.length > 0}
+            hideValues={hideValues}
+            sparklines={sparklines}
           />
 
           <div className="dashboard-grid">

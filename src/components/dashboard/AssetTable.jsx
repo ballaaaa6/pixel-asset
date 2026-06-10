@@ -134,6 +134,7 @@ export default function AssetTable({
                     setModalOpen={setModalOpen}
                     handleDeleteAsset={handleDeleteAsset}
                     hasPrices={hasPrices}
+                    sparklines={sparklines}
                     fmt={fmt}
                   />
                 ))}

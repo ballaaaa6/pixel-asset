@@ -56,6 +56,7 @@ export default function DonutChart({ segments, activeAssets, hasAssets }) {
             height: 28
           }}
           className="ripple-btn"
+          title="ย้อนกลับไปดูภาพรวมทุกหมวดหมู่"
         >
           ← ย้อนกลับ
         </button>

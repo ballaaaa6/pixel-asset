@@ -321,6 +321,35 @@ html, body {
   box-shadow: 0 0 0 4px var(--primary-light);
 }
 
+/* Floating icon inside input (position: absolute within .form-group) */
+.input-icon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+}
+
+/* Eye toggle button inside password input */
+.input-eye-btn {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  padding: 0;
+  transition: color 0.15s;
+}
+.input-eye-btn:hover { color: var(--primary); }
+
 /* ═══════════════════════════════════════════════════════════════
    BUTTONS
 ═══════════════════════════════════════════════════════════════ */

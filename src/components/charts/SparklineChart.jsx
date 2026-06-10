@@ -1,11 +1,11 @@
 import React from "react";
 import { getPoints, smoothPath } from "./chartUtils";
 
-export const SparklineChart = React.memo(function SparklineChart({ closes }) {
-  const W = 70, H = 32;
+export const SparklineChart = React.memo(function SparklineChart({ closes, width = 70, height = 32 }) {
+  const W = width, H = height;
   if (!closes || closes.length < 3) {
     return (
-      <div className="sparkline-cell skeleton" style={{ borderRadius: 6 }} />
+      <div className="sparkline-cell skeleton" style={{ borderRadius: 6, width: W, height: H }} />
     );
   }
   const pts = getPoints(closes, W, H, 2, 4);

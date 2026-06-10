@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { fmtUSD, fmtTHB, fmtPct } from "../../utils/formatters";
+import SparklineChart from "../charts/SparklineChart";
 
 export default function KPIRow({
   totalUSD,
@@ -12,7 +13,8 @@ export default function KPIRow({
   totalGainPct,
   bestAsset,
   loading,
-  hideValues
+  hideValues,
+  sparklines
 }) {
   const fmt = useMemo(() => ({
     usd: (n) => fmtUSD(n, hideValues),
@@ -84,8 +86,13 @@ export default function KPIRow({
         {bestAsset ? (
           <>
             <div className="kpi-value small">{bestAsset.symbol}</div>
-            <div className="kpi-sub" style={{ color: "var(--gain)", fontWeight: 700 }}>
-              {fmt.pct(bestAsset.pct)}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 2 }}>
+              <div className="kpi-sub" style={{ color: "var(--gain)", fontWeight: 700 }}>
+                {fmt.pct(bestAsset.pct)}
+              </div>
+              {sparklines?.[bestAsset.symbol]?.closes && (
+                <SparklineChart closes={sparklines[bestAsset.symbol].closes} width={60} height={24} />
+              )}
             </div>
           </>
         ) : (

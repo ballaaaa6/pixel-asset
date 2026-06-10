@@ -95,16 +95,7 @@ export default function Register({ onNavigateToLogin, showToast }) {
           <div className="form-group">
             <label className="form-label">ชื่อผู้ใช้งานภาษาอังกฤษ (สำหรับล็อกอิน)</label>
             <div style={{ position: "relative" }}>
-              <User 
-                size={18} 
-                style={{ 
-                  position: "absolute", 
-                  left: "16px", 
-                  top: "50%", 
-                  transform: "translateY(-50%)", 
-                  color: "#64748B" 
-                }} 
-              />
+              <User size={18} className="input-icon" />
               <input
                 type="text"
                 className="form-input"
@@ -121,16 +112,7 @@ export default function Register({ onNavigateToLogin, showToast }) {
           <div className="form-group">
             <label className="form-label">รหัสผ่าน</label>
             <div style={{ position: "relative" }}>
-              <Lock 
-                size={18} 
-                style={{ 
-                  position: "absolute", 
-                  left: "16px", 
-                  top: "50%", 
-                  transform: "translateY(-50%)", 
-                  color: "#64748B" 
-                }} 
-              />
+              <Lock size={18} className="input-icon" />
               <input
                 type={showPassword ? "text" : "password"}
                 className="form-input"
@@ -142,19 +124,8 @@ export default function Register({ onNavigateToLogin, showToast }) {
               />
               <button
                 type="button"
+                className="input-eye-btn"
                 onClick={() => setShowPassword(!showPassword)}
-                style={{
-                  position: "absolute",
-                  right: "16px",
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  color: "#64748B",
-                  display: "flex",
-                  alignItems: "center"
-                }}
               >
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
@@ -165,16 +136,7 @@ export default function Register({ onNavigateToLogin, showToast }) {
           <div className="form-group" style={{ marginBottom: "32px" }}>
             <label className="form-label">ยืนยันรหัสผ่าน</label>
             <div style={{ position: "relative" }}>
-              <Lock 
-                size={18} 
-                style={{ 
-                  position: "absolute", 
-                  left: "16px", 
-                  top: "50%", 
-                  transform: "translateY(-50%)", 
-                  color: "#64748B" 
-                }} 
-              />
+              <Lock size={18} className="input-icon" />
               <input
                 type={showPassword ? "text" : "password"}
                 className="form-input"

@@ -17,7 +17,7 @@ export default function DashboardHeader({
     <nav className="navbar">
       <div className="navbar-container">
         <div className="navbar-brand">
-          <span style={{ fontSize: 24 }}>🚀</span>
+          <span style={{ fontSize: 24 }} aria-hidden="true">🚀</span>
           {isEditingName ? (
             <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
               <input
@@ -86,12 +86,15 @@ export default function DashboardHeader({
               display: "flex",
               alignItems: "center",
               gap: 8,
-              cursor: "default",
+              cursor: "pointer",
               padding: "4px 10px",
               borderRadius: 10,
               background: "var(--primary-light)",
-              userSelect: "none"
+              userSelect: "none",
+              transition: "var(--transition)"
             }}
+            onClick={() => setProfileModalOpen(true)}
+            title="โปรไฟล์และตั้งค่า"
           >
             {profilePic ? (
               <img
