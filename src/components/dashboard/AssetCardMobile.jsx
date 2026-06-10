@@ -1,7 +1,6 @@
 import React from "react";
 import { Trash2 } from "lucide-react";
 import AssetLogo from "../common/AssetLogo";
-import SparklineChart from "../charts/SparklineChart";
 import MarketBadge from "./MarketBadge";
 import { getDisplaySymbol, getAssetFullName } from "../../utils/assetHelpers";
 
@@ -24,7 +23,6 @@ export default function AssetCardMobile({
 }) {
   const pData = prices[asset.symbol];
   const flash = priceFlash[asset.symbol];
-  const sp = (asset.symbol === "THB" || asset.symbol === "USD") ? [1.0, 1.0, 1.0] : sparklines[asset.symbol]?.closes;
   const isBest = bestAsset?.symbol === asset.symbol;
   const isCashAsset = asset.type === "fiat" || asset.category === "fiat";
 
@@ -114,15 +112,7 @@ export default function AssetCardMobile({
         </div>
       </div>
 
-      {!isCashAsset && (
-        <div style={{ display: "flex", justifyContent: "center", padding: "8px 0" }}>
-          {sp && sp.length > 2 ? (
-            <SparklineChart closes={sp} />
-          ) : (
-            <div className="sparkline-cell skeleton" style={{ borderRadius: 6, width: 70, height: 32 }} />
-          )}
-        </div>
-      )}
+
 
       <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
         <button className="btn btn-secondary ripple-btn"
