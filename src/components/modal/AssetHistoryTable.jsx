@@ -1,5 +1,6 @@
 import React from "react";
 import { History, ChevronDown, ChevronUp } from "lucide-react";
+import { getShortEngName } from "../../utils/brokerHelpers.js";
 
 export default function AssetHistoryTable({
   lots,
@@ -56,7 +57,7 @@ export default function AssetHistoryTable({
                         display: "inline-block",
                         marginTop: 2
                       }}>
-                        {lot.broker}
+                        {getShortEngName(lot.broker)}
                       </div>
                     )}
                   </td>

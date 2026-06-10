@@ -1,4 +1,5 @@
 import React from "react";
+import { getShortEngName } from "../../utils/brokerHelpers.js";
 
 const OPTIONS_BY_TYPE = {
   stock: [
@@ -174,7 +175,7 @@ export default function BrokerSelectBadges({ type, symbol, value, onChange }) {
   return (
     <div className="suggestions-dropdown" style={{ maxHeight: 200, overflowY: "auto", padding: "4px 0", zIndex: 1000 }}>
       {filteredOptions.map((opt) => {
-        const isSelected = value === opt.name;
+        const isSelected = getShortEngName(value) === getShortEngName(opt.name);
         return (
           <div
             key={opt.name}
@@ -194,7 +195,7 @@ export default function BrokerSelectBadges({ type, symbol, value, onChange }) {
             onMouseDown={(e) => {
               // Use onMouseDown and prevent default to prevent input blur from firing before selecting
               e.preventDefault();
-              onChange(opt.name);
+              onChange(getShortEngName(opt.name));
             }}
           >
             <span>{opt.name}</span>

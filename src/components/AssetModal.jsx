@@ -9,6 +9,7 @@ import ScannedQueueList from "./modal/ScannedQueueList.jsx";
 import AssetHistoryTable from "./modal/AssetHistoryTable.jsx";
 import AssetSearchSelector from "./modal/AssetSearchSelector.jsx";
 import BrokerSelectBadges from "./modal/BrokerSelectBadges.jsx";
+import { getShortEngName } from "../utils/brokerHelpers.js";
 
 export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exchangeRate, showToast, onSessionExpired }) {
   const [type, setType] = useState("stock");
@@ -151,7 +152,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
       avgPrice: pPrice,
       date: date ? date.trim() : new Date().toISOString().split("T")[0],
       time: time ? time.trim() : "00:00",
-      broker: broker.trim(),
+      broker: getShortEngName(broker.trim()),
       transactionType: txType,
     });
   };
@@ -177,7 +178,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, exch
         avgPrice: pPrice,
         date: item.date ? item.date.trim() : today,
         time: item.time ? item.time.trim() : "00:00",
-        broker: item.broker ? item.broker.trim() : "Dime!"
+        broker: getShortEngName(item.broker ? item.broker.trim() : "Dime!")
       });
     }
     onSave(cleanedQueue);

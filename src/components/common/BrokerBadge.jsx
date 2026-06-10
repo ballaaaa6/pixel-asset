@@ -1,4 +1,5 @@
 import React from "react";
+import { getShortEngName } from "../../utils/brokerHelpers.js";
 
 const PRESETS = [
   // Stock/Gold Brokers
@@ -193,7 +194,8 @@ export function getBrokerColors(brokerName) {
 export default function BrokerBadge({ broker }) {
   if (!broker) return null;
   
-  const colors = getBrokerColors(broker);
+  const shortName = getShortEngName(broker);
+  const colors = getBrokerColors(shortName);
   
   // Custom baseline style for badges
   const baseStyle = {
@@ -213,7 +215,7 @@ export default function BrokerBadge({ broker }) {
         background: "var(--primary-light, #EEECFF)",
         border: "1.5px solid rgba(82,54,255,0.15)"
       }}>
-        {broker}
+        {shortName}
       </span>
     );
   }
@@ -227,7 +229,7 @@ export default function BrokerBadge({ broker }) {
         background: "transparent",
         border: `1.5px solid ${color}`
       }}>
-        {broker}
+        {shortName}
       </span>
     );
   }
@@ -241,7 +243,7 @@ export default function BrokerBadge({ broker }) {
       background: `linear-gradient(var(--bg-card, #FFFFFF), var(--bg-card, #FFFFFF)) padding-box, linear-gradient(135deg, ${color1} 50%, ${color2} 50%) border-box`,
       border: "1.5px solid transparent"
     }}>
-      {broker}
+      {shortName}
     </span>
   );
 }
