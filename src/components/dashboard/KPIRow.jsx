@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { fmtUSD, fmtTHB, fmtPct } from "../../utils/formatters";
 import GlowTiltCard from "../common/GlowTiltCard";
+import AnimatedCounter from "../common/AnimatedCounter";
 
 export default function KPIRow({
   totalUSD,
@@ -43,10 +44,10 @@ export default function KPIRow({
       <GlowTiltCard className="kpi-card primary">
         <div className="kpi-label">💰 มูลค่ารวม</div>
         <div className="kpi-value">
-          {fmt.usd(totalUSD)}
+          <AnimatedCounter value={totalUSD} formatFn={fmt.usd} />
         </div>
         <div className="kpi-sub">
-          {fmt.thb(totalTHB)}
+          <AnimatedCounter value={totalTHB} formatFn={(v) => fmt.thb(v, 2)} />
         </div>
       </GlowTiltCard>
 
@@ -54,7 +55,8 @@ export default function KPIRow({
         <div className="kpi-label">📅 วันนี้</div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
           <div className="kpi-value" style={{ color: todayUp ? "var(--gain)" : "var(--loss)", margin: 0, whiteSpace: "nowrap" }}>
-            {todayChange !== 0 ? (todayUp ? "+" : "-") + fmt.usd(Math.abs(todayChange)) : "—"}
+            {todayChange !== 0 ? (todayUp ? "+" : "-") : ""}
+            <AnimatedCounter value={todayChange !== 0 ? Math.abs(todayChange) : 0} formatFn={(v) => v === 0 ? "—" : fmt.usd(v)} />
           </div>
           {todayChange !== 0 && (
             <span className={`kpi-badge ${todayUp ? "up" : "down"}`} style={{ margin: 0, whiteSpace: "nowrap" }}>
@@ -64,7 +66,8 @@ export default function KPIRow({
         </div>
         {todayChange !== 0 && (
           <div className="kpi-sub" style={{ marginTop: 2 }}>
-            {(todayUp ? "+" : "-") + fmt.thb(Math.abs(todayChangeTHB))}
+            {todayUp ? "+" : "-"}
+            <AnimatedCounter value={Math.abs(todayChangeTHB)} formatFn={(v) => fmt.thb(v, 2)} />
           </div>
         )}
       </GlowTiltCard>
@@ -73,7 +76,8 @@ export default function KPIRow({
         <div className="kpi-label">📊 กำไร/ขาดทุนรวม</div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
           <div className="kpi-value" style={{ color: totalUp ? "var(--gain)" : "var(--loss)", margin: 0, whiteSpace: "nowrap" }}>
-            {totalGain !== 0 ? (totalUp ? "+" : "-") + fmt.usd(Math.abs(totalGain)) : "—"}
+            {totalGain !== 0 ? (totalUp ? "+" : "-") : ""}
+            <AnimatedCounter value={totalGain !== 0 ? Math.abs(totalGain) : 0} formatFn={(v) => v === 0 ? "—" : fmt.usd(v)} />
           </div>
           {totalGain !== 0 && (
             <span className={`kpi-badge ${totalUp ? "up" : "down"}`} style={{ margin: 0, whiteSpace: "nowrap" }}>
@@ -83,7 +87,8 @@ export default function KPIRow({
         </div>
         {totalGain !== 0 && (
           <div className="kpi-sub" style={{ marginTop: 2 }}>
-            {(totalUp ? "+" : "-") + fmt.thb(Math.abs(totalGainTHB))}
+            {totalUp ? "+" : "-"}
+            <AnimatedCounter value={Math.abs(totalGainTHB)} formatFn={(v) => fmt.thb(v, 2)} />
           </div>
         )}
       </GlowTiltCard>

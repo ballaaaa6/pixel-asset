@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { fmtUSD, fmtTHB } from "../../utils/formatters";
+import AnimatedCounter from "../common/AnimatedCounter";
 
 export default function CostValueBar({
   totalUSD,
@@ -15,16 +16,6 @@ export default function CostValueBar({
 
   if (totalCostUSD <= 0 && totalUSD <= 0) return null;
 
-  const gainUSDStr = fmtUSD(totalGainUSD, hideValues);
-  const gainTHBStr = fmtTHB(totalGainUSD * exchangeRate, 2, hideValues);
-  const gainPctStr = `${totalGainPct.toFixed(2)}%`;
-
-  const costUSDStr = fmtUSD(totalCostUSD, hideValues);
-  const costTHBStr = fmtTHB(totalCostUSD * exchangeRate, 2, hideValues);
-
-  const valUSDStr = fmtUSD(totalUSD, hideValues);
-  const valTHBStr = fmtTHB(totalUSD * exchangeRate, 2, hideValues);
-
   const multStr = `${(totalUSD / (totalCostUSD || 1)).toFixed(2)}x`;
 
   return (
@@ -33,9 +24,12 @@ export default function CostValueBar({
         <span className="card-section-title" style={{ margin: 0, fontSize: 15.5, fontWeight: 700, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 6 }}>
           ⚖️ สัดส่วนต้นทุนเทียบกับมูลค่าปัจจุบัน (Cost vs. Value)
         </span>
-        <span style={{ fontSize: 15, fontWeight: 800, color: isProfit ? "var(--gain)" : "var(--loss)", display: "inline-flex", gap: 3, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 15, fontWeight: 800, color: isProfit ? "var(--gain)" : "var(--loss)", display: "inline-flex", gap: 3, flexWrap: "wrap", alignItems: "center" }}>
           {isProfit ? "กำไรสะสม: " : "ขาดทุนสะสม: "}
-          {gainUSDStr} ({gainTHBStr}) ({gainPctStr})
+          <AnimatedCounter value={totalGainUSD} formatFn={(v) => fmtUSD(v, hideValues)} />
+          &nbsp;(
+          <AnimatedCounter value={totalGainUSD * exchangeRate} formatFn={(v) => fmtTHB(v, 2, hideValues)} />
+          ) ({totalGainPct.toFixed(2)}%)
         </span>
       </div>
 
@@ -95,12 +89,22 @@ export default function CostValueBar({
           <span style={{ display: "inline-flex", alignItems: "center" }}>
             <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", background: "var(--primary)", marginRight: 6 }} />
             ต้นทุนรวม:&nbsp;
-            <strong style={{ color: "var(--text-main)" }}>{costUSDStr} ({costTHBStr})</strong>
+            <strong style={{ color: "var(--text-main)" }}>
+              <AnimatedCounter value={totalCostUSD} formatFn={(v) => fmtUSD(v, hideValues)} />
+              &nbsp;(
+              <AnimatedCounter value={totalCostUSD * exchangeRate} formatFn={(v) => fmtTHB(v, 2, hideValues)} />
+              )
+            </strong>
           </span>
           <span style={{ display: "inline-flex", alignItems: "center" }}>
             <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", background: isProfit ? "var(--gain)" : "var(--loss)", marginRight: 6 }} />
             มูลค่าปัจจุบัน:&nbsp;
-            <strong style={{ color: "var(--text-main)" }}>{valUSDStr} ({valTHBStr})</strong>
+            <strong style={{ color: "var(--text-main)" }}>
+              <AnimatedCounter value={totalUSD} formatFn={(v) => fmtUSD(v, hideValues)} />
+              &nbsp;(
+              <AnimatedCounter value={totalUSD * exchangeRate} formatFn={(v) => fmtTHB(v, 2, hideValues)} />
+              )
+            </strong>
           </span>
         </div>
         <span>

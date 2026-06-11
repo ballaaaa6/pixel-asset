@@ -710,7 +710,7 @@ html, body {
 }
 
 /* Depth for elements inside card */
-.glow-tilt-card > * {
+.glow-tilt-card > *:not(.glow-overlay) {
   position: relative;
   z-index: 2;
   transform: translateZ(12px);
