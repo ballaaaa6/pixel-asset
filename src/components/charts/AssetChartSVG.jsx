@@ -213,8 +213,13 @@ export function AssetChartSVG({
       {/* ── Hover crosshair + dot ── */}
       {hovered && (
         <>
+          {/* Vertical guideline */}
           <line x1={hovered.x} y1={PAD_T} x2={hovered.x} y2={H - PAD_B}
-            stroke="#94A3B8" strokeWidth="1" strokeDasharray="4 4" />
+            stroke="#94A3B8" strokeWidth="1.2" strokeDasharray="4 4" />
+          {/* Horizontal guideline */}
+          <line x1={PAD_L} y1={hovered.y} x2={hovered.x} y2={hovered.y}
+            stroke="#94A3B8" strokeWidth="1.2" strokeDasharray="4 4" />
+          
           <circle cx={hovered.x} cy={hovered.y} r="5"
             fill="white"
             stroke={hovered.cost != null && hovered.value >= hovered.cost ? "#00B98A" : hovered.cost != null ? "#FF4B55" : "#94A3B8"}
@@ -225,6 +230,70 @@ export function AssetChartSVG({
           )}
         </>
       )}
+
+      {/* Axis badges */}
+      {hovered && (() => {
+        const dateObj = new Date(hovered.date);
+        const dateStr = dateObj.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
+        const timeStr = dateObj.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+        const xValText = `${dateStr} ${timeStr} น.`;
+        const rectW_X = xValText.length * 6.5 + 12;
+        const badgeX = Math.max(PAD_L, Math.min(W - PAD_R - rectW_X, hovered.x - rectW_X / 2));
+
+        const yValText = fmtUSD(hovered.value, hideValues);
+        const rectW_Y = yValText.length * 6 + 10;
+        const badgeY = Math.max(PAD_T, Math.min(H - PAD_B - 18, hovered.y - 9));
+
+        return (
+          <g style={{ pointerEvents: "none" }}>
+            {/* X-axis coordinate badge */}
+            <rect
+              x={badgeX}
+              y={H - PAD_B}
+              width={rectW_X}
+              height={18}
+              rx={4}
+              fill="#1E293B"
+              stroke="#64748B"
+              strokeWidth="1"
+            />
+            <text
+              x={badgeX + rectW_X / 2}
+              y={H - PAD_B + 12}
+              textAnchor="middle"
+              fontSize="10"
+              fill="#F8FAFC"
+              fontWeight="bold"
+              fontFamily="Outfit,sans-serif"
+            >
+              {xValText}
+            </text>
+
+            {/* Y-axis coordinate badge */}
+            <rect
+              x={PAD_L - rectW_Y - 2}
+              y={badgeY}
+              width={rectW_Y}
+              height={18}
+              rx={4}
+              fill="#1E293B"
+              stroke="#64748B"
+              strokeWidth="1"
+            />
+            <text
+              x={PAD_L - 6}
+              y={badgeY + 12}
+              textAnchor="end"
+              fontSize="10"
+              fill="#F8FAFC"
+              fontWeight="bold"
+              fontFamily="Outfit,sans-serif"
+            >
+              {yValText}
+            </text>
+          </g>
+        );
+      })()}
 
       {/* ── Y-axis labels ── */}
       {yTicks.map(({ v, y }, i) => (
