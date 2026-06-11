@@ -51,13 +51,16 @@ export function usePortfolioChart({ history, range, assets, exchangeRate, prices
   stateRef.current = { history, zoomRange, displayedData, W, H, iW, iH, PAD_L, PAD_R, PAD_T, PAD_B, diffStartIdx, diffEndIdx, pts, costPts, isDiffActive };
 
   const handleMouseDown = (e) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 && e.button !== 1) return;
+    if (e.button === 1) e.preventDefault(); // Prevent browser autoscroll trigger
     const rect = containerRef.current.getBoundingClientRect();
     const mouseX = ((e.clientX - rect.left) / rect.width) * W;
     if (mouseX >= PAD_L && mouseX <= W - PAD_R) {
-      if (e.shiftKey && zoomRange) {
+      const isPanAction = (e.button === 1 || (e.button === 0 && e.shiftKey)) && zoomRange;
+      if (isPanAction) {
         setDragStart({ x: mouseX, type: "pan", startZoom: { ...zoomRange } });
-      } else {
+        setHovered(null);
+      } else if (e.button === 0) {
         const relX = (mouseX - PAD_L) / iW;
         const idx = Math.max(0, Math.min(Math.round(relX * (displayedData.length - 1)), displayedData.length - 1));
         const ts = new Date(displayedData[idx].date).getTime();
