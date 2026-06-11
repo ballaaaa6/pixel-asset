@@ -2015,36 +2015,36 @@ html, body {
 
 /* Odometer Number Ticker Styling */
 .number-ticker {
-  display: inline-flex;
-  align-items: baseline;
-  height: 1.15em;
+  display: inline-block;
   overflow: hidden;
-  vertical-align: baseline;
+  height: 1.15em;
+  vertical-align: middle;
 }
 .ticker-digit-wrapper {
   display: inline-block;
   height: 1.15em;
   line-height: 1.15em;
   position: relative;
+  overflow: hidden;
   width: 0.62em;
   text-align: center;
+  vertical-align: top;
 }
 .ticker-digit-column {
-  display: flex;
-  flex-direction: column;
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
 }
 .ticker-digit-column span {
+  display: block;
   height: 1.15em;
   line-height: 1.15em;
-  display: block;
   text-align: center;
 }
 .ticker-char {
   display: inline-block;
   height: 1.15em;
   line-height: 1.15em;
+  vertical-align: top;
 }
