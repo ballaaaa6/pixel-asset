@@ -171,7 +171,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, edit
   const lots = editingAsset?.lots || [];
 
   return (
-    <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="modal-overlay" style={{ zIndex: 1200 }} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal-content" style={{ maxWidth: 500 }}>
         <div className="modal-header">
           <h2 className="modal-title">

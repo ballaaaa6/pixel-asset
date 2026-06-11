@@ -219,65 +219,6 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
         </div>
       </div>
 
-      {modalOpen && (
-        <AssetModal
-          isOpen={modalOpen}
-          editingAsset={editingAsset}
-          editingLot={editingLot}
-          onClose={() => { setModalOpen(false); setEditingAsset(null); setEditingLot(null); }}
-          onDeleteLot={async (assetId, lotId) => {
-            if (await handleDeleteLot(assetId, lotId)) {
-              setModalOpen(false);
-              setEditingAsset(null);
-              setEditingLot(null);
-            }
-          }}
-          onSave={async (formData) => {
-            if (editingLot) {
-              if (await handleEditLot(editingAsset.id, editingLot.id, formData)) {
-                setModalOpen(false);
-                setEditingAsset(null);
-                setEditingLot(null);
-              }
-              return;
-            }
-            const isBatch = Array.isArray(formData);
-            const transactions = isBatch ? formData : [formData];
-            const cleanTransactions = [];
-
-            for (const tx of transactions) {
-              if (isTransactionDuplicate(tx, assets)) {
-                const typeText = tx.transactionType === "BUY" 
-                  ? ((tx.type === "fiat" || tx.category === "fiat") ? "ฝากเงินสด" : "ซื้อ")
-                  : ((tx.type === "fiat" || tx.category === "fiat") ? "ถอนเงินสด" : "ขาย");
-                const qtyText = (tx.type === "fiat" || tx.category === "fiat") ? `${tx.qty} THB` : `${tx.qty} หน่วย`;
-                const priceText = (tx.type === "fiat" || tx.category === "fiat") ? "" : ` @ ${tx.symbol.endsWith(".BK") ? "฿" : "$"}${tx.avgPrice}`;
-
-                const confirmMsg = `⚠️ ตรวจพบธุรกรรมที่อาจซ้ำซ้อน:\nมีรายการ ${typeText} ${tx.symbol} จำนวน ${qtyText}${priceText} วันที่ ${tx.date} ${tx.time ? "เวลา " + tx.time + " น." : ""} อยู่ในระบบแล้ว\n\nคุณต้องการบันทึกธุรกรรมนี้เพิ่มอีกรายการใช่หรือไม่?`;
-                if (!await askConfirm(confirmMsg, "⚠️ ตรวจพบธุรกรรมซ้ำซ้อน")) {
-                  continue;
-                }
-              }
-              cleanTransactions.push(tx);
-            }
-
-            if (cleanTransactions.length === 0) {
-              return;
-            }
-
-            const success = await handleSaveAsset(isBatch ? cleanTransactions : cleanTransactions[0]);
-            if (success !== false) {
-              setModalOpen(false);
-              setEditingAsset(null);
-            }
-          }}
-          exchangeRate={exchangeRate}
-          showToast={showToast}
-          onSessionExpired={onSessionExpired}
-        />
-      )}
-      {confirmConfig && <CustomConfirmModal title={confirmConfig.title} message={confirmConfig.message} onConfirm={() => { confirmConfig.resolve(true); setConfirmConfig(null); }} onCancel={() => { confirmConfig.resolve(false); setConfirmConfig(null); }} />}
-
       {showPnLDetailsModal && (
         <PnLDetailsModal
           isOpen={showPnLDetailsModal}
@@ -346,6 +287,73 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
         onLogout={handleLogoutConfirm}
         askConfirm={askConfirm}
       />
+
+      {modalOpen && (
+        <AssetModal
+          isOpen={modalOpen}
+          editingAsset={editingAsset}
+          editingLot={editingLot}
+          onClose={() => { setModalOpen(false); setEditingAsset(null); setEditingLot(null); }}
+          onDeleteLot={async (assetId, lotId) => {
+            if (await handleDeleteLot(assetId, lotId)) {
+              setModalOpen(false);
+              setEditingAsset(null);
+              setEditingLot(null);
+            }
+          }}
+          onSave={async (formData) => {
+            if (editingLot) {
+              if (await handleEditLot(editingAsset.id, editingLot.id, formData)) {
+                setModalOpen(false);
+                setEditingAsset(null);
+                setEditingLot(null);
+              }
+              return;
+            }
+            const isBatch = Array.isArray(formData);
+            const transactions = isBatch ? formData : [formData];
+            const cleanTransactions = [];
+
+            for (const tx of transactions) {
+              if (isTransactionDuplicate(tx, assets)) {
+                const typeText = tx.transactionType === "BUY" 
+                  ? ((tx.type === "fiat" || tx.category === "fiat") ? "ฝากเงินสด" : "ซื้อ")
+                  : ((tx.type === "fiat" || tx.category === "fiat") ? "ถอนเงินสด" : "ขาย");
+                const qtyText = (tx.type === "fiat" || tx.category === "fiat") ? `${tx.qty} THB` : `${tx.qty} หน่วย`;
+                const priceText = (tx.type === "fiat" || tx.category === "fiat") ? "" : ` @ ${tx.symbol.endsWith(".BK") ? "฿" : "$"}${tx.avgPrice}`;
+
+                const confirmMsg = `⚠️ ตรวจพบธุรกรรมที่อาจซ้ำซ้อน:\nมีรายการ ${typeText} ${tx.symbol} จำนวน ${qtyText}${priceText} วันที่ ${tx.date} ${tx.time ? "เวลา " + tx.time + " น." : ""} อยู่ในระบบแล้ว\n\nคุณต้องการบันทึกธุรกรรมนี้เพิ่มอีกรายการใช่หรือไม่?`;
+                if (!await askConfirm(confirmMsg, "⚠️ ตรวจพบธุรกรรมซ้ำซ้อน")) {
+                  continue;
+                }
+              }
+              cleanTransactions.push(tx);
+            }
+
+            if (cleanTransactions.length === 0) {
+              return;
+            }
+
+            const success = await handleSaveAsset(isBatch ? cleanTransactions : cleanTransactions[0]);
+            if (success !== false) {
+              setModalOpen(false);
+              setEditingAsset(null);
+            }
+          }}
+          exchangeRate={exchangeRate}
+          showToast={showToast}
+          onSessionExpired={onSessionExpired}
+        />
+      )}
+
+      {confirmConfig && (
+        <CustomConfirmModal
+          title={confirmConfig.title}
+          message={confirmConfig.message}
+          onConfirm={() => { confirmConfig.resolve(true); setConfirmConfig(null); }}
+          onCancel={() => { confirmConfig.resolve(false); setConfirmConfig(null); }}
+        />
+      )}
     </>
   );
 }

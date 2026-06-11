@@ -1503,7 +1503,7 @@ html, body {
   font-size: 14px;
   font-weight: 600;
   box-shadow: 0 12px 40px rgba(0,0,0,0.2);
-  z-index: 1100;
+  z-index: 2000;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1666,7 +1666,7 @@ html, body {
 .asset-detail-panel {
   position: fixed;
   inset: 0;
-  z-index: 1100;
+  z-index: 1000;
   background: rgba(15, 23, 42, 0.45);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
@@ -1827,4 +1827,9 @@ html, body {
 
 .broker-badge:active {
   transform: translateY(0) scale(0.96);
+}
+
+.transaction-settings-btn:hover {
+  background: #F1F5F9 !important;
+  color: var(--text-main) !important;
 }

@@ -8,7 +8,7 @@ export default function CustomConfirmModal({ title, message, onConfirm, onCancel
   }, [onCancel]);
 
   return (
-    <div className="modal-overlay" style={{ zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
+    <div className="modal-overlay" style={{ zIndex: 1300, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
       <div className="modal-content" style={{ maxWidth: 420, padding: 0, overflow: "hidden", animation: "scaleInModal 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", borderBottom: "1px solid var(--border)", background: "rgba(244, 63, 94, 0.05)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#E11D48", fontWeight: 800, fontSize: 15 }}>
