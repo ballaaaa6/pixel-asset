@@ -71,7 +71,7 @@ export default function TodayDetailView({ sortedAssets, todayChangeUSD, todayCha
         <div className="stats-grid-card">
           <span style={{ fontSize: 9.5, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>ดาวรุ่งพุ่งแรงวันนี้</span>
           <span style={{ fontSize: 11, fontWeight: 800, color: "var(--gain)", marginTop: 4 }}>
-            {winner ? `${getDisplaySymbol(bestAsset?.symbol || winner.symbol)} (+${winner.todayPct.toFixed(2)}%)` : "—"}
+            {winner ? `${getDisplaySymbol(winner.symbol)} (+${winner.todayPct.toFixed(2)}%)` : "—"}
           </span>
         </div>
       </div>

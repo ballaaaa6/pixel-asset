@@ -2036,13 +2036,11 @@ html, body {
    PREMIUM UI/UX ENHANCEMENTS (ITEMS 2-5)
 ═══════════════════════════════════════════════════════════════ */
 
-/* Item 3: Glassmorphism for Modals */
+/* Item 3: Solid White Background for Modals */
 .modal-content {
-  background: rgba(255, 255, 255, 0.82) !important;
-  backdrop-filter: blur(20px) !important;
-  -webkit-backdrop-filter: blur(20px) !important;
-  border: 1px solid rgba(255, 255, 255, 0.45) !important;
-  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.6) !important;
+  background: #ffffff !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.12) !important;
 }
 
 /* Card hover micro-interactions */
