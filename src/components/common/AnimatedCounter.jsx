@@ -1,59 +1,59 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 
-export default function AnimatedCounter({ value, formatFn }) {
-  const [displayValue, setDisplayValue] = useState(value);
-  const prevValueRef = useRef(value);
+// Individual digit rolling cylinder component
+function OdometerDigit({ digit }) {
+  const [currentDigit, setCurrentDigit] = useState(digit);
 
   useEffect(() => {
-    // If the value is not a number, don't animate it
-    if (typeof value !== "number" || isNaN(value)) {
-      setDisplayValue(value);
-      prevValueRef.current = value;
-      return;
-    }
+    setCurrentDigit(digit);
+  }, [digit]);
 
-    const startValue = typeof prevValueRef.current === "number" && !isNaN(prevValueRef.current)
-      ? prevValueRef.current
-      : value;
-    const endValue = value;
-    
-    if (startValue === endValue) {
-      setDisplayValue(endValue);
-      return;
-    }
+  // Digits 0-9 stacked vertically
+  const digits = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
-    const duration = 750; // duration in ms for smooth rolling feel
-    const startTime = performance.now();
-    let animationFrameId;
+  return (
+    <span className="odo-digit-container">
+      <span
+        className="odo-digit-strip"
+        style={{
+          transform: `translateY(-${currentDigit * 10}%)`
+        }}
+      >
+        {digits.map((d) => (
+          <span key={d} className="odo-digit-num">
+            {d}
+          </span>
+        ))}
+      </span>
+    </span>
+  );
+}
 
-    const animate = (now) => {
-      const elapsed = now - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      
-      // Easing: easeOutCubic for a smooth decelerating roll
-      const easeProgress = 1 - Math.pow(1 - progress, 3);
-      
-      const currentValue = startValue + (endValue - startValue) * easeProgress;
-      setDisplayValue(currentValue);
+export default function AnimatedCounter({ value, formatFn }) {
+  // Format value to a string
+  const formattedStr = formatFn ? formatFn(value) : String(value);
 
-      if (progress < 1) {
-        animationFrameId = requestAnimationFrame(animate);
-      } else {
-        setDisplayValue(endValue);
-        prevValueRef.current = endValue;
-      }
-    };
+  // Map characters to static letters/symbols or rolling digits
+  const charArray = formattedStr.split("");
 
-    animationFrameId = requestAnimationFrame(animate);
-
-    return () => {
-      cancelAnimationFrame(animationFrameId);
-    };
-  }, [value]);
-
-  if (typeof value !== "number" || isNaN(value)) {
-    return <span>{formatFn ? formatFn(value) : value}</span>;
-  }
-
-  return <span>{formatFn ? formatFn(displayValue) : displayValue}</span>;
+  return (
+    <span className="odo-wrapper">
+      {charArray.map((char, index) => {
+        const isDigit = /\d/.test(char);
+        if (isDigit) {
+          return (
+            <OdometerDigit
+              key={`${index}-${char}`}
+              digit={parseInt(char, 10)}
+            />
+          );
+        }
+        return (
+          <span key={index} className="odo-static-char">
+            {char}
+          </span>
+        );
+      })}
+    </span>
+  );
 }

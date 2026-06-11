@@ -2179,3 +2179,49 @@ html, body {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   ODOMETER DIGITAL ROLL ANIMATION
+   ═══════════════════════════════════════════════════════════════ */
+.odo-wrapper {
+  display: inline-flex;
+  align-items: baseline;
+  overflow: hidden;
+  height: 1.15em;
+  vertical-align: bottom;
+}
+
+.odo-digit-container {
+  display: inline-block;
+  position: relative;
+  width: 0.62em;
+  height: 1.15em;
+  overflow: hidden;
+  vertical-align: text-bottom;
+}
+
+.odo-digit-strip {
+  display: flex;
+  flex-direction: column;
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  transition: transform 0.65s cubic-bezier(0.34, 1.35, 0.64, 1);
+}
+
+.odo-digit-num {
+  height: 1.15em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  font-weight: inherit;
+  color: inherit;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.odo-static-char {
+  display: inline-block;
+  vertical-align: baseline;
+}
