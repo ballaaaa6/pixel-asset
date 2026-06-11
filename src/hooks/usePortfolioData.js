@@ -13,6 +13,7 @@ export function usePortfolioData({ user, showToast, onSessionExpired, askConfirm
   const [loading, setLoading] = useState(true);
   const [chartRange, setChartRange] = useState("1D");
   const [sortConfig, setSortConfig] = useState({ key: "value", dir: "desc" });
+  const [isDirty, setIsDirty] = useState(false);
 
   const assetsRef = useRef([]);
   assetsRef.current = assets;
@@ -56,19 +57,22 @@ export function usePortfolioData({ user, showToast, onSessionExpired, askConfirm
       }
       if (!res.ok) throw new Error("HTTP " + res.status);
       localStorage.removeItem(`local_portfolio_${user.username}_dirty`);
+      setIsDirty(false);
     } catch (err) {
       console.warn("Server sync failed, saved locally:", err.message);
       localStorage.setItem(`local_portfolio_${user.username}_dirty`, "true");
+      setIsDirty(true);
       showToast("บันทึกข้อมูลในอุปกรณ์เครื่องนี้แล้ว (เซิร์ฟเวอร์ออฟไลน์)", "warning");
     }
   };
 
   const fetchPortfolio = async () => {
     try {
-      const isDirty = localStorage.getItem(`local_portfolio_${user.username}_dirty`) === "true";
+      const isDirtyLocal = localStorage.getItem(`local_portfolio_${user.username}_dirty`) === "true";
+      setIsDirty(isDirtyLocal);
       const localData = JSON.parse(localStorage.getItem(`local_portfolio_${user.username}`) || "[]");
 
-      if (isDirty) {
+      if (isDirtyLocal) {
         // Attempt to sync local unsaved data to server first
         try {
           const syncRes = await fetch("/api/portfolio", {
@@ -78,6 +82,7 @@ export function usePortfolioData({ user, showToast, onSessionExpired, askConfirm
           });
           if (syncRes.ok) {
             localStorage.removeItem(`local_portfolio_${user.username}_dirty`);
+            setIsDirty(false);
             console.log("Successfully synced local changes to server on start");
           }
         } catch (syncErr) {
@@ -85,7 +90,7 @@ export function usePortfolioData({ user, showToast, onSessionExpired, askConfirm
         }
       }
 
-      if (isDirty && localStorage.getItem(`local_portfolio_${user.username}_dirty`) === "true") {
+      if (isDirtyLocal && localStorage.getItem(`local_portfolio_${user.username}_dirty`) === "true") {
         // Still dirty (sync failed), use local data to avoid overwriting
         setAssets(localData);
         await fetchPrices(localData);
@@ -103,6 +108,8 @@ export function usePortfolioData({ user, showToast, onSessionExpired, askConfirm
         const data = await res.json();
         setAssets(data);
         localStorage.setItem(`local_portfolio_${user.username}`, JSON.stringify(data));
+        localStorage.removeItem(`local_portfolio_${user.username}_dirty`);
+        setIsDirty(false);
         await fetchPrices(data);
         if (data.length > 0) fetchSparklines(data, chartRange);
       } else {
@@ -112,6 +119,7 @@ export function usePortfolioData({ user, showToast, onSessionExpired, askConfirm
       console.warn("Server load failed, using local:", err.message);
       const localData = JSON.parse(localStorage.getItem(`local_portfolio_${user.username}`) || "[]");
       setAssets(localData);
+      setIsDirty(localStorage.getItem(`local_portfolio_${user.username}_dirty`) === "true");
       await fetchPrices(localData);
       if (localData.length > 0) fetchSparklines(localData, chartRange);
       showToast("ใช้ข้อมูลพอร์ตที่บันทึกในเครื่องชั่วคราว", "info");
@@ -326,6 +334,7 @@ export function usePortfolioData({ user, showToast, onSessionExpired, askConfirm
     fetchSparklines,
     fetchPortfolio,
     savePortfolio,
+    isDirty,
     ...valuation
   };
 }

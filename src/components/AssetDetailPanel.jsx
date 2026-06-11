@@ -242,9 +242,23 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, historica
         {!isCashAsset && (
           <div className="asset-detail-chart-container">
             {loading ? (
-              <div style={{ height: 250, display: "flex", alignItems: "center", justifyContent: "center", gap: 10, color: "var(--text-muted)" }}>
-                <div className="spinner sm" />
-                <span style={{ fontSize: 13, fontWeight: 600 }}>กำลังโหลดกราฟ {tf}...</span>
+              <div style={{ height: 250, width: "100%", display: "flex", flexDirection: "column", gap: 12, padding: "10px 0" }}>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <div className="skeleton-pulse" style={{ height: 16, width: 80, borderRadius: 4 }} />
+                  <div className="skeleton-pulse" style={{ height: 16, width: 140, borderRadius: 4 }} />
+                </div>
+                <div className="skeleton-pulse" style={{ flex: 1, width: "100%", borderRadius: 12, position: "relative", overflow: "hidden" }}>
+                  <div style={{ position: "absolute", top: "25%", left: 0, right: 0, height: 1, borderTop: "1px dashed rgba(0,0,0,0.05)" }} />
+                  <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: 1, borderTop: "1px dashed rgba(0,0,0,0.05)" }} />
+                  <div style={{ position: "absolute", top: "75%", left: 0, right: 0, height: 1, borderTop: "1px dashed rgba(0,0,0,0.05)" }} />
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "0 6px" }}>
+                  <div className="skeleton-pulse" style={{ height: 12, width: 40, borderRadius: 3 }} />
+                  <div className="skeleton-pulse" style={{ height: 12, width: 40, borderRadius: 3 }} />
+                  <div className="skeleton-pulse" style={{ height: 12, width: 40, borderRadius: 3 }} />
+                  <div className="skeleton-pulse" style={{ height: 12, width: 40, borderRadius: 3 }} />
+                  <div className="skeleton-pulse" style={{ height: 12, width: 40, borderRadius: 3 }} />
+                </div>
               </div>
             ) : error ? (
               <div style={{ height: 250, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, color: "var(--text-muted)" }}>

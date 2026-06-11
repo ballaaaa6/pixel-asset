@@ -1,12 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { X } from "lucide-react";
-import {
-  getRealizedPnL,
-  getDisplaySymbol,
-  getAssetFullName,
-  getCurrencyTicker,
-  getCurrencyPriceUSD
-} from "../../utils/assetHelpers";
+import { getDisplaySymbol, getAssetFullName } from "../../utils/assetHelpers";
+import { computeAssetMetrics } from "../../utils/pnlHelpers";
 import { fmtUSD, fmtTHB, fmtPct, fmtQty } from "../../utils/formatters";
 import BrokerBadge from "../common/BrokerBadge";
 import { registerModal } from "../../utils/modalStack";
@@ -44,114 +39,15 @@ export default function PnLDetailsModal({
     qty: (n) => fmtQty(n, false)
   }), []);
 
-  const getHistoricalRate = (dateStr) => {
-    if (!dateStr) return exchangeRate;
-    const targetDate = dateStr.split("T")[0];
-    if (historicalRates && historicalRates[targetDate]) {
-      return historicalRates[targetDate];
-    }
-    const dates = Object.keys(historicalRates || {}).sort();
-    if (dates.length === 0) return exchangeRate;
-    let bestRate = exchangeRate;
-    for (const d of dates) {
-      if (d <= targetDate) {
-        bestRate = historicalRates[d];
-      } else {
-        break;
-      }
-    }
-    return bestRate;
-  };
-
-  const getRealizedPnLInTHB = (lots, isThai) => {
-    if (!lots || !lots.length) return 0;
-    const sortedLots = [...lots].sort((a, b) => new Date(a.date) - new Date(b.date));
-    let realizedTHB = 0;
-    let currentQty = 0;
-    let currentAvgCostUSD = 0;
-    for (const lot of sortedLots) {
-      const lotQty = lot.qty;
-      let lotPriceUSD = lot.price || 0;
-      const txRate = getHistoricalRate(lot.date);
-      if (isThai && txRate) {
-        lotPriceUSD = lotPriceUSD / txRate;
-      }
-      if (lotQty > 0) {
-        const newQty = currentQty + lotQty;
-        const newCost = (currentQty * currentAvgCostUSD) + (lotQty * lotPriceUSD);
-        currentAvgCostUSD = newQty > 0 ? newCost / newQty : 0;
-        currentQty = newQty;
-      } else if (lotQty < 0) {
-        const sellQty = Math.abs(lotQty);
-        const gainUSD = (lotPriceUSD - currentAvgCostUSD) * sellQty;
-        const gainTHB = gainUSD * txRate;
-        realizedTHB += gainTHB;
-        currentQty = Math.max(0, currentQty - sellQty);
-      }
-    }
-    return realizedTHB;
-  };
-
-  const computeAssetMetrics = (asset) => {
-    const isThai = asset.symbol.toUpperCase().endsWith(".BK");
-    const isCashAsset = asset.type === "fiat" || asset.category === "fiat";
-
-    let priceUSD = 0;
-    if (isCashAsset) {
-      const ticker = getCurrencyTicker(asset.symbol);
-      const p = prices[ticker]?.price;
-      priceUSD = getCurrencyPriceUSD(asset.symbol, p, exchangeRate);
-    } else {
-      const p = prices[asset.symbol]?.price ?? 0;
-      priceUSD = isThai ? p / exchangeRate : p;
-    }
-
-    const valueUSD = priceUSD * asset.qty;
-    const avgCost = asset.avgCost ?? asset.avgPrice ?? 0;
-    const costUSD = isCashAsset ? avgCost * asset.qty : (avgCost * asset.qty / (isThai ? exchangeRate : 1));
-    const unrealized = asset.qty > 0 ? (valueUSD - costUSD) : 0;
-
-    // Realized
-    const rawRealized = getRealizedPnL(asset.lots || [], isThai, exchangeRate);
-    const rawRealizedTHB = getRealizedPnLInTHB(asset.lots || [], isThai);
-    const realized = rawRealized - (asset.clearedRealizedUSD || 0);
-    const realizedTHB = rawRealizedTHB - (asset.clearedRealizedTHB || 0);
-
-    // Initial Capital (cumulative buys)
-    let totalInvested = 0;
-    (asset.lots || []).forEach(l => {
-      if (l.qty > 0) {
-        const pUSD = isThai ? l.price / exchangeRate : l.price;
-        totalInvested += l.qty * pUSD;
-      }
-    });
-    if (totalInvested === 0 && asset.qty > 0) {
-      totalInvested = costUSD;
-    }
-
-    const totalPnL = realized + unrealized;
-    const totalPnLPct = totalInvested > 0 ? (totalPnL / totalInvested) * 100 : 0;
-
-    return {
-      valueUSD,
-      totalInvested,
-      realized,
-      realizedTHB,
-      unrealized,
-      totalPnL,
-      totalPnLPct
-    };
-  };
-
   const breakdown = useMemo(() => {
     return assets.map(a => {
-      const metrics = computeAssetMetrics(a);
+      const metrics = computeAssetMetrics(a, prices, exchangeRate, historicalRates);
       return {
         ...a,
         ...metrics
       };
     });
-  }, [assets, prices, exchangeRate]);
+  }, [assets, prices, exchangeRate, historicalRates]);
 
   // Sum up THB values realistically
   const { totalRealizedTHB_Modal, totalUnrealizedTHB_Modal } = useMemo(() => {

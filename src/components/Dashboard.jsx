@@ -37,7 +37,7 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
     getHistoricalRate, getRealizedPnLInTHB, handleClearAsset, handleDeleteAsset, handleDeleteLot, handleEditLot,
     handleRangeChange, handleSort, handleSaveAsset, fetchPrices, fetchSparklines, savePortfolio, totalUSD,
     totalCostUSD, todayChangeUSD, totalRealizedUSD, totalRealizedTHB, bestAsset, sortedAssets, donutSegments,
-    initialCapitalUSD, totalUnrealizedUSD, totalUnrealizedTHB, totalGainTHB, totalGainUSD, totalGainPct, todayChangePct
+    initialCapitalUSD, totalUnrealizedUSD, totalUnrealizedTHB, totalGainTHB, totalGainUSD, totalGainPct, todayChangePct, isDirty
   } = usePortfolioData({ user, showToast, onSessionExpired, askConfirm });
 
   const filteredAssets = useMemo(() => {
@@ -131,6 +131,7 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
           user={user}
           profilePic={profilePic}
           setProfileModalOpen={setProfileModalOpen}
+          isDirty={isDirty}
         />
 
         <div className="app-container">
