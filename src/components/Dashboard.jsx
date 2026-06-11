@@ -195,6 +195,7 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
               totalGainPct={totalGainPct}
               exchangeRate={exchangeRate}
               hideValues={hideValues}
+              onCardClick={setActiveKpiDetail}
             />
           )}
 

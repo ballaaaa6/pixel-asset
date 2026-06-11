@@ -8,7 +8,8 @@ export default function CostValueBar({
   totalGainUSD,
   totalGainPct,
   exchangeRate,
-  hideValues
+  hideValues,
+  onCardClick
 }) {
   const isProfit = totalUSD >= totalCostUSD;
   const costPct = totalUSD > 0 ? (totalCostUSD / totalUSD) * 100 : 0;
@@ -19,7 +20,11 @@ export default function CostValueBar({
   const multStr = `${(totalUSD / (totalCostUSD || 1)).toFixed(2)}x`;
 
   return (
-    <div className="card cost-vs-value-card stagger-1" style={{ marginBottom: 16 }}>
+    <div
+      className="card cost-vs-value-card stagger-1"
+      onClick={() => onCardClick && onCardClick("cost_value")}
+      style={{ marginBottom: 16, cursor: "pointer" }}
+    >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
         <span className="card-section-title" style={{ margin: 0, fontSize: 15.5, fontWeight: 700, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 6 }}>
           ⚖️ สัดส่วนต้นทุนเทียบกับมูลค่าปัจจุบัน (Cost vs. Value)

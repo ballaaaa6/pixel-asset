@@ -7,6 +7,7 @@ import ValueDetailView from "./ValueDetailView";
 import TodayDetailView from "./TodayDetailView";
 import PnLDetailView from "./PnLDetailView";
 import BestDetailView from "./BestDetailView";
+import CostValueDetailView from "./CostValueDetailView";
 
 export default function KPIDetailsModal({
   isOpen,
@@ -47,6 +48,7 @@ export default function KPIDetailsModal({
       case "today": return "📅 วิเคราะห์ความเคลื่อนไหววันนี้";
       case "pnl": return "📊 สรุปกำไร/ขาดทุนสะสม";
       case "best": return "🏆 ข้อมูลสินทรัพย์ที่โดดเด่นที่สุด";
+      case "cost_value": return "⚖️ วิเคราะห์สัดส่วนต้นทุนและมูลค่า";
       default: return "ℹ️ รายละเอียดข้อมูล";
     }
   }, [type]);
@@ -101,6 +103,20 @@ export default function KPIDetailsModal({
               sortedAssets={sortedAssets}
               bestAsset={bestAsset}
               totalGainUSD={totalGainUSD}
+              fmt={fmt}
+            />
+          )}
+          {type === "cost_value" && (
+            <CostValueDetailView
+              sortedAssets={sortedAssets}
+              totalUSD={totalUSD}
+              totalCostUSD={totalCostUSD}
+              totalGainUSD={totalGainUSD}
+              totalGainPct={totalGainPct}
+              totalGainTHB={totalGainTHB}
+              totalRealizedUSD={totalRealizedUSD}
+              totalUnrealizedUSD={totalUnrealizedUSD}
+              exchangeRate={exchangeRate}
               fmt={fmt}
             />
           )}
