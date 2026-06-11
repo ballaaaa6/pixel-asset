@@ -61,7 +61,7 @@ export default function CostValueDetailView({
     <div>
       {/* Top Header Card - Margin of Safety */}
       <div style={{
-        padding: 20,
+        padding: 22,
         background: totalUp 
           ? "linear-gradient(135deg, rgba(82, 54, 255, 0.15) 0%, rgba(139, 92, 246, 0.08) 100%)"
           : "linear-gradient(135deg, rgba(239, 68, 68, 0.16) 0%, rgba(248, 113, 113, 0.08) 100%)",
@@ -71,11 +71,11 @@ export default function CostValueDetailView({
         textAlign: "center",
         boxShadow: totalUp ? "0 10px 25px -5px rgba(82, 54, 255, 0.08)" : "0 10px 25px -5px rgba(239, 68, 68, 0.08)"
       }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.6 }}>ดัชนีความปลอดภัยพอร์ตโฟลิโอ (Margin of Safety)</div>
-        <div style={{ fontSize: 32, fontWeight: 800, color: safetyColor, marginTop: 6 }}>
+        <div style={{ fontSize: 14.5, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.6 }}>ดัชนีความปลอดภัยพอร์ตโฟลิโอ (Margin of Safety)</div>
+        <div style={{ fontSize: 36, fontWeight: 800, color: safetyColor, marginTop: 6 }}>
           {marginOfSafety.toFixed(1)}%
         </div>
-        <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4, fontWeight: 600 }}>
+        <div style={{ fontSize: 14.5, color: "var(--text-muted)", marginTop: 6, fontWeight: 600 }}>
           {totalUp 
             ? `พอร์ตรองรับการร่วงปรับฐานได้อีก ${marginOfSafety.toFixed(1)}% ก่อนจะแตะระดับทุนสะสม`
             : `มูลค่ารวมพอร์ตต่ำกว่าทุนสะสมขาดดุลทุนอยู่ ${Math.abs(100 - (totalUSD/totalCostUSD)*100).toFixed(1)}%`}
@@ -86,10 +86,10 @@ export default function CostValueDetailView({
           display: "inline-flex",
           alignItems: "center",
           justifyContent: "center",
-          padding: "6px 14px",
+          padding: "8px 16px",
           background: "rgba(255, 255, 255, 0.08)",
           borderRadius: 8,
-          fontSize: 13,
+          fontSize: 14.5,
           fontWeight: 700,
           marginTop: 12,
           color: safetyColor,
@@ -101,65 +101,65 @@ export default function CostValueDetailView({
 
       {/* Grid 2x2 - Capital & Valuation Stats */}
       <div className="stats-grid-2x2" style={{ gap: 12, marginBottom: 16 }}>
-        <div className="stats-grid-card" style={{ padding: "12px 14px" }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>ต้นทุนลงทุนในสินทรัพย์</span>
-          <span style={{ fontSize: 14, fontWeight: 800, color: "var(--text-main)", marginTop: 4 }}>
+        <div className="stats-grid-card" style={{ padding: "14px 16px" }}>
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>ต้นทุนลงทุนในสินทรัพย์</span>
+          <span style={{ fontSize: 16, fontWeight: 800, color: "var(--text-main)", marginTop: 4 }}>
             {fmt.usd(totalCostUSD)}
           </span>
-          <span style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 1 }}>
+          <span style={{ fontSize: 12.5, color: "var(--text-faint)", marginTop: 1 }}>
             {fmt.thb(totalCostUSD * exchangeRate)}
           </span>
         </div>
 
-        <div className="stats-grid-card" style={{ padding: "12px 14px" }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>มูลค่าตลาดปัจจุบัน</span>
-          <span style={{ fontSize: 14, fontWeight: 800, color: "var(--text-main)", marginTop: 4 }}>
+        <div className="stats-grid-card" style={{ padding: "14px 16px" }}>
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>มูลค่าตลาดปัจจุบัน</span>
+          <span style={{ fontSize: 16, fontWeight: 800, color: "var(--text-main)", marginTop: 4 }}>
             {fmt.usd(totalUSD)}
           </span>
-          <span style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 1 }}>
+          <span style={{ fontSize: 12.5, color: "var(--text-faint)", marginTop: 1 }}>
             {fmt.thb(totalUSD * exchangeRate)}
           </span>
         </div>
 
-        <div className="stats-grid-card" style={{ padding: "12px 14px" }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>กำไรที่รับรู้เงินสดแล้ว</span>
-          <span style={{ fontSize: 14, fontWeight: 800, color: totalRealizedUSD >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 4 }}>
+        <div className="stats-grid-card" style={{ padding: "14px 16px" }}>
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>กำไรที่รับรู้เงินสดแล้ว</span>
+          <span style={{ fontSize: 16, fontWeight: 800, color: totalRealizedUSD >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 4 }}>
             {totalRealizedUSD >= 0 ? "+" : ""}{fmt.usd(totalRealizedUSD)}
           </span>
-          <span style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 1 }}>
+          <span style={{ fontSize: 12.5, color: "var(--text-faint)", marginTop: 1 }}>
             {totalRealizedUSD >= 0 ? "Realized Cash out" : "Realized Deficit"}
           </span>
         </div>
 
-        <div className="stats-grid-card" style={{ padding: "12px 14px" }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>ตัวคูณมูลค่าการลงทุน</span>
-          <span style={{ fontSize: 14, fontWeight: 800, color: totalUp ? "var(--gain)" : "var(--loss)", marginTop: 4 }}>
+        <div className="stats-grid-card" style={{ padding: "14px 16px" }}>
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>ตัวคูณมูลค่าการลงทุน</span>
+          <span style={{ fontSize: 16, fontWeight: 800, color: totalUp ? "var(--gain)" : "var(--loss)", marginTop: 4 }}>
             {valuationMultiplier.toFixed(2)}x
           </span>
-          <span style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 1 }}>
+          <span style={{ fontSize: 12.5, color: "var(--text-faint)", marginTop: 1 }}>
             {totalUp ? "มูลค่าโตขึ้น" : "มูลค่าลดลง"}
           </span>
         </div>
       </div>
 
       {/* Asset Class Cost vs Value */}
-      <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-muted)", marginBottom: 12 }}>📂 สัดส่วนต้นทุนแยกตามประเภทสินทรัพย์</div>
+      <div style={{ fontSize: 15.5, fontWeight: 700, color: "var(--text-muted)", marginBottom: 12 }}>📂 สัดส่วนต้นทุนแยกตามประเภทสินทรัพย์</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
         {categoryBreakdown.map(item => (
-          <div key={item.cat} className="kpi-detail-list-item" style={{ padding: "10px 14px", background: "rgba(255, 255, 255, 0.03)", borderRadius: 10 }}>
+          <div key={item.cat} className="kpi-detail-list-item" style={{ padding: "12px 16px", background: "rgba(255, 255, 255, 0.03)", borderRadius: 10 }}>
             <div>
-              <span className={`badge-type ${item.cat}`} style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4, fontWeight: 700 }}>
+              <span className={`badge-type ${item.cat}`} style={{ fontSize: 12.5, padding: "3px 8px", borderRadius: 4, fontWeight: 700 }}>
                 {CATEGORY_LABELS[item.cat] || item.cat}
               </span>
-              <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 4 }}>
+              <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4 }}>
                 ทุน: {fmt.usd(item.costUSD)} | มูลค่า: {fmt.usd(item.valueUSD)}
               </div>
             </div>
             <div style={{ textAlign: "right" }}>
-              <div style={{ fontWeight: 800, fontSize: 14, color: item.gainUSD >= 0 ? "var(--gain)" : "var(--loss)" }}>
+              <div style={{ fontWeight: 800, fontSize: 15.5, color: item.gainUSD >= 0 ? "var(--gain)" : "var(--loss)" }}>
                 {item.gainUSD >= 0 ? "+" : ""}{item.gainPct.toFixed(1)}%
               </div>
-              <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 2 }}>
+              <div style={{ fontSize: 12.5, color: "var(--text-faint)", marginTop: 2 }}>
                 {fmt.usd(item.gainUSD)}
               </div>
             </div>
@@ -168,8 +168,8 @@ export default function CostValueDetailView({
       </div>
 
       {/* Asset-by-Asset Detail List */}
-      <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-muted)", marginBottom: 12 }}>⚖️ ตารางเปรียบเทียบทุนรายตัว (Asset Cost vs Value)</div>
-      <div style={{ maxHeight: 200, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 12 }}>
+      <div style={{ fontSize: 15.5, fontWeight: 700, color: "var(--text-muted)", marginBottom: 12 }}>⚖️ ตารางเปรียบเทียบทุนรายตัว (Asset Cost vs Value)</div>
+      <div style={{ maxHeight: 220, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 12 }}>
         {sortedAssets.map(item => {
           const itemCost = item.costUSD || 0;
           const itemVal = item.valueUSD || 0;
@@ -183,24 +183,24 @@ export default function CostValueDetailView({
           }
 
           return (
-            <div key={item.id} className="kpi-detail-list-item" style={{ padding: "12px 16px", flexDirection: "column", alignItems: "stretch", gap: 8 }}>
+            <div key={item.id} className="kpi-detail-list-item" style={{ padding: "14px 16px", flexDirection: "column", alignItems: "stretch", gap: 8 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ fontWeight: 800, fontSize: 14 }}>{getDisplaySymbol(item.symbol)}</span>
-                    <span className={`badge-type ${item.category || "stock"}`} style={{ fontSize: 10, padding: "1px 5px", borderRadius: 4 }}>
+                    <span style={{ fontWeight: 800, fontSize: 15.5 }}>{getDisplaySymbol(item.symbol)}</span>
+                    <span className={`badge-type ${item.category || "stock"}`} style={{ fontSize: 11.5, padding: "2px 6px", borderRadius: 4 }}>
                       {CATEGORY_LABELS[item.category] || item.category || "stock"}
                     </span>
                   </div>
-                  <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 2 }}>
+                  <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>
                     ทุน: {fmt.usd(itemCost)} | มูลค่า: {fmt.usd(itemVal)}
                   </div>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <div style={{ fontWeight: 800, fontSize: 14, color: isItemProfit ? "var(--gain)" : "var(--loss)" }}>
+                  <div style={{ fontWeight: 800, fontSize: 15.5, color: isItemProfit ? "var(--gain)" : "var(--loss)" }}>
                     {isItemProfit ? "+" : ""}{item.gainPct.toFixed(1)}%
                   </div>
-                  <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 2 }}>
+                  <div style={{ fontSize: 12.5, color: "var(--text-faint)", marginTop: 2 }}>
                     {fmt.usd(itemVal - itemCost)}
                   </div>
                 </div>
