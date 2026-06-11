@@ -25,7 +25,11 @@ export default function AssetTable({
   handleSort,
   handleDeleteAsset,
   hasPrices,
-  sparklines
+  sparklines,
+  hoveredSymbol,
+  setHoveredSymbol,
+  hoveredCategory,
+  setHoveredCategory
 }) {
   const fmt = useMemo(() => ({
     usd: (n) => fmtUSD(n, hideValues),
@@ -110,7 +114,6 @@ export default function AssetTable({
                       </span>
                     </span>
                   </th>
-                  <th style={{ textAlign: "center", width: 90 }}>แนวโน้ม (7 วัน)</th>
                   <th style={{ textAlign: "right" }}>ราคา</th>
                   <SortTh sortKey="value" align="right">มูลค่า</SortTh>
                   <SortTh sortKey="gain" align="right">กำไร/ขาดทุน</SortTh>
@@ -135,8 +138,11 @@ export default function AssetTable({
                     setModalOpen={setModalOpen}
                     handleDeleteAsset={handleDeleteAsset}
                     hasPrices={hasPrices}
-                    sparklines={sparklines}
                     fmt={fmt}
+                    hoveredSymbol={hoveredSymbol}
+                    setHoveredSymbol={setHoveredSymbol}
+                    hoveredCategory={hoveredCategory}
+                    setHoveredCategory={setHoveredCategory}
                   />
                 ))}
               </tbody>
@@ -161,6 +167,10 @@ export default function AssetTable({
                 hasPrices={hasPrices}
                 sparklines={sparklines}
                 fmt={fmt}
+                hoveredSymbol={hoveredSymbol}
+                setHoveredSymbol={setHoveredSymbol}
+                hoveredCategory={hoveredCategory}
+                setHoveredCategory={setHoveredCategory}
               />
             ))}
           </div>

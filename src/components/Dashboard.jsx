@@ -17,6 +17,8 @@ import AssetTable from "./dashboard/AssetTable";
 import PnLDetailsModal from "./dashboard/PnLDetailsModal";
 import ProfileModal from "./dashboard/ProfileModal";
 import PortfolioChart from "./charts/PortfolioChart";
+import CostValueBar from "./dashboard/CostValueBar";
+import TickerTape from "./dashboard/TickerTape";
 
 export default function Dashboard({ user, onLogout, showToast, onSessionExpired }) {
   const [confirmConfig, setConfirmConfig] = useState(null);
@@ -59,6 +61,8 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
   const [editingLot, setEditingLot] = useState(null);
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [showPnLDetailsModal, setShowPnLDetailsModal] = useState(false);
+  const [hoveredSymbol, setHoveredSymbol] = useState(null);
+  const [hoveredCategory, setHoveredCategory] = useState(null);
 
   const currentSelectedAsset = useMemo(() => {
     if (!selectedAsset) return null;
@@ -120,6 +124,8 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
   return (
     <>
       <div className="fade-in">
+        <TickerTape assets={sortedAssets} prices={prices} />
+
         <DashboardHeader
           portfolioName={portfolioName}
           isEditingName={isEditingName}
@@ -150,6 +156,16 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
             hideValues={hideValues}
           />
 
+          {hasPrices && (
+            <CostValueBar
+              totalUSD={totalUSD}
+              totalCostUSD={totalCostUSD}
+              totalGainUSD={totalGainUSD}
+              totalGainPct={totalGainPct}
+              hideValues={hideValues}
+            />
+          )}
+
           <div className="dashboard-grid">
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <PortfolioSummary
@@ -174,6 +190,10 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
                   segments={hasPrices && donutSegments.length > 0 ? donutSegments : []}
                   activeAssets={sortedAssets}
                   hasAssets={sortedAssets.length > 0}
+                  hoveredSymbol={hoveredSymbol}
+                  setHoveredSymbol={setHoveredSymbol}
+                  hoveredCategory={hoveredCategory}
+                  setHoveredCategory={setHoveredCategory}
                 />
               </div>
             </div>
@@ -214,6 +234,10 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
                 handleDeleteAsset={handleDeleteAsset}
                 hasPrices={hasPrices}
                 sparklines={sparklines}
+                hoveredSymbol={hoveredSymbol}
+                setHoveredSymbol={setHoveredSymbol}
+                hoveredCategory={hoveredCategory}
+                setHoveredCategory={setHoveredCategory}
               />
             </div>
           </div>

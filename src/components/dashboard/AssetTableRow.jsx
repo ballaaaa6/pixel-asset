@@ -4,7 +4,6 @@ import AssetLogo from "../common/AssetLogo";
 import MarketBadge from "./MarketBadge";
 import { getDisplaySymbol, getAssetFullName } from "../../utils/assetHelpers";
 import BrokerBadge from "../common/BrokerBadge";
-import SparklineChart from "../charts/SparklineChart";
 
 const CATEGORY_LABELS = { stock: "หุ้น", crypto: "คริปโต", gold: "ทองคำ/น้ำมัน", fiat: "เงินสด" };
 
@@ -22,8 +21,11 @@ export default function AssetTableRow({
   setModalOpen,
   handleDeleteAsset,
   hasPrices,
-  sparklines,
-  fmt
+  fmt,
+  hoveredSymbol,
+  setHoveredSymbol,
+  hoveredCategory,
+  setHoveredCategory
 }) {
   const pData = prices[asset.symbol];
   const flash = priceFlash[asset.symbol];
@@ -31,13 +33,22 @@ export default function AssetTableRow({
   const isBest = bestAsset?.symbol === asset.symbol;
   const isCashAsset = asset.type === "fiat" || asset.category === "fiat";
   const isSelected = selectedAsset?.id === asset.id;
+  const isHovered = hoveredSymbol === asset.symbol || (hoveredCategory === (asset.category || "stock") && !hoveredSymbol);
 
   return (
     <tr
-      className={`asset-row-clickable ${isSelected ? "selected" : ""} ${flash ? `price-flash-${flash}` : ""}`}
+      className={`asset-row-clickable ${asset.category || "stock"} ${isSelected ? "selected" : ""} ${isHovered ? "row-hovered" : ""} ${flash ? `price-flash-${flash}` : ""}`}
       onClick={(e) => {
         if (e.target.closest("button") || e.target.closest("td:last-child")) return;
         setSelectedAsset(asset);
+      }}
+      onMouseEnter={() => {
+        setHoveredSymbol(asset.symbol);
+        setHoveredCategory(asset.category || "stock");
+      }}
+      onMouseLeave={() => {
+        setHoveredSymbol(null);
+        setHoveredCategory(null);
       }}
       style={{ animationDelay: `${idx * 0.04}s` }}
     >
@@ -64,16 +75,6 @@ export default function AssetTableRow({
             </div>
           </div>
         </div>
-      </td>
-
-      <td style={{ textAlign: "center", verticalAlign: "middle" }}>
-        {isCashAsset ? (
-          <span style={{ color: "var(--text-faint)", fontSize: 13 }}>—</span>
-        ) : (
-          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-            <SparklineChart closes={sparklines?.[asset.symbol]?.closes} width={80} height={28} />
-          </div>
-        )}
       </td>
 
       <td style={{ textAlign: "right" }}>

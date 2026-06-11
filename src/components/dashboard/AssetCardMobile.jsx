@@ -4,7 +4,6 @@ import AssetLogo from "../common/AssetLogo";
 import MarketBadge from "./MarketBadge";
 import { getDisplaySymbol, getAssetFullName } from "../../utils/assetHelpers";
 import BrokerBadge from "../common/BrokerBadge";
-import SparklineChart from "../charts/SparklineChart";
 
 const CATEGORY_LABELS = { stock: "หุ้น", crypto: "คริปโต", gold: "ทองคำ/น้ำมัน", fiat: "เงินสด" };
 
@@ -21,19 +20,32 @@ export default function AssetCardMobile({
   handleDeleteAsset,
   hasPrices,
   sparklines,
-  fmt
+  fmt,
+  hoveredSymbol,
+  setHoveredSymbol,
+  hoveredCategory,
+  setHoveredCategory
 }) {
   const pData = prices[asset.symbol];
   const flash = priceFlash[asset.symbol];
   const isBest = bestAsset?.symbol === asset.symbol;
   const isCashAsset = asset.type === "fiat" || asset.category === "fiat";
+  const isHovered = hoveredSymbol === asset.symbol || (hoveredCategory === (asset.category || "stock") && !hoveredSymbol);
 
   return (
     <div
-      className={`mobile-asset-card${flash ? ` price-flash-${flash}` : ""}`}
+      className={`mobile-asset-card ${asset.category || "stock"} ${isHovered ? "row-hovered" : ""} ${flash ? `price-flash-${flash}` : ""}`}
       onClick={(e) => {
         if (e.target.closest("button")) return;
         setSelectedAsset(asset);
+      }}
+      onMouseEnter={() => {
+        setHoveredSymbol(asset.symbol);
+        setHoveredCategory(asset.category || "stock");
+      }}
+      onMouseLeave={() => {
+        setHoveredSymbol(null);
+        setHoveredCategory(null);
       }}
       style={{ animationDelay: `${idx * 0.06}s`, cursor: "pointer" }}
     >
@@ -53,11 +65,6 @@ export default function AssetCardMobile({
             <MarketBadge state={pData?.marketState} />
           </div>
         </div>
-        {!isCashAsset && (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flex: 1, padding: "0 8px" }}>
-            <SparklineChart closes={sparklines?.[asset.symbol]?.closes} width={64} height={24} />
-          </div>
-        )}
         <div className="mobile-card-right">
           {hasPrices ? (
             isCashAsset ? (

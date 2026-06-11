@@ -1861,3 +1861,155 @@ html, body {
     opacity: 0.65;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   PREMIUM UI/UX ENHANCEMENTS (ITEMS 2-5)
+═══════════════════════════════════════════════════════════════ */
+
+/* Item 3: Glassmorphism for Modals */
+.modal-content {
+  background: rgba(255, 255, 255, 0.82) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.45) !important;
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.6) !important;
+}
+
+/* Card hover micro-interactions */
+.card {
+  transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.3s ease, border-color 0.3s ease !important;
+}
+.card:hover {
+  transform: translateY(-3px) scale(1.008);
+  box-shadow: 0 16px 32px rgba(82, 54, 255, 0.06), 0 4px 16px rgba(0, 0, 0, 0.04) !important;
+  border-color: rgba(82, 54, 255, 0.2) !important;
+}
+
+/* Item 2: Table row hover highlights & Glowing shadows matching category */
+.asset-row-clickable {
+  transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease !important;
+}
+.asset-row-clickable.row-hovered {
+  background-color: rgba(248, 250, 252, 0.8) !important;
+  transform: scale(1.002);
+}
+.asset-row-clickable.stock.row-hovered {
+  box-shadow: inset 4px 0 0 var(--primary), 0 4px 12px rgba(82, 54, 255, 0.08) !important;
+}
+.asset-row-clickable.crypto.row-hovered {
+  box-shadow: inset 4px 0 0 var(--gain), 0 4px 12px rgba(0, 185, 138, 0.08) !important;
+}
+.asset-row-clickable.gold.row-hovered {
+  box-shadow: inset 4px 0 0 var(--warning), 0 4px 12px rgba(245, 158, 11, 0.08) !important;
+}
+.asset-row-clickable.fiat.row-hovered {
+  box-shadow: inset 4px 0 0 #8B5CF6, 0 4px 12px rgba(139, 92, 246, 0.08) !important;
+}
+
+/* Mobile Card hover float and glows */
+.mobile-asset-card {
+  transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.3s ease, border-color 0.3s ease !important;
+}
+.mobile-asset-card.row-hovered, .mobile-asset-card:hover {
+  transform: translateY(-2px) scale(1.01);
+}
+.mobile-asset-card.stock.row-hovered, .mobile-asset-card.stock:hover {
+  box-shadow: 0 8px 20px rgba(82, 54, 255, 0.1), 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+  border-color: rgba(82, 54, 255, 0.25) !important;
+}
+.mobile-asset-card.crypto.row-hovered, .mobile-asset-card.crypto:hover {
+  box-shadow: 0 8px 20px rgba(0, 185, 138, 0.12), 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+  border-color: rgba(0, 185, 138, 0.25) !important;
+}
+.mobile-asset-card.gold.row-hovered, .mobile-asset-card.gold:hover {
+  box-shadow: 0 8px 20px rgba(245, 158, 11, 0.12), 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+  border-color: rgba(245, 158, 11, 0.25) !important;
+}
+.mobile-asset-card.fiat.row-hovered, .mobile-asset-card.fiat:hover {
+  box-shadow: 0 8px 20px rgba(139, 92, 246, 0.15), 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+  border-color: rgba(139, 92, 246, 0.25) !important;
+}
+
+/* Item 5: Sticky Infinite Marquee Ticker Tape */
+.ticker-tape-container {
+  width: 100%;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  height: 32px;
+  display: flex;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 101;
+  user-select: none;
+}
+.navbar {
+  top: 32px !important;
+}
+.ticker-track {
+  display: inline-flex;
+  white-space: nowrap;
+  animation: ticker-swipe 35s linear infinite;
+  align-items: center;
+}
+.ticker-track:hover {
+  animation-play-state: paused;
+  cursor: pointer;
+}
+.ticker-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 24px;
+  font-size: 11px;
+  font-weight: 800;
+  font-family: 'Outfit', sans-serif;
+}
+.ticker-item-symbol {
+  color: var(--text-main);
+}
+.ticker-item-price {
+  color: var(--text-muted);
+}
+.ticker-item-pct.up {
+  color: var(--gain);
+}
+.ticker-item-pct.down {
+  color: var(--loss);
+}
+@keyframes ticker-swipe {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-33.3333%, 0, 0);
+  }
+}
+
+/* Item 4: Cost vs Value progress bar card styles */
+.cost-vs-value-card {
+  transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.3s ease, border-color 0.3s ease !important;
+}
+.cost-vs-value-card:hover {
+  transform: translateY(-2px) scale(1.008);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08) !important;
+  border-color: rgba(82, 54, 255, 0.15) !important;
+}
+.progress-bar-profit {
+  position: relative;
+  overflow: hidden;
+}
+.progress-bar-profit::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  animation: profitGlow 3s infinite linear;
+}
+@keyframes profitGlow {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}

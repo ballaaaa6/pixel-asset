@@ -1,12 +1,19 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { PieChart } from "lucide-react";
 
 const DONUT_COLORS = ["#5236FF", "#00B98A", "#F59E0B", "#FF4B55", "#8B5CF6", "#06B6D4", "#EC4899", "#84CC16"];
 const CATEGORY_LABELS = { stock: "หุ้น", crypto: "คริปโต", gold: "ทองคำ/น้ำมัน", fiat: "เงินสด" };
 
-export default function DonutChart({ segments, activeAssets, hasAssets }) {
+export default function DonutChart({
+  segments,
+  activeAssets,
+  hasAssets,
+  hoveredSymbol,
+  setHoveredSymbol,
+  hoveredCategory,
+  setHoveredCategory
+}) {
   const [drillCategory, setDrillCategory] = useState(null);
-  const [hoveredSlice, setHoveredSlice] = useState(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
   const R = 68, CX = 80, CY = 80, SW = 18;
@@ -37,7 +44,8 @@ export default function DonutChart({ segments, activeAssets, hasAssets }) {
         <button
           onClick={() => {
             setDrillCategory(null);
-            setHoveredSlice(null);
+            setHoveredCategory(null);
+            setHoveredSymbol(null);
           }}
           style={{
             background: "var(--primary-light)",
@@ -160,6 +168,15 @@ export default function DonutChart({ segments, activeAssets, hasAssets }) {
     });
   }
 
+  // Derive hoveredSlice from props
+  const hoveredSlice = slices.find(s => {
+    if (!drillCategory) {
+      return s.id === hoveredCategory;
+    } else {
+      return s.id === hoveredSymbol;
+    }
+  }) || null;
+
   return (
     <div className="donut-card-body" style={{ minHeight: 300, display: "flex", flexDirection: "column", justifyContent: "flex-start", alignItems: "stretch", position: "relative" }}>
       {renderHeader()}
@@ -168,35 +185,50 @@ export default function DonutChart({ segments, activeAssets, hasAssets }) {
         <div
           className="donut-wrapper"
           onMouseMove={handleMouseMove}
-          onMouseLeave={() => setHoveredSlice(null)}
+          onMouseLeave={() => {
+            setHoveredCategory(null);
+            setHoveredSymbol(null);
+          }}
         >
           <svg viewBox="0 0 160 160" className="donut-chart-svg">
             {/* Background track */}
             <circle cx={CX} cy={CY} r={R} fill="none" stroke="#F1F5F9" strokeWidth={SW} />
             {/* Segments */}
-            {slices.map((s, i) => (
-              <circle
-                key={i}
-                cx={CX} cy={CY} r={R}
-                fill="none"
-                stroke={s.color}
-                strokeWidth={hoveredSlice && hoveredSlice.id === s.id ? SW + 3 : SW}
-                strokeLinecap="butt"
-                strokeDasharray={`${s.dash} ${s.gap}`}
-                strokeDashoffset={s.strokeDashoffset}
-                onMouseEnter={() => setHoveredSlice(s)}
-                onClick={() => {
-                  if (!drillCategory) {
-                    setDrillCategory(s.id);
-                    setHoveredSlice(null);
-                  }
-                }}
-                style={{
-                  cursor: !drillCategory ? "pointer" : "default",
-                  transition: "stroke-width 0.2s ease, stroke-dasharray 0.8s cubic-bezier(0.4,0,0.2,1), stroke-dashoffset 0.8s cubic-bezier(0.4,0,0.2,1)"
-                }}
-              />
-            ))}
+            {slices.map((s, i) => {
+              const isSliceActive = hoveredSlice && hoveredSlice.id === s.id;
+              return (
+                <circle
+                  key={i}
+                  cx={CX} cy={CY} r={R}
+                  fill="none"
+                  stroke={s.color}
+                  strokeWidth={isSliceActive ? SW + 3 : SW}
+                  strokeLinecap="butt"
+                  strokeDasharray={`${s.dash} ${s.gap}`}
+                  strokeDashoffset={s.strokeDashoffset}
+                  onMouseEnter={() => {
+                    if (!drillCategory) {
+                      setHoveredCategory(s.id);
+                      setHoveredSymbol(null);
+                    } else {
+                      setHoveredSymbol(s.id);
+                      setHoveredCategory(drillCategory);
+                    }
+                  }}
+                  onClick={() => {
+                    if (!drillCategory) {
+                      setDrillCategory(s.id);
+                      setHoveredCategory(null);
+                      setHoveredSymbol(null);
+                    }
+                  }}
+                  style={{
+                    cursor: !drillCategory ? "pointer" : "default",
+                    transition: "stroke-width 0.2s ease, stroke-dasharray 0.8s cubic-bezier(0.4,0,0.2,1), stroke-dashoffset 0.8s cubic-bezier(0.4,0,0.2,1)"
+                  }}
+                />
+              );
+            })}
             {/* White center hole */}
             <circle cx={CX} cy={CY} r={R - SW / 2 - 2} fill="white" />
           </svg>
@@ -251,29 +283,44 @@ export default function DonutChart({ segments, activeAssets, hasAssets }) {
         </div>
 
         <div className="legend-list">
-          {slices.map((s, i) => (
-            <div
-              key={i}
-              className="legend-item"
-              onMouseEnter={() => setHoveredSlice(s)}
-              onMouseLeave={() => setHoveredSlice(null)}
-              onClick={() => {
-                if (!drillCategory) {
-                  setDrillCategory(s.id);
-                  setHoveredSlice(null);
-                }
-              }}
-              style={{
-                cursor: !drillCategory ? "pointer" : "default",
-                opacity: hoveredSlice && hoveredSlice.id !== s.id ? 0.5 : 1,
-                transition: "opacity 0.2s ease"
-              }}
-            >
-              <div className="legend-color" style={{ background: s.color }} />
-              <span className="legend-name" style={{ fontWeight: hoveredSlice && hoveredSlice.id === s.id ? 800 : 600 }}>{s.label}</span>
-              <span className="legend-pct" style={{ color: s.color, fontWeight: 800 }}>{s.pct.toFixed(1)}%</span>
-            </div>
-          ))}
+          {slices.map((s, i) => {
+            const isSliceActive = hoveredSlice && hoveredSlice.id === s.id;
+            return (
+              <div
+                key={i}
+                className="legend-item"
+                onMouseEnter={() => {
+                  if (!drillCategory) {
+                    setHoveredCategory(s.id);
+                    setHoveredSymbol(null);
+                  } else {
+                    setHoveredSymbol(s.id);
+                    setHoveredCategory(drillCategory);
+                  }
+                }}
+                onMouseLeave={() => {
+                  setHoveredCategory(null);
+                  setHoveredSymbol(null);
+                }}
+                onClick={() => {
+                  if (!drillCategory) {
+                    setDrillCategory(s.id);
+                    setHoveredCategory(null);
+                    setHoveredSymbol(null);
+                  }
+                }}
+                style={{
+                  cursor: !drillCategory ? "pointer" : "default",
+                  opacity: (hoveredCategory || hoveredSymbol) && !isSliceActive ? 0.4 : 1,
+                  transition: "opacity 0.2s ease"
+                }}
+              >
+                <div className="legend-color" style={{ background: s.color }} />
+                <span className="legend-name" style={{ fontWeight: isSliceActive ? 800 : 600 }}>{s.label}</span>
+                <span className="legend-pct" style={{ color: s.color, fontWeight: 800 }}>{s.pct.toFixed(1)}%</span>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
