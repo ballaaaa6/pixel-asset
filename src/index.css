@@ -1167,7 +1167,7 @@ html, body {
 .asset-icon-wrapper.gold   { background: var(--gold-light); color: #92400E; }
 .asset-icon-wrapper.fiat   { background: #ECFDF5; color: #065F46; }
 
-.asset-name-col { display: flex; align-items: center; gap: 10px; position: relative; }
+.asset-name-col { display: flex; align-items: center; gap: 10px; }
 
 .asset-row-actions {
   position: absolute;

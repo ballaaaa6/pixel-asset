@@ -74,16 +74,6 @@ export default function AssetTableRow({
               </span>
             </div>
           </div>
-          <div className="asset-row-actions">
-            <button className="btn-delete btn-action-add" title={asset.category === "fiat" || asset.type === "fiat" ? "ฝากเงินสด / ถอนเงินสด" : "ซื้อ / ขายสินทรัพย์"}
-              onClick={(e) => { e.stopPropagation(); setEditingAsset(asset); setModalOpen(true); }}>
-              <Plus size={14} />
-            </button>
-            <button className="btn-delete btn-action-trash" title="ลบออกจากพอร์ต"
-              onClick={(e) => { e.stopPropagation(); handleDeleteAsset(asset); }}>
-              <Trash2 size={14} />
-            </button>
-          </div>
         </div>
       </td>
 
@@ -157,7 +147,7 @@ export default function AssetTableRow({
         )}
       </td>
 
-      <td style={{ textAlign: "right" }}>
+      <td style={{ textAlign: "right", position: "relative" }}>
         {!hasPrices || isCashAsset ? (
           <span style={{ color: "var(--text-faint)", fontSize: 13 }}>—</span>
         ) : (
@@ -174,6 +164,16 @@ export default function AssetTableRow({
             )}
           </div>
         )}
+        <div className="asset-row-actions">
+          <button className="btn-delete btn-action-add" title={asset.category === "fiat" || asset.type === "fiat" ? "ฝากเงินสด / ถอนเงินสด" : "ซื้อ / ขายสินทรัพย์"}
+            onClick={(e) => { e.stopPropagation(); setEditingAsset(asset); setModalOpen(true); }}>
+            <Plus size={14} />
+          </button>
+          <button className="btn-delete btn-action-trash" title="ลบออกจากพอร์ต"
+            onClick={(e) => { e.stopPropagation(); handleDeleteAsset(asset); }}>
+            <Trash2 size={14} />
+          </button>
+        </div>
       </td>
 
     </tr>
