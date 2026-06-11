@@ -2016,16 +2016,16 @@ html, body {
 /* Odometer Number Ticker Styling */
 .number-ticker {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   height: 1.15em;
   overflow: hidden;
-  vertical-align: bottom;
+  vertical-align: baseline;
 }
 .ticker-digit-wrapper {
   display: inline-block;
   height: 1.15em;
+  line-height: 1.15em;
   position: relative;
-  overflow: hidden;
   width: 0.62em;
   text-align: center;
 }
@@ -2039,14 +2039,12 @@ html, body {
 }
 .ticker-digit-column span {
   height: 1.15em;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  line-height: 1.15em;
+  display: block;
   text-align: center;
 }
 .ticker-char {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: inline-block;
   height: 1.15em;
+  line-height: 1.15em;
 }
