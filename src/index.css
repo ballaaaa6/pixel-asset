@@ -2158,6 +2158,7 @@ html, body {
 
 /* Item 4: Cost vs Value progress bar card styles */
 .cost-vs-value-card {
+  cursor: pointer !important;
   transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.3s ease, border-color 0.3s ease !important;
 }
 .cost-vs-value-card:hover {
