@@ -294,6 +294,7 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
           totalGainUSD={totalGainUSD} totalGainPct={totalGainPct} totalGainTHB={totalGainTHB}
           totalRealizedUSD={totalRealizedUSD} totalUnrealizedUSD={totalUnrealizedUSD}
           bestAsset={bestAsset} sortedAssets={sortedAssets} donutSegments={donutSegments}
+          initialCapitalUSD={initialCapitalUSD} historicalRates={historicalRates}
         />
       )}
 

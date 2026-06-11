@@ -26,7 +26,9 @@ export default function KPIDetailsModal({
   totalUnrealizedUSD,
   bestAsset,
   sortedAssets,
-  donutSegments
+  donutSegments,
+  initialCapitalUSD,
+  historicalRates
 }) {
   useEffect(() => {
     if (!isOpen) return;
@@ -53,7 +55,7 @@ export default function KPIDetailsModal({
 
   return (
     <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal-content" style={{ maxWidth: 480, width: "95%", background: "var(--bg-modal)", backdropFilter: "blur(20px)" }}>
+      <div className="modal-content" style={{ background: "var(--bg-modal)", backdropFilter: "blur(20px)" }}>
         <div className="modal-header" style={{ borderBottom: "1px solid var(--border)", paddingBottom: 14 }}>
           <span className="modal-title" style={{ fontSize: 16, fontWeight: 800 }}>{modalTitle}</span>
           <button className="btn-close" onClick={onClose} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
@@ -61,7 +63,7 @@ export default function KPIDetailsModal({
           </button>
         </div>
 
-        <div style={{ marginTop: 16 }}>
+        <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 16, paddingTop: 16, overflowY: "auto" }}>
           {type === "value" && (
             <ValueDetailView
               assets={sortedAssets}
@@ -87,6 +89,10 @@ export default function KPIDetailsModal({
               totalGainPct={totalGainPct}
               totalRealizedUSD={totalRealizedUSD}
               totalUnrealizedUSD={totalUnrealizedUSD}
+              exchangeRate={exchangeRate}
+              historicalRates={historicalRates}
+              initialCapitalUSD={initialCapitalUSD}
+              totalUSD={totalUSD}
               fmt={fmt}
             />
           )}
@@ -94,6 +100,7 @@ export default function KPIDetailsModal({
             <BestDetailView
               sortedAssets={sortedAssets}
               bestAsset={bestAsset}
+              totalGainUSD={totalGainUSD}
               fmt={fmt}
             />
           )}

@@ -2308,3 +2308,93 @@ html, body {
   background: linear-gradient(90deg, var(--gold), #FBBF24);
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   RESPONSIVE BOTTOM SHEET FOR MOBILE DEVICES (< 576px)
+   ═══════════════════════════════════════════════════════════════ */
+@keyframes slideUpSheet {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+@media (max-width: 575px) {
+  /* Aligns modal overlay children to bottom of screen for slide-up sheet effect */
+  .modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  
+  .modal-overlay > .modal-content {
+    max-width: 100%;
+    width: 100% !important;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0 !important;
+    margin: 0 !important;
+    animation: slideUpSheet 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .modal-overlay > .modal-content > div {
+    overflow-y: auto;
+    padding-bottom: 24px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MODAL STATS GRID & GAUGE WIDGETS
+   ═══════════════════════════════════════════════════════════════ */
+.stats-grid-2x2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.stats-grid-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.dark-mode .stats-grid-card {
+  background: rgba(15, 23, 42, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.daily-sentiment-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: var(--radius-sm);
+  margin-top: 10px;
+  text-transform: uppercase;
+}
+
+.sentiment-bullish {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--gain);
+  border: 1.5px solid rgba(16, 185, 129, 0.25);
+}
+
+.sentiment-bearish {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--loss);
+  border: 1.5px solid rgba(239, 68, 68, 0.25);
+}
+
+.sentiment-sideways {
+  background: rgba(100, 116, 139, 0.12);
+  color: var(--text-muted);
+  border: 1.5px solid rgba(100, 116, 139, 0.2);
+}
+
+

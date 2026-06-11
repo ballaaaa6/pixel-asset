@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { getDisplaySymbol, getAssetFullName } from "../../utils/assetHelpers";
 
-export default function BestDetailView({ sortedAssets, bestAsset, fmt }) {
+export default function BestDetailView({ sortedAssets, bestAsset, totalGainUSD, fmt }) {
   const bestFullAsset = useMemo(() => {
     if (!bestAsset) return null;
     return sortedAssets.find(a => a.symbol === bestAsset.symbol);
@@ -14,6 +14,13 @@ export default function BestDetailView({ sortedAssets, bestAsset, fmt }) {
       .slice(0, 3);
   }, [sortedAssets]);
 
+  const contributionRatio = useMemo(() => {
+    if (!bestFullAsset || !totalGainUSD || totalGainUSD <= 0) return null;
+    const championPnL = bestFullAsset.totalPnL || bestFullAsset.unrealizedPnL || 0;
+    if (championPnL <= 0) return null;
+    return (championPnL / totalGainUSD) * 100;
+  }, [bestFullAsset, totalGainUSD]);
+
   if (!bestFullAsset) {
     return (
       <div style={{ padding: 24, textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
@@ -23,6 +30,10 @@ export default function BestDetailView({ sortedAssets, bestAsset, fmt }) {
   }
 
   const isThai = bestFullAsset.symbol.endsWith(".BK");
+
+  const podiumEmojis = ["🥇 เหรียญทอง", "🥈 เหรียญเงิน", "🥉 เหรียญทองแดง"];
+  const podiumColors = ["#D97706", "#475569", "#B45309"];
+  const podiumBgColors = ["rgba(245, 158, 11, 0.15)", "rgba(100, 116, 139, 0.15)", "rgba(180, 83, 9, 0.15)"];
 
   return (
     <div>
@@ -42,6 +53,12 @@ export default function BestDetailView({ sortedAssets, bestAsset, fmt }) {
         <div style={{ fontSize: 32, fontWeight: 900, color: "var(--gain)", marginTop: 12 }}>
           +{bestFullAsset.gainPct.toFixed(2)}%
         </div>
+
+        {contributionRatio != null && (
+          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, fontWeight: 600 }}>
+            🔥 คิดเป็น <span style={{ color: "var(--gain)", fontWeight: 700 }}>{contributionRatio.toFixed(1)}%</span> ของกำไรทั้งพอร์ตโฟลิโอ
+          </div>
+        )}
 
         {/* Stats Grid */}
         <div style={{
@@ -82,25 +99,24 @@ export default function BestDetailView({ sortedAssets, bestAsset, fmt }) {
         </div>
       </div>
 
-      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", marginBottom: 10 }}>🏅 สินทรัพย์ที่ทำเปอร์เซ็นต์กำไรสูงสุด 3 อันดับแรก</div>
+      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", marginBottom: 10 }}>🏆 สินทรัพย์ที่ทำเปอร์เซ็นต์กำไรสูงสุด 3 อันดับแรก</div>
       
       <div style={{ border: "1px solid var(--border)", borderRadius: 12 }}>
         {topAssets.map((item, idx) => (
           <div key={item.id} className="kpi-detail-list-item" style={{ padding: "10px 14px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{
-                width: 18,
-                height: 18,
-                borderRadius: "50%",
-                background: idx === 0 ? "rgba(245, 158, 11, 0.15)" : idx === 1 ? "rgba(100, 116, 139, 0.15)" : "rgba(180, 83, 9, 0.15)",
-                color: idx === 0 ? "#D97706" : idx === 1 ? "#475569" : "#B45309",
+                padding: "3px 8px",
+                borderRadius: 6,
+                background: podiumBgColors[idx] || "rgba(255, 255, 255, 0.08)",
+                color: podiumColors[idx] || "var(--text-main)",
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
                 fontSize: 10.5,
                 fontWeight: 800
               }}>
-                {idx + 1}
+                {podiumEmojis[idx] || `${idx + 1}`}
               </span>
               <span style={{ fontWeight: 800, fontSize: 13 }}>{getDisplaySymbol(item.symbol)}</span>
             </div>

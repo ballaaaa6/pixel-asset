@@ -4,15 +4,29 @@ import { getDisplaySymbol } from "../../utils/assetHelpers";
 const CATEGORY_LABELS = { stock: "หุ้น", crypto: "คริปโต", gold: "ทองคำ/น้ำมัน", fiat: "เงินสด" };
 
 export default function TodayDetailView({ sortedAssets, todayChangeUSD, todayChangePct, exchangeRate, fmt }) {
-  const { gainers, losers, movers } = useMemo(() => {
-    const active = sortedAssets.filter(a => a.qty > 0.00001 && a.todayChg !== 0);
-    const sortedMovers = [...active].sort((a, b) => Math.abs(b.todayChg) - Math.abs(a.todayChg));
-    const g = active.filter(a => a.todayChg > 0).length;
-    const l = active.filter(a => a.todayChg < 0).length;
-    return { gainers: g, losers: l, movers: sortedMovers };
+  const { gainers, losers, movers, winner, loser } = useMemo(() => {
+    const active = sortedAssets.filter(a => a.qty > 0.00001);
+    const withChg = active.filter(a => a.todayChg !== 0);
+    const sortedMovers = [...withChg].sort((a, b) => Math.abs(b.todayChg) - Math.abs(a.todayChg));
+    const g = withChg.filter(a => a.todayChg > 0).length;
+    const l = withChg.filter(a => a.todayChg < 0).length;
+
+    // Find best percent gain today and worst percent loss today
+    const sortedByPct = [...active].sort((a, b) => b.todayPct - a.todayPct);
+    const win = sortedByPct.length > 0 && sortedByPct[0].todayPct > 0 ? sortedByPct[0] : null;
+    const los = sortedByPct.length > 0 && sortedByPct[sortedByPct.length - 1].todayPct < 0 ? sortedByPct[sortedByPct.length - 1] : null;
+
+    return { gainers: g, losers: l, movers: sortedMovers, winner: win, loser: los };
   }, [sortedAssets]);
 
   const todayUp = todayChangeUSD >= 0;
+
+  // Sentiment analysis
+  const { sentimentLabel, sentimentClass } = useMemo(() => {
+    if (todayChangePct > 1.2) return { sentimentLabel: "พอร์ตกระทิงดุ (Bullish Day) 🚀", sentimentClass: "sentiment-bullish" };
+    if (todayChangePct < -1.2) return { sentimentLabel: "พอร์ตหมีดุ (Bearish Day) 📉", sentimentClass: "sentiment-bearish" };
+    return { sentimentLabel: "ตลาดทรงตัว (Sideways P&L) ⚖️", sentimentClass: "sentiment-sideways" };
+  }, [todayChangePct]);
 
   return (
     <div>
@@ -24,7 +38,7 @@ export default function TodayDetailView({ sortedAssets, todayChangeUSD, todayCha
           : "linear-gradient(135deg, rgba(239, 68, 68, 0.16) 0%, rgba(248, 113, 113, 0.08) 100%)",
         border: todayUp ? "1.5px solid rgba(16, 185, 129, 0.35)" : "1.5px solid rgba(239, 68, 68, 0.35)",
         borderRadius: 16,
-        marginBottom: 18,
+        marginBottom: 16,
         textAlign: "center",
         boxShadow: todayUp ? "0 10px 25px -5px rgba(16, 185, 129, 0.08)" : "0 10px 25px -5px rgba(239, 68, 68, 0.08)"
       }}>
@@ -32,7 +46,7 @@ export default function TodayDetailView({ sortedAssets, todayChangeUSD, todayCha
         <div style={{ fontSize: 28, fontWeight: 800, color: todayUp ? "var(--gain)" : "var(--loss)", marginTop: 6, display: "flex", alignItems: "baseline", justifyContent: "center", gap: 4 }}>
           {todayChangeUSD !== 0 && (todayUp ? "+" : "-")}
           {fmt.usd(Math.abs(todayChangeUSD))}
-          <span style={{ fontSize: 14, marginLeft: 6, fontWeight: 700 }} className={`kpi-badge ${todayUp ? "up" : "down"}`}>
+          <span style={{ fontSize: 13, marginLeft: 6, fontWeight: 700 }} className={`kpi-badge ${todayUp ? "up" : "down"}`}>
             {todayUp ? "▲" : "▼"}{fmt.pct(todayChangePct)}
           </span>
         </div>
@@ -40,17 +54,31 @@ export default function TodayDetailView({ sortedAssets, todayChangeUSD, todayCha
           {todayChangeUSD >= 0 ? "+" : "-"}{fmt.thb(Math.abs(todayChangeUSD * exchangeRate))}
         </div>
         
-        {/* Gainers vs Losers Meter */}
-        <div style={{ display: "flex", justifyContent: "center", gap: 16, marginTop: 12, fontSize: 11.5, fontWeight: 700 }}>
-          <span style={{ color: "var(--gain)" }}>🟢 ขึ้น {gainers} ตัว</span>
-          <span style={{ opacity: 0.3 }}>|</span>
-          <span style={{ color: "var(--loss)" }}>🔴 ลง {losers} ตัว</span>
+        {/* Sentiment Badge */}
+        <div className={`daily-sentiment-badge ${sentimentClass}`}>
+          {sentimentLabel}
+        </div>
+      </div>
+
+      {/* Grid 2x2: Market Movers Stats & Winner/Loser */}
+      <div className="stats-grid-2x2">
+        <div className="stats-grid-card">
+          <span style={{ fontSize: 9.5, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>ขึ้น/ลง วันนี้</span>
+          <span style={{ fontSize: 11, fontWeight: 800, color: "var(--text-main)", marginTop: 4 }}>
+            🟢 ขึ้น {gainers} | 🔴 ลง {losers}
+          </span>
+        </div>
+        <div className="stats-grid-card">
+          <span style={{ fontSize: 9.5, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>ดาวรุ่งพุ่งแรงวันนี้</span>
+          <span style={{ fontSize: 11, fontWeight: 800, color: "var(--gain)", marginTop: 4 }}>
+            {winner ? `${getDisplaySymbol(bestAsset?.symbol || winner.symbol)} (+${winner.todayPct.toFixed(2)}%)` : "—"}
+          </span>
         </div>
       </div>
 
       <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", marginBottom: 10 }}>🔥 รายการที่เคลื่อนไหวแรงสุดวันนี้ (Movers)</div>
       
-      <div style={{ maxHeight: 220, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 12 }}>
+      <div style={{ maxHeight: 180, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 12 }}>
         {movers.length === 0 ? (
           <div style={{ padding: 24, textAlign: "center", color: "var(--text-muted)", fontSize: 12.5 }}>ไม่มีข้อมูลการเคลื่อนไหวราคาในวันนี้</div>
         ) : (
