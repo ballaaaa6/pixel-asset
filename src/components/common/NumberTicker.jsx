@@ -22,6 +22,7 @@ export default function NumberTicker({ value, className = "", style = {} }) {
                   <span key={num}>{num}</span>
                 ))}
               </span>
+              {"\u200B"}
             </span>
           );
         }

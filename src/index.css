@@ -2016,7 +2016,8 @@ html, body {
 /* Odometer Number Ticker Styling */
 .number-ticker {
   display: inline-flex;
-  align-items: flex-start;
+  align-items: baseline;
+  height: 1.15em;
   overflow: hidden;
   vertical-align: baseline;
 }
@@ -2025,7 +2026,6 @@ html, body {
   height: 1.15em;
   line-height: 1.15em;
   position: relative;
-  overflow: hidden;
   width: 0.62em;
   text-align: center;
 }

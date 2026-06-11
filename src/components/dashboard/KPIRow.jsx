@@ -55,22 +55,18 @@ export default function KPIRow({
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
           <div className="kpi-value" style={{ color: todayUp ? "var(--gain)" : "var(--loss)", margin: 0, whiteSpace: "nowrap" }}>
             {todayChange !== 0 ? (
-              <span style={{ display: "inline-flex" }}>
-                <span>{todayUp ? "+" : "-"}</span>
-                <NumberTicker value={fmt.usd(Math.abs(todayChange))} />
-              </span>
+              <NumberTicker value={(todayUp ? "+" : "-") + fmt.usd(Math.abs(todayChange))} />
             ) : "—"}
           </div>
           {todayChange !== 0 && (
             <span className={`kpi-badge ${todayUp ? "up" : "down"}`} style={{ margin: 0, whiteSpace: "nowrap" }}>
-              {todayUp ? "▲" : "▼"} <NumberTicker value={fmt.pct(todayChangePct)} />
+              <NumberTicker value={`${todayUp ? "▲" : "▼"} ${fmt.pct(todayChangePct)}`} />
             </span>
           )}
         </div>
         {todayChange !== 0 && (
           <div className="kpi-sub" style={{ marginTop: 2 }}>
-            <span>{todayUp ? "+" : "-"}</span>
-            <NumberTicker value={fmt.thb(Math.abs(todayChangeTHB))} />
+            <NumberTicker value={(todayUp ? "+" : "-") + fmt.thb(Math.abs(todayChangeTHB))} />
           </div>
         )}
       </div>
@@ -80,22 +76,18 @@ export default function KPIRow({
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
           <div className="kpi-value" style={{ color: totalUp ? "var(--gain)" : "var(--loss)", margin: 0, whiteSpace: "nowrap" }}>
             {totalGain !== 0 ? (
-              <span style={{ display: "inline-flex" }}>
-                <span>{totalUp ? "+" : "-"}</span>
-                <NumberTicker value={fmt.usd(Math.abs(totalGain))} />
-              </span>
+              <NumberTicker value={(totalUp ? "+" : "-") + fmt.usd(Math.abs(totalGain))} />
             ) : "—"}
           </div>
           {totalGain !== 0 && (
             <span className={`kpi-badge ${totalUp ? "up" : "down"}`} style={{ margin: 0, whiteSpace: "nowrap" }}>
-              {totalUp ? "▲" : "▼"} <NumberTicker value={fmt.pct(totalGainPct)} />
+              <NumberTicker value={`${totalUp ? "▲" : "▼"} ${fmt.pct(totalGainPct)}`} />
             </span>
           )}
         </div>
         {totalGain !== 0 && (
           <div className="kpi-sub" style={{ marginTop: 2 }}>
-            <span>{totalUp ? "+" : "-"}</span>
-            <NumberTicker value={fmt.thb(Math.abs(totalGainTHB))} />
+            <NumberTicker value={(totalUp ? "+" : "-") + fmt.thb(Math.abs(totalGainTHB))} />
           </div>
         )}
       </div>

@@ -79,12 +79,8 @@ export default function AssetCardMobile({
                   <NumberTicker value={fmt.thb(asset.regPriceUSD * exchangeRate)} />
                 </div>
                 {!isCashAsset && asset.extPrice != null && (
-                  <div style={{ fontSize: 9, fontWeight: 700, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 2, display: "inline-flex", gap: 3, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                    <span>{asset.extType}: </span>
-                    <NumberTicker value={fmt.usd(asset.extPriceUSD)} />
-                    <span>(</span>
-                    <NumberTicker value={fmt.pct(asset.extChangePct)} />
-                    <span>)</span>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 2 }}>
+                    <NumberTicker value={`${asset.extType}: ${fmt.usd(asset.extPriceUSD)} (${fmt.pct(asset.extChangePct)})`} />
                   </div>
                 )}
               </>
@@ -115,35 +111,31 @@ export default function AssetCardMobile({
         </div>
         <div className="mobile-stat">
           <span className="mobile-stat-label">กำไร/ขาดทุน</span>
-          <span className="mobile-stat-value" style={{ color: isCashAsset ? "var(--text-faint)" : (asset.gainUSD >= 0 ? "var(--gain)" : "var(--loss)") }}>
+          <span className="mobile-stat-value" style={{ textAlign: "right", color: isCashAsset ? "var(--text-faint)" : (asset.gainUSD >= 0 ? "var(--gain)" : "var(--loss)") }}>
             {isCashAsset ? "—" : (hasPrices && asset.costUSD > 0 ? (
-              <span style={{ display: "inline-flex", gap: 3, flexWrap: "wrap" }}>
-                <span>{asset.gainUSD >= 0 ? "+" : ""}</span>
-                <NumberTicker value={fmt.usd(asset.gainUSD)} />
-                <span>(</span>
-                <NumberTicker value={fmt.thb(asset.gainUSD * exchangeRate)} />
-                <span>)</span>
-                <span>(</span>
-                <NumberTicker value={fmt.pct(asset.gainPct)} />
-                <span>)</span>
-              </span>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                <div style={{ fontWeight: 700 }}>
+                  <NumberTicker value={`${asset.gainUSD >= 0 ? "+" : "-"}${fmt.usd(Math.abs(asset.gainUSD))} (${fmt.pct(asset.gainPct)})`} />
+                </div>
+                <div className="price-thb" style={{ fontSize: 11 }}>
+                  <NumberTicker value={`${asset.gainUSD >= 0 ? "+" : "-"}${fmt.thb(Math.abs(asset.gainUSD * exchangeRate))}`} />
+                </div>
+              </div>
             ) : "—")}
           </span>
         </div>
         <div className="mobile-stat">
           <span className="mobile-stat-label">วันนี้</span>
-          <span className="mobile-stat-value" style={{ color: isCashAsset ? "var(--text-faint)" : (asset.todayPct >= 0 ? "var(--gain)" : "var(--loss)") }}>
+          <span className="mobile-stat-value" style={{ textAlign: "right", color: isCashAsset ? "var(--text-faint)" : (asset.todayPct >= 0 ? "var(--gain)" : "var(--loss)") }}>
             {isCashAsset ? "—" : (hasPrices ? (
-              <span style={{ display: "inline-flex", gap: 3, flexWrap: "wrap" }}>
-                <span>{asset.todayChg >= 0 ? "+" : ""}</span>
-                <NumberTicker value={fmt.usd(asset.todayChg)} />
-                <span>(</span>
-                <NumberTicker value={fmt.thb(asset.todayChg * exchangeRate)} />
-                <span>)</span>
-                <span>(</span>
-                <NumberTicker value={fmt.pct(asset.todayPct)} />
-                <span>)</span>
-              </span>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                <div style={{ fontWeight: 700 }}>
+                  <NumberTicker value={`${asset.todayChg >= 0 ? "+" : "-"}${fmt.usd(Math.abs(asset.todayChg))} (${fmt.pct(asset.todayPct)})`} />
+                </div>
+                <div className="price-thb" style={{ fontSize: 11 }}>
+                  <NumberTicker value={`${asset.todayChg >= 0 ? "+" : "-"}${fmt.thb(Math.abs(asset.todayChg * exchangeRate))}`} />
+                </div>
+              </div>
             ) : "—")}
           </span>
         </div>

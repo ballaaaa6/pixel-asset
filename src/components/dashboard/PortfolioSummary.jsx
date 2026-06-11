@@ -60,16 +60,11 @@ export default function PortfolioSummary({
               }}
               title="คลิกเพื่อดูรายละเอียดกำไร/ขาดทุนรายสินทรัพย์">
               <span style={{ display: "inline-flex", alignItems: "center" }}>
-                <span>{totalGainUSD >= 0 ? "▲ " : "▼ "}</span>
-                <NumberTicker value={fmt.usd(Math.abs(totalGainUSD))} />
-              </span>
-              <span style={{ opacity: 0.8, fontSize: 12 }}>
-                (<NumberTicker value={fmt.pct(totalGainPct)} />)
+                <NumberTicker value={`${totalGainUSD >= 0 ? "▲" : "▼"} ${fmt.usd(Math.abs(totalGainUSD))} (${fmt.pct(totalGainPct)})`} />
               </span>
               <span style={{ opacity: 0.5 }}>|</span>
               <span style={{ display: "inline-flex", alignItems: "center" }}>
-                <span>{totalGainTHB >= 0 ? "▲ " : "▼ "}</span>
-                <NumberTicker value={fmt.thb(Math.abs(totalGainTHB), 2)} />
+                <NumberTicker value={`${totalGainTHB >= 0 ? "▲" : "▼"} ${fmt.thb(Math.abs(totalGainTHB), 2)}`} />
               </span>
             </div>
           )}
@@ -104,12 +99,10 @@ export default function PortfolioSummary({
           <span className="hero-meta-label">รับรู้แล้ว (Realized)</span>
           <span className="hero-meta-value" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
             <span style={{ color: totalRealizedUSD >= 0 ? "#6EE7B7" : "#FCA5A5", fontWeight: 700 }}>
-              <span>{totalRealizedUSD >= 0 ? "+" : ""}</span>
-              <NumberTicker value={fmt.usd(totalRealizedUSD)} />
+              <NumberTicker value={(totalRealizedUSD >= 0 ? "+" : "") + fmt.usd(totalRealizedUSD)} />
             </span>
             <span style={{ fontSize: 11, color: "rgba(255, 255, 255, 0.9)", fontWeight: 600 }}>
-              (<span>{totalRealizedUSD >= 0 ? "+" : ""}</span>
-              <NumberTicker value={fmt.thb(totalRealizedUSD * exchangeRate)} />)
+              <NumberTicker value={"(" + (totalRealizedUSD >= 0 ? "+" : "") + fmt.thb(totalRealizedUSD * exchangeRate) + ")"} />
             </span>
           </span>
         </div>
@@ -117,12 +110,10 @@ export default function PortfolioSummary({
           <span className="hero-meta-label">ยังไม่รับรู้ (Unrealized)</span>
           <span className="hero-meta-value" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
             <span style={{ color: totalUnrealizedUSD >= 0 ? "#6EE7B7" : "#FCA5A5", fontWeight: 700 }}>
-              <span>{totalUnrealizedUSD >= 0 ? "+" : ""}</span>
-              <NumberTicker value={fmt.usd(totalUnrealizedUSD)} />
+              <NumberTicker value={(totalUnrealizedUSD >= 0 ? "+" : "") + fmt.usd(totalUnrealizedUSD)} />
             </span>
             <span style={{ fontSize: 11, color: "rgba(255, 255, 255, 0.9)", fontWeight: 600 }}>
-              (<span>{totalUnrealizedUSD >= 0 ? "+" : ""}</span>
-              <NumberTicker value={fmt.thb(totalUnrealizedUSD * exchangeRate)} />)
+              <NumberTicker value={"(" + (totalUnrealizedUSD >= 0 ? "+" : "") + fmt.thb(totalUnrealizedUSD * exchangeRate) + ")"} />
             </span>
           </span>
         </div>
@@ -153,12 +144,7 @@ export default function PortfolioSummary({
         }}>
           <span style={{ fontSize: 11, opacity: 0.9, fontWeight: 600 }}>กำไร/ขาดทุนวันนี้</span>
           <span style={{ fontSize: 14, fontWeight: 800, color: todayChangeUSD >= 0 ? "#6EE7B7" : "#FCA5A5", display: "inline-flex", gap: 3 }}>
-            <span>{todayChangeUSD >= 0 ? "+" : ""}</span>
-            <NumberTicker value={fmt.usd(todayChangeUSD)} />
-            <span style={{ fontSize: 11, opacity: 0.85, fontWeight: 700 }}>
-              (<span>{todayChangeUSD >= 0 ? "+" : ""}</span>
-              <NumberTicker value={fmt.thb(todayChangeUSD * exchangeRate, 2)} />)
-            </span>
+            <NumberTicker value={`${todayChangeUSD >= 0 ? "+" : ""}${fmt.usd(todayChangeUSD)} (${todayChangeUSD >= 0 ? "+" : ""}${fmt.thb(todayChangeUSD * exchangeRate, 2)})`} />
           </span>
         </div>
       )}
