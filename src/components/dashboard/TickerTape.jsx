@@ -33,11 +33,22 @@ export default function TickerTape({ assets, prices }) {
     const regPrice = pData.price ?? 0;
     const isPre = pData.marketState === "PRE" || pData.marketState === "PREPRE";
     const isPost = pData.marketState === "POST" || pData.marketState === "POSTPOST";
-    const extPrice = (isPre && pData.prePrice > 0) ? pData.prePrice : ((isPost && pData.postPrice > 0) ? pData.postPrice : null);
-    const price = extPrice ?? regPrice;
+    const isClosed = pData.marketState === "CLOSED";
 
-    const prevClose = pData.previousClose ?? price;
-    const pctChange = prevClose > 0 ? ((price - prevClose) / prevClose) * 100 : 0;
+    // Extended price: prePrice during PRE, postPrice during POST or CLOSED
+    let extPrice = null;
+    let extChangePct = null;
+
+    if (isPre && pData.prePrice != null && pData.prePrice > 0) {
+      extPrice = pData.prePrice;
+      extChangePct = regPrice > 0 ? ((pData.prePrice - regPrice) / regPrice) * 100 : 0;
+    } else if ((isPost || isClosed) && pData.postPrice != null && pData.postPrice > 0) {
+      extPrice = pData.postPrice;
+      extChangePct = regPrice > 0 ? ((pData.postPrice - regPrice) / regPrice) * 100 : 0;
+    }
+
+    const price = extPrice ?? regPrice;
+    const pctChange = extPrice != null ? extChangePct : (pData.changePercent ?? 0);
     const isUp = pctChange >= 0;
     const isThai = asset.symbol.toUpperCase().endsWith(".BK");
 
@@ -45,7 +56,7 @@ export default function TickerTape({ assets, prices }) {
       ? `฿${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
       : `$${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-    const pctStr = `${pctChange.toFixed(2)}%`;
+    const pctStr = `${Math.abs(pctChange).toFixed(2)}%`;
 
     return (
       <div key={`${asset.symbol}-${idx}`} className="ticker-item">
