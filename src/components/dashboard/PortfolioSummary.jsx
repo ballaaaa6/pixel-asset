@@ -90,10 +90,12 @@ export default function PortfolioSummary({
         </div>
         <div className="hero-meta-item" style={{ textAlign: "right" }}>
           <span className="hero-meta-label">ต้นทุนรวม</span>
-          <span className="hero-meta-value" style={{ fontSize: 13.5, fontWeight: 700 }}>
-            <AnimatedCounter value={totalCostUSD} formatFn={fmt.usd} />
-            <span style={{ color: "rgba(255, 255, 255, 0.8)", fontWeight: 600, marginLeft: 4 }}>
-              (<AnimatedCounter value={totalCostUSD * exchangeRate} formatFn={(v) => fmt.thb(v, 2)} />)
+          <span className="hero-meta-value" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+            <span style={{ fontSize: 13.5, fontWeight: 700 }}>
+              <AnimatedCounter value={totalCostUSD} formatFn={fmt.usd} />
+            </span>
+            <span style={{ fontSize: 13.5, color: "rgba(255, 255, 255, 0.9)", fontWeight: 700 }}>
+              <AnimatedCounter value={totalCostUSD * exchangeRate} formatFn={(v) => `(${fmt.thb(v, 2)})`} />
             </span>
           </span>
         </div>
@@ -101,23 +103,25 @@ export default function PortfolioSummary({
       <div className="hero-meta" style={{ marginTop: 10, borderTop: "1px dashed rgba(255,255,255,0.2)", paddingTop: 10 }}>
         <div className="hero-meta-item">
           <span className="hero-meta-label">รับรู้แล้ว (Realized)</span>
-          <span className="hero-meta-value" style={{ fontSize: 13.5, color: totalRealizedUSD >= 0 ? "#6EE7B7" : "#FCA5A5", fontWeight: 700 }}>
-            {totalRealizedUSD >= 0 ? "+" : "-"}
-            <AnimatedCounter value={Math.abs(totalRealizedUSD)} formatFn={fmt.usd} />
-            <span style={{ opacity: 0.95, fontWeight: 600, marginLeft: 4 }}>
-              ({totalRealizedUSD >= 0 ? "+" : "-"}
-              <AnimatedCounter value={Math.abs(totalRealizedUSD * exchangeRate)} formatFn={(v) => fmt.thb(v, 2)} />)
+          <span className="hero-meta-value" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
+            <span style={{ fontSize: 13.5, color: totalRealizedUSD >= 0 ? "#6EE7B7" : "#FCA5A5", fontWeight: 700 }}>
+              {totalRealizedUSD >= 0 ? "+" : "-"}
+              <AnimatedCounter value={Math.abs(totalRealizedUSD)} formatFn={fmt.usd} />
+            </span>
+            <span style={{ fontSize: 13.5, color: totalRealizedUSD >= 0 ? "#6EE7B7" : "#FCA5A5", fontWeight: 700, opacity: 0.95 }}>
+              <AnimatedCounter value={Math.abs(totalRealizedUSD * exchangeRate)} formatFn={(v) => `(${totalRealizedUSD >= 0 ? "+" : "-"}${fmt.thb(v, 2)})`} />
             </span>
           </span>
         </div>
         <div className="hero-meta-item" style={{ textAlign: "right" }}>
           <span className="hero-meta-label">ยังไม่รับรู้ (Unrealized)</span>
-          <span className="hero-meta-value" style={{ fontSize: 13.5, color: totalUnrealizedUSD >= 0 ? "#6EE7B7" : "#FCA5A5", fontWeight: 700 }}>
-            {totalUnrealizedUSD >= 0 ? "+" : "-"}
-            <AnimatedCounter value={Math.abs(totalUnrealizedUSD)} formatFn={fmt.usd} />
-            <span style={{ opacity: 0.95, fontWeight: 600, marginLeft: 4 }}>
-              ({totalUnrealizedUSD >= 0 ? "+" : "-"}
-              <AnimatedCounter value={Math.abs(totalUnrealizedUSD * exchangeRate)} formatFn={(v) => fmt.thb(v, 2)} />)
+          <span className="hero-meta-value" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+            <span style={{ fontSize: 13.5, color: totalUnrealizedUSD >= 0 ? "#6EE7B7" : "#FCA5A5", fontWeight: 700 }}>
+              {totalUnrealizedUSD >= 0 ? "+" : "-"}
+              <AnimatedCounter value={Math.abs(totalUnrealizedUSD)} formatFn={fmt.usd} />
+            </span>
+            <span style={{ fontSize: 13.5, color: totalUnrealizedUSD >= 0 ? "#6EE7B7" : "#FCA5A5", fontWeight: 700, opacity: 0.95 }}>
+              <AnimatedCounter value={Math.abs(totalUnrealizedUSD * exchangeRate)} formatFn={(v) => `(${totalUnrealizedUSD >= 0 ? "+" : "-"}${fmt.thb(v, 2)})`} />
             </span>
           </span>
         </div>
@@ -132,7 +136,7 @@ export default function PortfolioSummary({
         <div className="hero-meta-item" style={{ textAlign: "right" }}>
           <span className="hero-meta-label">มูลค่าทุนสะสม (THB)</span>
           <span className="hero-meta-value" style={{ fontSize: 13.5, color: "rgba(255, 255, 255, 0.9)", fontWeight: 700 }}>
-            (<AnimatedCounter value={initialCapitalUSD * exchangeRate} formatFn={(v) => fmt.thb(v, 2)} />)
+            <AnimatedCounter value={initialCapitalUSD * exchangeRate} formatFn={(v) => `(${fmt.thb(v, 2)})`} />
           </span>
         </div>
       </div>
@@ -147,13 +151,11 @@ export default function PortfolioSummary({
           alignItems: "center"
         }}>
           <span style={{ fontSize: 11, opacity: 0.9, fontWeight: 600 }}>กำไร/ขาดทุนวันนี้</span>
-          <span style={{ fontSize: 13.5, fontWeight: 800, color: todayChangeUSD >= 0 ? "#6EE7B7" : "#FCA5A5", display: "inline-flex", gap: 3 }}>
+          <span style={{ fontSize: 13.5, fontWeight: 800, color: todayChangeUSD >= 0 ? "#6EE7B7" : "#FCA5A5", display: "inline-flex", alignItems: "center" }}>
             {todayChangeUSD >= 0 ? "+" : "-"}
             <AnimatedCounter value={Math.abs(todayChangeUSD)} formatFn={fmt.usd} />
-            &nbsp;(
-            {todayChangeUSD >= 0 ? "+" : "-"}
-            <AnimatedCounter value={Math.abs(todayChangeUSD * exchangeRate)} formatFn={(v) => fmt.thb(v, 2)} />
-            )
+            &nbsp;
+            <AnimatedCounter value={Math.abs(todayChangeUSD * exchangeRate)} formatFn={(v) => `(${todayChangeUSD >= 0 ? "+" : "-"}${fmt.thb(v, 2)})`} />
           </span>
         </div>
       )}
