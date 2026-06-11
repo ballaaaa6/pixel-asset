@@ -63,6 +63,11 @@ export default function AssetCardMobile({
             </div>
             <div className="asset-fullname">{getAssetFullName(asset.symbol, asset.name, asset.category)}</div>
             <MarketBadge state={pData?.marketState} />
+            {!isCashAsset && asset.extPrice != null && (
+              <div style={{ fontSize: 11, fontWeight: 700, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 4 }}>
+                {asset.extType}: {fmt.usd(asset.extPriceUSD)} ({fmt.pct(asset.extChangePct)})
+              </div>
+            )}
           </div>
         </div>
         <div className="mobile-card-right">
@@ -77,11 +82,6 @@ export default function AssetCardMobile({
                 <div className="price-thb">
                   {fmt.thb(asset.regPriceUSD * exchangeRate)}
                 </div>
-                {!isCashAsset && asset.extPrice != null && (
-                  <div style={{ fontSize: 9, fontWeight: 700, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 2 }}>
-                    {`${asset.extType}: ${fmt.usd(asset.extPriceUSD)} (${fmt.pct(asset.extChangePct)})`}
-                  </div>
-                )}
               </>
             )
           ) : (

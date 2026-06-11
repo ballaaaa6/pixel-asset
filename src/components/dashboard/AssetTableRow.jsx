@@ -73,6 +73,11 @@ export default function AssetTableRow({
                 {weightPct.toFixed(2)}%
               </span>
             </div>
+            {!isCashAsset && asset.extPrice != null && (
+              <div style={{ fontSize: 11, fontWeight: 700, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 4 }}>
+                {asset.extType}: {fmt.usd(asset.extPriceUSD)} ({fmt.pct(asset.extChangePct)})
+              </div>
+            )}
           </div>
         </div>
       </td>
@@ -91,11 +96,6 @@ export default function AssetTableRow({
               <div className="price-thb">
                 {fmt.thb(asset.regPriceUSD * exchangeRate)}
               </div>
-              {asset.extPrice != null && (
-                <div style={{ fontSize: 10, fontWeight: 700, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 2 }}>
-                  {`${asset.extType}: ${fmt.usd(asset.extPriceUSD)} (${fmt.pct(asset.extChangePct)})`}
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -116,11 +116,6 @@ export default function AssetTableRow({
                 fmt.thb(asset.regValueTHB)
               )}
             </div>
-            {!isCashAsset && asset.extPrice != null && (
-              <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 2 }}>
-                {asset.extType}: {fmt.usd(asset.extValueUSD)}
-              </div>
-            )}
           </div>
         )}
       </td>
@@ -131,18 +126,13 @@ export default function AssetTableRow({
         ) : (
           <div>
             <div className={`pnl-cell ${asset.regGainUSD >= 0 ? "positive" : "negative"}`}>
-              <div style={{ fontWeight: 700, fontSize: 14 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, whiteSpace: "nowrap" }}>
                 {`${asset.regGainUSD >= 0 ? "+" : "-"}${fmt.usd(Math.abs(asset.regGainUSD))} (${fmt.pct(asset.regGainPct)})`}
               </div>
               <div className="price-thb">
                 {`${asset.regGainUSD >= 0 ? "+" : "-"}${fmt.thb(Math.abs(asset.regGainUSD * exchangeRate))}`}
               </div>
             </div>
-            {asset.extPrice != null && (
-              <div className={`pnl-cell ${asset.extGainUSD >= 0 ? "positive" : "negative"}`} style={{ fontSize: 10, marginTop: 2 }}>
-                {`${asset.extType}: ${asset.extGainUSD >= 0 ? "+" : "-"}${fmt.usd(Math.abs(asset.extGainUSD))} (${fmt.pct(asset.extGainPct)})`}
-              </div>
-            )}
           </div>
         )}
       </td>
@@ -157,11 +147,6 @@ export default function AssetTableRow({
                 {fmt.pct(asset.regTodayPct)}
               </div>
             </div>
-            {asset.extPrice != null && (
-              <div className={`pnl-cell ${asset.extChangePct >= 0 ? "positive" : "negative"}`} style={{ fontSize: 10, marginTop: 2 }}>
-                {asset.extType}: {fmt.pct(asset.extChangePct)}
-              </div>
-            )}
           </div>
         )}
       </td>
