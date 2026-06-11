@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { fmtUSD, fmtTHB, fmtPct } from "../../utils/formatters";
+import NumberTicker from "../common/NumberTicker";
 
 export default function KPIRow({
   totalUSD,
@@ -41,24 +42,36 @@ export default function KPIRow({
     <div className="kpi-row stagger-1">
       <div className="kpi-card primary">
         <div className="kpi-label">💰 มูลค่ารวม</div>
-        <div className="kpi-value">{fmt.usd(totalUSD)}</div>
-        <div className="kpi-sub">{fmt.thb(totalTHB)}</div>
+        <div className="kpi-value">
+          <NumberTicker value={fmt.usd(totalUSD)} />
+        </div>
+        <div className="kpi-sub">
+          <NumberTicker value={fmt.thb(totalTHB)} />
+        </div>
       </div>
 
       <div className={`kpi-card ${todayUp ? "gain-card" : "loss-card"}`}>
         <div className="kpi-label">📅 วันนี้</div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
           <div className="kpi-value" style={{ color: todayUp ? "var(--gain)" : "var(--loss)", margin: 0, whiteSpace: "nowrap" }}>
-            {todayChange !== 0 ? (todayUp ? "+" : "-") + fmt.usd(Math.abs(todayChange)) : "—"}
+            {todayChange !== 0 ? (
+              <span style={{ display: "inline-flex" }}>
+                <span>{todayUp ? "+" : "-"}</span>
+                <NumberTicker value={fmt.usd(Math.abs(todayChange))} />
+              </span>
+            ) : "—"}
           </div>
           {todayChange !== 0 && (
             <span className={`kpi-badge ${todayUp ? "up" : "down"}`} style={{ margin: 0, whiteSpace: "nowrap" }}>
-              {todayUp ? "▲" : "▼"} {fmt.pct(todayChangePct)}
+              {todayUp ? "▲" : "▼"} <NumberTicker value={fmt.pct(todayChangePct)} />
             </span>
           )}
         </div>
         {todayChange !== 0 && (
-          <div className="kpi-sub" style={{ marginTop: 2 }}>{todayUp ? "+" : "-"}{fmt.thb(Math.abs(todayChangeTHB))}</div>
+          <div className="kpi-sub" style={{ marginTop: 2 }}>
+            <span>{todayUp ? "+" : "-"}</span>
+            <NumberTicker value={fmt.thb(Math.abs(todayChangeTHB))} />
+          </div>
         )}
       </div>
 
@@ -66,16 +79,24 @@ export default function KPIRow({
         <div className="kpi-label">📊 กำไร/ขาดทุนรวม</div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
           <div className="kpi-value" style={{ color: totalUp ? "var(--gain)" : "var(--loss)", margin: 0, whiteSpace: "nowrap" }}>
-            {totalGain !== 0 ? (totalUp ? "+" : "-") + fmt.usd(Math.abs(totalGain)) : "—"}
+            {totalGain !== 0 ? (
+              <span style={{ display: "inline-flex" }}>
+                <span>{totalUp ? "+" : "-"}</span>
+                <NumberTicker value={fmt.usd(Math.abs(totalGain))} />
+              </span>
+            ) : "—"}
           </div>
           {totalGain !== 0 && (
             <span className={`kpi-badge ${totalUp ? "up" : "down"}`} style={{ margin: 0, whiteSpace: "nowrap" }}>
-              {totalUp ? "▲" : "▼"} {fmt.pct(totalGainPct)}
+              {totalUp ? "▲" : "▼"} <NumberTicker value={fmt.pct(totalGainPct)} />
             </span>
           )}
         </div>
         {totalGain !== 0 && (
-          <div className="kpi-sub" style={{ marginTop: 2 }}>{totalUp ? "+" : "-"}{fmt.thb(Math.abs(totalGainTHB))}</div>
+          <div className="kpi-sub" style={{ marginTop: 2 }}>
+            <span>{totalUp ? "+" : "-"}</span>
+            <NumberTicker value={fmt.thb(Math.abs(totalGainTHB))} />
+          </div>
         )}
       </div>
 
@@ -85,7 +106,7 @@ export default function KPIRow({
           <>
             <div className="kpi-value small">{bestAsset.symbol}</div>
             <div className="kpi-sub" style={{ color: "var(--gain)", fontWeight: 700 }}>
-              {fmt.pct(bestAsset.pct)}
+              <NumberTicker value={fmt.pct(bestAsset.pct)} />
             </div>
           </>
         ) : (

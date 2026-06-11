@@ -162,6 +162,7 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
               totalCostUSD={totalCostUSD}
               totalGainUSD={totalGainUSD}
               totalGainPct={totalGainPct}
+              exchangeRate={exchangeRate}
               hideValues={hideValues}
             />
           )}

@@ -4,6 +4,7 @@ import AssetLogo from "../common/AssetLogo";
 import MarketBadge from "./MarketBadge";
 import { getDisplaySymbol, getAssetFullName } from "../../utils/assetHelpers";
 import BrokerBadge from "../common/BrokerBadge";
+import NumberTicker from "../common/NumberTicker";
 
 const CATEGORY_LABELS = { stock: "หุ้น", crypto: "คริปโต", gold: "ทองคำ/น้ำมัน", fiat: "เงินสด" };
 
@@ -70,7 +71,7 @@ export default function AssetTableRow({
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
               <MarketBadge state={pData?.marketState} />
               <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", background: "#F1F5F9", padding: "1px 6px", borderRadius: 4 }}>
-                {weightPct.toFixed(2)}%
+                <NumberTicker value={`${weightPct.toFixed(2)}%`} />
               </span>
             </div>
           </div>
@@ -86,12 +87,18 @@ export default function AssetTableRow({
           <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10 }}>
             <div>
               <div className="num-tick" style={{ fontWeight: 700, fontSize: 14 }}>
-                {fmt.usd(asset.regPriceUSD)}
+                <NumberTicker value={fmt.usd(asset.regPriceUSD)} />
               </div>
-              <div className="price-thb">{fmt.thb(asset.regPriceUSD * exchangeRate)}</div>
+              <div className="price-thb">
+                <NumberTicker value={fmt.thb(asset.regPriceUSD * exchangeRate)} />
+              </div>
               {asset.extPrice != null && (
-                <div style={{ fontSize: 10, fontWeight: 700, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 2 }}>
-                  {asset.extType}: {fmt.usd(asset.extPriceUSD)} ({fmt.pct(asset.extChangePct)})
+                <div style={{ fontSize: 10, fontWeight: 700, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 2, display: "inline-flex", gap: 3 }}>
+                  <span>{asset.extType}: </span>
+                  <NumberTicker value={fmt.usd(asset.extPriceUSD)} />
+                  <span>(</span>
+                  <NumberTicker value={fmt.pct(asset.extChangePct)} />
+                  <span>)</span>
                 </div>
               )}
             </div>
@@ -105,18 +112,22 @@ export default function AssetTableRow({
         ) : (
           <div>
             <div style={{ fontWeight: 700, fontSize: 14 }}>
-              {fmt.usd(isCashAsset ? asset.valueUSD : asset.regValueUSD)}
+              <NumberTicker value={fmt.usd(isCashAsset ? asset.valueUSD : asset.regValueUSD)} />
             </div>
             <div className="price-thb">
               {isCashAsset ? (
                 `${fmt.qty(asset.qty)} ${asset.symbol}`
               ) : (
-                fmt.thb(asset.regValueTHB)
+                <NumberTicker value={fmt.thb(asset.regValueTHB)} />
               )}
             </div>
             {!isCashAsset && asset.extPrice != null && (
-              <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 2 }}>
-                {asset.extType}: {fmt.usd(asset.extPriceUSD)} ({fmt.thb(asset.extValueTHB)})
+              <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 2, display: "inline-flex", gap: 3 }}>
+                <span>{asset.extType}: </span>
+                <NumberTicker value={fmt.usd(asset.extPriceUSD)} />
+                <span>(</span>
+                <NumberTicker value={fmt.thb(asset.extValueTHB)} />
+                <span>)</span>
               </div>
             )}
           </div>
@@ -129,12 +140,29 @@ export default function AssetTableRow({
         ) : (
           <div>
             <div className={`pnl-cell ${asset.regGainUSD >= 0 ? "positive" : "negative"}`}>
-              <div>{asset.regGainUSD >= 0 ? "+" : ""}{fmt.usd(asset.regGainUSD)}</div>
-              <div style={{ fontSize: 12 }}>{fmt.pct(asset.regGainPct)}</div>
+              <div style={{ display: "inline-flex", gap: 2 }}>
+                <span>{asset.regGainUSD >= 0 ? "+" : ""}</span>
+                <NumberTicker value={fmt.usd(asset.regGainUSD)} />
+                <span>(</span>
+                <NumberTicker value={fmt.thb(asset.regGainUSD * exchangeRate)} />
+                <span>)</span>
+              </div>
+              <div style={{ fontSize: 12 }}>
+                <NumberTicker value={fmt.pct(asset.regGainPct)} />
+              </div>
             </div>
             {asset.extPrice != null && (
               <div className={`pnl-cell ${asset.extGainUSD >= 0 ? "positive" : "negative"}`} style={{ fontSize: 10, marginTop: 2 }}>
-                <div>{asset.extType}: {asset.extGainUSD >= 0 ? "+" : ""}{fmt.usd(asset.extGainUSD)} ({fmt.pct(asset.extGainPct)})</div>
+                <div style={{ display: "inline-flex", gap: 2, flexWrap: "wrap" }}>
+                  <span>{asset.extType}: {asset.extGainUSD >= 0 ? "+" : ""}</span>
+                  <NumberTicker value={fmt.usd(asset.extGainUSD)} />
+                  <span>(</span>
+                  <NumberTicker value={fmt.thb(asset.extGainUSD * exchangeRate)} />
+                  <span>)</span>
+                  <span>(</span>
+                  <NumberTicker value={fmt.pct(asset.extGainPct)} />
+                  <span>)</span>
+                </div>
               </div>
             )}
           </div>
@@ -147,11 +175,16 @@ export default function AssetTableRow({
         ) : (
           <div>
             <div className={`pnl-cell ${asset.regTodayPct >= 0 ? "positive" : "negative"}`}>
-              <div style={{ fontSize: 13 }}>{fmt.pct(asset.regTodayPct)}</div>
+              <div style={{ fontSize: 13 }}>
+                <NumberTicker value={fmt.pct(asset.regTodayPct)} />
+              </div>
             </div>
             {asset.extPrice != null && (
               <div className={`pnl-cell ${asset.extChangePct >= 0 ? "positive" : "negative"}`} style={{ fontSize: 10, marginTop: 2 }}>
-                <div>{asset.extType}: {fmt.pct(asset.extChangePct)}</div>
+                <div style={{ display: "inline-flex", gap: 2 }}>
+                  <span>{asset.extType}: </span>
+                  <NumberTicker value={fmt.pct(asset.extChangePct)} />
+                </div>
               </div>
             )}
           </div>

@@ -4,6 +4,7 @@ import AssetLogo from "../common/AssetLogo";
 import MarketBadge from "./MarketBadge";
 import { getDisplaySymbol, getAssetFullName } from "../../utils/assetHelpers";
 import BrokerBadge from "../common/BrokerBadge";
+import NumberTicker from "../common/NumberTicker";
 
 const CATEGORY_LABELS = { stock: "หุ้น", crypto: "คริปโต", gold: "ทองคำ/น้ำมัน", fiat: "เงินสด" };
 
@@ -34,7 +35,7 @@ export default function AssetCardMobile({
 
   return (
     <div
-      className={`mobile-asset-card ${asset.category || "stock"} ${isHovered ? "row-hovered" : ""} ${flash ? `price-flash-${flash}` : ""}`}
+      className={`mobile-asset-card ${asset.category || "stock"} ${isHovered ? "row-hovered" : ""} ${flash ? ` price-flash-${flash}` : ""}`}
       onClick={(e) => {
         if (e.target.closest("button")) return;
         setSelectedAsset(asset);
@@ -71,11 +72,22 @@ export default function AssetCardMobile({
               <span style={{ color: "var(--text-faint)", fontSize: 13 }}>—</span>
             ) : (
               <>
-                <div className="mobile-card-price">{fmt.usd(asset.regPriceUSD)}</div>
-                <div className="price-thb">{fmt.thb(asset.regPriceUSD * exchangeRate)}</div>
+                <div className="mobile-card-price">
+                  <NumberTicker value={fmt.usd(asset.regPriceUSD)} />
+                </div>
+                <div className="price-thb">
+                  <NumberTicker value={fmt.thb(asset.regPriceUSD * exchangeRate)} />
+                </div>
                 {!isCashAsset && asset.extPrice != null && (
-                  <div style={{ fontSize: 9, fontWeight: 700, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 2 }}>
-                    {asset.extType}: {fmt.usd(asset.extPriceUSD)} ({fmt.pct(asset.extChangePct)})
+                  <div style={{ fontSize: 9, fontWeight: 700, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 2, display: "inline-flex", gap: 3, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                    <span>{asset.extType}: </span>
+                    <NumberTicker value={fmt.usd(asset.extPriceUSD)} />
+                    <span>(</span>
+                    <NumberTicker value={fmt.thb(asset.extPriceUSD * exchangeRate)} />
+                    <span>)</span>
+                    <span>(</span>
+                    <NumberTicker value={fmt.pct(asset.extChangePct)} />
+                    <span>)</span>
                   </div>
                 )}
               </>
@@ -94,7 +106,12 @@ export default function AssetCardMobile({
               isCashAsset ? (
                 `${fmt.qty(asset.qty)} ${asset.symbol} (≈ ${fmt.usd(asset.valueUSD)})`
               ) : (
-                fmt.usd(asset.valueUSD)
+                <span style={{ display: "inline-flex", gap: 3 }}>
+                  <NumberTicker value={fmt.usd(asset.valueUSD)} />
+                  <span>(</span>
+                  <NumberTicker value={fmt.thb(asset.valueUSD * exchangeRate)} />
+                  <span>)</span>
+                </span>
               )
             ) : "—"}
           </span>
@@ -102,18 +119,38 @@ export default function AssetCardMobile({
         <div className="mobile-stat">
           <span className="mobile-stat-label">กำไร/ขาดทุน</span>
           <span className="mobile-stat-value" style={{ color: isCashAsset ? "var(--text-faint)" : (asset.gainUSD >= 0 ? "var(--gain)" : "var(--loss)") }}>
-            {isCashAsset ? "—" : (hasPrices && asset.costUSD > 0 ? fmt.pct(asset.gainPct) : "—")}
+            {isCashAsset ? "—" : (hasPrices && asset.costUSD > 0 ? (
+              <span style={{ display: "inline-flex", gap: 3, flexWrap: "wrap" }}>
+                <span>{asset.gainUSD >= 0 ? "+" : ""}</span>
+                <NumberTicker value={fmt.usd(asset.gainUSD)} />
+                <span>(</span>
+                <NumberTicker value={fmt.thb(asset.gainUSD * exchangeRate)} />
+                <span>)</span>
+                <span>(</span>
+                <NumberTicker value={fmt.pct(asset.gainPct)} />
+                <span>)</span>
+              </span>
+            ) : "—")}
           </span>
         </div>
         <div className="mobile-stat">
           <span className="mobile-stat-label">วันนี้</span>
           <span className="mobile-stat-value" style={{ color: isCashAsset ? "var(--text-faint)" : (asset.todayPct >= 0 ? "var(--gain)" : "var(--loss)") }}>
-            {isCashAsset ? "—" : (hasPrices ? fmt.pct(asset.todayPct) : "—")}
+            {isCashAsset ? "—" : (hasPrices ? (
+              <span style={{ display: "inline-flex", gap: 3, flexWrap: "wrap" }}>
+                <span>{asset.todayChg >= 0 ? "+" : ""}</span>
+                <NumberTicker value={fmt.usd(asset.todayChg)} />
+                <span>(</span>
+                <NumberTicker value={fmt.thb(asset.todayChg * exchangeRate)} />
+                <span>)</span>
+                <span>(</span>
+                <NumberTicker value={fmt.pct(asset.todayPct)} />
+                <span>)</span>
+              </span>
+            ) : "—")}
           </span>
         </div>
       </div>
-
-
 
       <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
         <button className="btn btn-secondary ripple-btn"

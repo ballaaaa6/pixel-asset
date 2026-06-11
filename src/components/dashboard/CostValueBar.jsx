@@ -1,11 +1,13 @@
 import React, { useMemo } from "react";
-import { fmtUSD } from "../../utils/formatters";
+import { fmtUSD, fmtTHB } from "../../utils/formatters";
+import NumberTicker from "../common/NumberTicker";
 
 export default function CostValueBar({
   totalUSD,
   totalCostUSD,
   totalGainUSD,
   totalGainPct,
+  exchangeRate,
   hideValues
 }) {
   const isProfit = totalUSD >= totalCostUSD;
@@ -14,14 +16,33 @@ export default function CostValueBar({
 
   if (totalCostUSD <= 0 && totalUSD <= 0) return null;
 
+  const gainUSDStr = fmtUSD(totalGainUSD, hideValues);
+  const gainTHBStr = fmtTHB(totalGainUSD * exchangeRate, 2, hideValues);
+  const gainPctStr = `${totalGainPct.toFixed(2)}%`;
+
+  const costUSDStr = fmtUSD(totalCostUSD, hideValues);
+  const costTHBStr = fmtTHB(totalCostUSD * exchangeRate, 2, hideValues);
+
+  const valUSDStr = fmtUSD(totalUSD, hideValues);
+  const valTHBStr = fmtTHB(totalUSD * exchangeRate, 2, hideValues);
+
+  const multStr = `${(totalUSD / (totalCostUSD || 1)).toFixed(2)}x`;
+
   return (
     <div className="card cost-vs-value-card stagger-1" style={{ marginBottom: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
         <span className="card-section-title" style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 6 }}>
           ⚖️ สัดส่วนต้นทุนเทียบกับมูลค่าปัจจุบัน (Cost vs. Value)
         </span>
-        <span style={{ fontSize: 12, fontWeight: 800, color: isProfit ? "var(--gain)" : "var(--loss)" }}>
-          {isProfit ? "กำไรสะสม" : "ขาดทุนสะสม"} {fmtUSD(totalGainUSD, hideValues)} ({totalGainPct.toFixed(2)}%)
+        <span style={{ fontSize: 15, fontWeight: 800, color: isProfit ? "var(--gain)" : "var(--loss)", display: "inline-flex", gap: 3, flexWrap: "wrap" }}>
+          <span>{isProfit ? "กำไรสะสม: " : "ขาดทุนสะสม: "}</span>
+          <NumberTicker value={gainUSDStr} />
+          <span>(</span>
+          <NumberTicker value={gainTHBStr} />
+          <span>)</span>
+          <span>(</span>
+          <NumberTicker value={gainPctStr} />
+          <span>)</span>
         </span>
       </div>
 
@@ -77,18 +98,20 @@ export default function CostValueBar({
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, fontWeight: 700, marginTop: 8, color: "var(--text-muted)", flexWrap: "wrap", gap: 8 }}>
-        <div style={{ display: "flex", gap: 16 }}>
-          <span>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+          <span style={{ display: "inline-flex", alignItems: "center" }}>
             <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--primary)", marginRight: 6 }} />
-            ต้นทุนรวม: <strong style={{ color: "var(--text-main)" }}>{fmtUSD(totalCostUSD, hideValues)}</strong>
+            ต้นทุนรวม:&nbsp;
+            <strong style={{ color: "var(--text-main)" }}><NumberTicker value={costUSDStr} /> (<NumberTicker value={costTHBStr} />)</strong>
           </span>
-          <span>
+          <span style={{ display: "inline-flex", alignItems: "center" }}>
             <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: isProfit ? "var(--gain)" : "var(--loss)", marginRight: 6 }} />
-            มูลค่าปัจจุบัน: <strong style={{ color: "var(--text-main)" }}>{fmtUSD(totalUSD, hideValues)}</strong>
+            มูลค่าปัจจุบัน:&nbsp;
+            <strong style={{ color: "var(--text-main)" }}><NumberTicker value={valUSDStr} /> (<NumberTicker value={valTHBStr} />)</strong>
           </span>
         </div>
         <span>
-          ตัวคูณมูลค่า: <strong style={{ color: "var(--text-main)" }}>{(totalUSD / (totalCostUSD || 1)).toFixed(2)}x</strong>
+          ตัวคูณมูลค่า: <strong style={{ color: "var(--text-main)" }}><NumberTicker value={multStr} /></strong>
         </span>
       </div>
     </div>
