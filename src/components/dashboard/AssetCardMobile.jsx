@@ -4,6 +4,7 @@ import AssetLogo from "../common/AssetLogo";
 import MarketBadge from "./MarketBadge";
 import { getDisplaySymbol, getAssetFullName } from "../../utils/assetHelpers";
 import BrokerBadge from "../common/BrokerBadge";
+import SparklineChart from "../charts/SparklineChart";
 
 const CATEGORY_LABELS = { stock: "หุ้น", crypto: "คริปโต", gold: "ทองคำ/น้ำมัน", fiat: "เงินสด" };
 
@@ -52,6 +53,11 @@ export default function AssetCardMobile({
             <MarketBadge state={pData?.marketState} />
           </div>
         </div>
+        {!isCashAsset && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flex: 1, padding: "0 8px" }}>
+            <SparklineChart closes={sparklines?.[asset.symbol]?.closes} width={64} height={24} />
+          </div>
+        )}
         <div className="mobile-card-right">
           {hasPrices ? (
             isCashAsset ? (

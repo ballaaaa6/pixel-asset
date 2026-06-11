@@ -4,6 +4,7 @@ import AssetLogo from "../common/AssetLogo";
 import MarketBadge from "./MarketBadge";
 import { getDisplaySymbol, getAssetFullName } from "../../utils/assetHelpers";
 import BrokerBadge from "../common/BrokerBadge";
+import SparklineChart from "../charts/SparklineChart";
 
 const CATEGORY_LABELS = { stock: "หุ้น", crypto: "คริปโต", gold: "ทองคำ/น้ำมัน", fiat: "เงินสด" };
 
@@ -21,6 +22,7 @@ export default function AssetTableRow({
   setModalOpen,
   handleDeleteAsset,
   hasPrices,
+  sparklines,
   fmt
 }) {
   const pData = prices[asset.symbol];
@@ -62,6 +64,16 @@ export default function AssetTableRow({
             </div>
           </div>
         </div>
+      </td>
+
+      <td style={{ textAlign: "center", verticalAlign: "middle" }}>
+        {isCashAsset ? (
+          <span style={{ color: "var(--text-faint)", fontSize: 13 }}>—</span>
+        ) : (
+          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+            <SparklineChart closes={sparklines?.[asset.symbol]?.closes} width={80} height={28} />
+          </div>
+        )}
       </td>
 
       <td style={{ textAlign: "right" }}>
