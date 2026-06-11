@@ -129,18 +129,17 @@ export function useAssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate
 
   const handleMouseLeave = () => { setHovered(null); setDragStart(null); setDragEnd(null); };
 
-  // ── Find closest pt by timestamp ──────────────────────────────────────────
   const findClosestPtByTimestamp = useCallback((ts) => {
-    if (!pts || pts.length === 0 || ts == null) return null;
-    let bestPt = pts[0], bestDiff = Infinity;
-    for (let i = 0; i < pts.length; i++) {
-      const pt = pts[i];
+    if (!renderPts || renderPts.length === 0 || ts == null) return null;
+    let bestPt = renderPts[0], bestDiff = Infinity;
+    for (let i = 0; i < renderPts.length; i++) {
+      const pt = renderPts[i];
       if (!pt) continue;
       const diff = Math.abs(new Date(pt.date).getTime() - ts);
       if (diff < bestDiff) { bestDiff = diff; bestPt = pt; }
     }
     return bestPt;
-  }, [pts]);
+  }, [renderPts]);
 
   // ── Wheel + Touch event listeners (non-passive) ───────────────────────────
   useEffect(() => {
