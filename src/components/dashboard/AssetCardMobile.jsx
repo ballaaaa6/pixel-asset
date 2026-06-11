@@ -4,7 +4,6 @@ import AssetLogo from "../common/AssetLogo";
 import MarketBadge from "./MarketBadge";
 import { getDisplaySymbol, getAssetFullName } from "../../utils/assetHelpers";
 import BrokerBadge from "../common/BrokerBadge";
-import NumberTicker from "../common/NumberTicker";
 
 const CATEGORY_LABELS = { stock: "หุ้น", crypto: "คริปโต", gold: "ทองคำ/น้ำมัน", fiat: "เงินสด" };
 
@@ -73,14 +72,14 @@ export default function AssetCardMobile({
             ) : (
               <>
                 <div className="mobile-card-price">
-                  <NumberTicker value={fmt.usd(asset.regPriceUSD)} />
+                  {fmt.usd(asset.regPriceUSD)}
                 </div>
                 <div className="price-thb">
-                  <NumberTicker value={fmt.thb(asset.regPriceUSD * exchangeRate)} />
+                  {fmt.thb(asset.regPriceUSD * exchangeRate)}
                 </div>
                 {!isCashAsset && asset.extPrice != null && (
                   <div style={{ fontSize: 9, fontWeight: 700, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 2 }}>
-                    <NumberTicker value={`${asset.extType}: ${fmt.usd(asset.extPriceUSD)} (${fmt.pct(asset.extChangePct)})`} />
+                    {`${asset.extType}: ${fmt.usd(asset.extPriceUSD)} (${fmt.pct(asset.extChangePct)})`}
                   </div>
                 )}
               </>
@@ -99,11 +98,8 @@ export default function AssetCardMobile({
               isCashAsset ? (
                 `${fmt.qty(asset.qty)} ${asset.symbol} (≈ ${fmt.usd(asset.valueUSD)})`
               ) : (
-                <span style={{ display: "inline-flex", gap: 3 }}>
-                  <NumberTicker value={fmt.usd(asset.valueUSD)} />
-                  <span>(</span>
-                  <NumberTicker value={fmt.thb(asset.valueUSD * exchangeRate)} />
-                  <span>)</span>
+                <span>
+                  {fmt.usd(asset.valueUSD)} ({fmt.thb(asset.valueUSD * exchangeRate)})
                 </span>
               )
             ) : "—"}
@@ -115,10 +111,10 @@ export default function AssetCardMobile({
             {isCashAsset ? "—" : (hasPrices && asset.costUSD > 0 ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
                 <div style={{ fontWeight: 700 }}>
-                  <NumberTicker value={`${asset.gainUSD >= 0 ? "+" : "-"}${fmt.usd(Math.abs(asset.gainUSD))} (${fmt.pct(asset.gainPct)})`} />
+                  {`${asset.gainUSD >= 0 ? "+" : "-"}${fmt.usd(Math.abs(asset.gainUSD))} (${fmt.pct(asset.gainPct)})`}
                 </div>
                 <div className="price-thb" style={{ fontSize: 11 }}>
-                  <NumberTicker value={`${asset.gainUSD >= 0 ? "+" : "-"}${fmt.thb(Math.abs(asset.gainUSD * exchangeRate))}`} />
+                  {`${asset.gainUSD >= 0 ? "+" : "-"}${fmt.thb(Math.abs(asset.gainUSD * exchangeRate))}`}
                 </div>
               </div>
             ) : "—")}
@@ -130,10 +126,10 @@ export default function AssetCardMobile({
             {isCashAsset ? "—" : (hasPrices ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
                 <div style={{ fontWeight: 700 }}>
-                  <NumberTicker value={`${asset.todayChg >= 0 ? "+" : "-"}${fmt.usd(Math.abs(asset.todayChg))} (${fmt.pct(asset.todayPct)})`} />
+                  {`${asset.todayChg >= 0 ? "+" : "-"}${fmt.usd(Math.abs(asset.todayChg))} (${fmt.pct(asset.todayPct)})`}
                 </div>
                 <div className="price-thb" style={{ fontSize: 11 }}>
-                  <NumberTicker value={`${asset.todayChg >= 0 ? "+" : "-"}${fmt.thb(Math.abs(asset.todayChg * exchangeRate))}`} />
+                  {`${asset.todayChg >= 0 ? "+" : "-"}${fmt.thb(Math.abs(asset.todayChg * exchangeRate))}`}
                 </div>
               </div>
             ) : "—")}

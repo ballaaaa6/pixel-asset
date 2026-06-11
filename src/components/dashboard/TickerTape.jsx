@@ -1,6 +1,5 @@
 import React from "react";
 import { getDisplaySymbol } from "../../utils/assetHelpers";
-import NumberTicker from "../common/NumberTicker";
 
 export default function TickerTape({ assets, prices }) {
   // Filter unique assets that are not fiat cash
@@ -52,10 +51,10 @@ export default function TickerTape({ assets, prices }) {
       <div key={`${asset.symbol}-${idx}`} className="ticker-item">
         <span className="ticker-item-symbol">{getDisplaySymbol(asset.symbol)}</span>
         <span className="ticker-item-price">
-          <NumberTicker value={priceStr} />
+          {priceStr}
         </span>
         <span className={`ticker-item-pct ${isUp ? "up" : "down"}`}>
-          {isUp ? "▲" : "▼"} <NumberTicker value={pctStr} />
+          {isUp ? "▲" : "▼"} {pctStr}
         </span>
       </div>
     );

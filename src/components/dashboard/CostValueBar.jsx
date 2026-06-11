@@ -1,6 +1,5 @@
 import React, { useMemo } from "react";
 import { fmtUSD, fmtTHB } from "../../utils/formatters";
-import NumberTicker from "../common/NumberTicker";
 
 export default function CostValueBar({
   totalUSD,
@@ -35,14 +34,8 @@ export default function CostValueBar({
           ⚖️ สัดส่วนต้นทุนเทียบกับมูลค่าปัจจุบัน (Cost vs. Value)
         </span>
         <span style={{ fontSize: 15, fontWeight: 800, color: isProfit ? "var(--gain)" : "var(--loss)", display: "inline-flex", gap: 3, flexWrap: "wrap" }}>
-          <span>{isProfit ? "กำไรสะสม: " : "ขาดทุนสะสม: "}</span>
-          <NumberTicker value={gainUSDStr} />
-          <span>(</span>
-          <NumberTicker value={gainTHBStr} />
-          <span>)</span>
-          <span>(</span>
-          <NumberTicker value={gainPctStr} />
-          <span>)</span>
+          {isProfit ? "กำไรสะสม: " : "ขาดทุนสะสม: "}
+          {gainUSDStr} ({gainTHBStr}) ({gainPctStr})
         </span>
       </div>
 
@@ -102,16 +95,16 @@ export default function CostValueBar({
           <span style={{ display: "inline-flex", alignItems: "center" }}>
             <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--primary)", marginRight: 6 }} />
             ต้นทุนรวม:&nbsp;
-            <strong style={{ color: "var(--text-main)" }}><NumberTicker value={costUSDStr} /> (<NumberTicker value={costTHBStr} />)</strong>
+            <strong style={{ color: "var(--text-main)" }}>{costUSDStr} ({costTHBStr})</strong>
           </span>
           <span style={{ display: "inline-flex", alignItems: "center" }}>
             <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: isProfit ? "var(--gain)" : "var(--loss)", marginRight: 6 }} />
             มูลค่าปัจจุบัน:&nbsp;
-            <strong style={{ color: "var(--text-main)" }}><NumberTicker value={valUSDStr} /> (<NumberTicker value={valTHBStr} />)</strong>
+            <strong style={{ color: "var(--text-main)" }}>{valUSDStr} ({valTHBStr})</strong>
           </span>
         </div>
         <span>
-          ตัวคูณมูลค่า: <strong style={{ color: "var(--text-main)" }}><NumberTicker value={multStr} /></strong>
+          ตัวคูณมูลค่า: <strong style={{ color: "var(--text-main)" }}>{multStr}</strong>
         </span>
       </div>
     </div>

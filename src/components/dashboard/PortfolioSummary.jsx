@@ -1,6 +1,5 @@
 import React, { useMemo } from "react";
 import { fmtUSD, fmtTHB, fmtPct } from "../../utils/formatters";
-import NumberTicker from "../common/NumberTicker";
 
 export default function PortfolioSummary({
   hasPrices,
@@ -30,10 +29,10 @@ export default function PortfolioSummary({
       {hasPrices ? (
         <>
           <div className="hero-usd" style={{ marginBottom: 4 }}>
-            <NumberTicker value={fmt.usd(totalUSD)} />
+            {fmt.usd(totalUSD)}
           </div>
           <div className="hero-thb" style={{ fontSize: "25px", color: "#FFFFFF", opacity: 0.95, fontWeight: "800", marginTop: 4, marginBottom: 16 }}>
-            <NumberTicker value={fmt.thb(totalUSD * exchangeRate)} />
+            {fmt.thb(totalUSD * exchangeRate)}
           </div>
           {(totalCostUSD > 0 || initialCapitalUSD > 0 || totalRealizedUSD !== 0) && (
             <div className={`hero-pnl ${totalGainUSD >= 0 ? "up" : "down"}`}
@@ -60,11 +59,11 @@ export default function PortfolioSummary({
               }}
               title="คลิกเพื่อดูรายละเอียดกำไร/ขาดทุนรายสินทรัพย์">
               <span style={{ display: "inline-flex", alignItems: "center" }}>
-                <NumberTicker value={`${totalGainUSD >= 0 ? "▲" : "▼"} ${fmt.usd(Math.abs(totalGainUSD))} (${fmt.pct(totalGainPct)})`} />
+                {`${totalGainUSD >= 0 ? "▲" : "▼"} ${fmt.usd(Math.abs(totalGainUSD))} (${fmt.pct(totalGainPct)})`}
               </span>
               <span style={{ opacity: 0.5 }}>|</span>
               <span style={{ display: "inline-flex", alignItems: "center" }}>
-                <NumberTicker value={`${totalGainTHB >= 0 ? "▲" : "▼"} ${fmt.thb(Math.abs(totalGainTHB), 2)}`} />
+                {`${totalGainTHB >= 0 ? "▲" : "▼"} ${fmt.thb(Math.abs(totalGainTHB), 2)}`}
               </span>
             </div>
           )}
@@ -81,15 +80,15 @@ export default function PortfolioSummary({
         <div className="hero-meta-item">
           <span className="hero-meta-label">สินทรัพย์ที่ถืออยู่</span>
           <span className="hero-meta-value">
-            <NumberTicker value={assets.filter(a => a.qty > 0.00001).length} /> รายการ
+            {assets.filter(a => a.qty > 0.00001).length} รายการ
           </span>
         </div>
         <div className="hero-meta-item" style={{ textAlign: "right" }}>
           <span className="hero-meta-label">ต้นทุนรวม</span>
           <span className="hero-meta-value" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
-            <span><NumberTicker value={fmt.usd(totalCostUSD)} /></span>
+            <span>{fmt.usd(totalCostUSD)}</span>
             <span style={{ fontSize: 11, color: "rgba(255, 255, 255, 0.9)", fontWeight: 600 }}>
-              (<NumberTicker value={fmt.thb(totalCostUSD * exchangeRate, 2)} />)
+              ({fmt.thb(totalCostUSD * exchangeRate, 2)})
             </span>
           </span>
         </div>
@@ -99,10 +98,10 @@ export default function PortfolioSummary({
           <span className="hero-meta-label">รับรู้แล้ว (Realized)</span>
           <span className="hero-meta-value" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
             <span style={{ color: totalRealizedUSD >= 0 ? "#6EE7B7" : "#FCA5A5", fontWeight: 700 }}>
-              <NumberTicker value={(totalRealizedUSD >= 0 ? "+" : "") + fmt.usd(totalRealizedUSD)} />
+              {(totalRealizedUSD >= 0 ? "+" : "") + fmt.usd(totalRealizedUSD)}
             </span>
             <span style={{ fontSize: 11, color: "rgba(255, 255, 255, 0.9)", fontWeight: 600 }}>
-              <NumberTicker value={"(" + (totalRealizedUSD >= 0 ? "+" : "") + fmt.thb(totalRealizedUSD * exchangeRate) + ")"} />
+              {"(" + (totalRealizedUSD >= 0 ? "+" : "") + fmt.thb(totalRealizedUSD * exchangeRate) + ")"}
             </span>
           </span>
         </div>
@@ -110,10 +109,10 @@ export default function PortfolioSummary({
           <span className="hero-meta-label">ยังไม่รับรู้ (Unrealized)</span>
           <span className="hero-meta-value" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
             <span style={{ color: totalUnrealizedUSD >= 0 ? "#6EE7B7" : "#FCA5A5", fontWeight: 700 }}>
-              <NumberTicker value={(totalUnrealizedUSD >= 0 ? "+" : "") + fmt.usd(totalUnrealizedUSD)} />
+              {(totalUnrealizedUSD >= 0 ? "+" : "") + fmt.usd(totalUnrealizedUSD)}
             </span>
             <span style={{ fontSize: 11, color: "rgba(255, 255, 255, 0.9)", fontWeight: 600 }}>
-              <NumberTicker value={"(" + (totalUnrealizedUSD >= 0 ? "+" : "") + fmt.thb(totalUnrealizedUSD * exchangeRate) + ")"} />
+              {"(" + (totalUnrealizedUSD >= 0 ? "+" : "") + fmt.thb(totalUnrealizedUSD * exchangeRate) + ")"}
             </span>
           </span>
         </div>
@@ -122,13 +121,13 @@ export default function PortfolioSummary({
         <div className="hero-meta-item">
           <span className="hero-meta-label">ทุนสะสมทั้งหมด</span>
           <span className="hero-meta-value" style={{ fontWeight: 700 }}>
-            <NumberTicker value={fmt.usd(initialCapitalUSD)} />
+            {fmt.usd(initialCapitalUSD)}
           </span>
         </div>
         <div className="hero-meta-item" style={{ textAlign: "right" }}>
           <span className="hero-meta-label">มูลค่าทุนสะสม (THB)</span>
           <span className="hero-meta-value" style={{ fontSize: 11, color: "rgba(255, 255, 255, 0.9)", fontWeight: 600 }}>
-            (<NumberTicker value={fmt.thb(initialCapitalUSD * exchangeRate)} />)
+            ({fmt.thb(initialCapitalUSD * exchangeRate)})
           </span>
         </div>
       </div>
@@ -144,7 +143,7 @@ export default function PortfolioSummary({
         }}>
           <span style={{ fontSize: 11, opacity: 0.9, fontWeight: 600 }}>กำไร/ขาดทุนวันนี้</span>
           <span style={{ fontSize: 14, fontWeight: 800, color: todayChangeUSD >= 0 ? "#6EE7B7" : "#FCA5A5", display: "inline-flex", gap: 3 }}>
-            <NumberTicker value={`${todayChangeUSD >= 0 ? "+" : ""}${fmt.usd(todayChangeUSD)} (${todayChangeUSD >= 0 ? "+" : ""}${fmt.thb(todayChangeUSD * exchangeRate, 2)})`} />
+            {`${todayChangeUSD >= 0 ? "+" : ""}${fmt.usd(todayChangeUSD)} (${todayChangeUSD >= 0 ? "+" : ""}${fmt.thb(todayChangeUSD * exchangeRate, 2)})`}
           </span>
         </div>
       )}

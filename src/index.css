@@ -2014,39 +2014,3 @@ html, body {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
 }
-
-/* Odometer Number Ticker Styling */
-.number-ticker {
-  display: inline-block;
-  overflow: hidden;
-  height: 1.15em;
-  vertical-align: middle;
-}
-.ticker-digit-wrapper {
-  display: inline-block;
-  height: 1.15em;
-  line-height: 1.15em;
-  position: relative;
-  overflow: hidden;
-  width: 0.62em;
-  text-align: center;
-  vertical-align: top;
-}
-.ticker-digit-column {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-}
-.ticker-digit-column span {
-  display: block;
-  height: 1.15em;
-  line-height: 1.15em;
-  text-align: center;
-}
-.ticker-char {
-  display: inline-block;
-  height: 1.15em;
-  line-height: 1.15em;
-  vertical-align: top;
-}
