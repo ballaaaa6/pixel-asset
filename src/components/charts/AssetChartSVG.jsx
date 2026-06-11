@@ -210,7 +210,23 @@ export function AssetChartSVG({
         );
       })}
 
-      {/* ── Hover crosshair + dot ── */}
+      {/* ── Y-axis labels ── */}
+      {yTicks.map(({ v, y }, i) => (
+        <text key={i} x={PAD_L - 6} y={y + 4} textAnchor="end" fontSize="10"
+          fill="#94A3B8" fontFamily="Outfit,sans-serif" fontWeight="600">
+          {v >= 1000 ? (v / 1000).toFixed(1) + "k" : v < 1 ? v.toFixed(4) : v.toFixed(v >= 100 ? 0 : 2)}
+        </text>
+      ))}
+
+      {/* ── X-axis labels ── */}
+      {xTicks.map(({ x, date }, i) => (
+        <text key={i} x={x} y={H - PAD_B + 16} textAnchor="middle" fontSize="10"
+          fill="#94A3B8" fontFamily="Outfit,sans-serif" fontWeight="600">
+          {getDynamicDateFormat(date, visibleDurationMs, hasMultipleYears)}
+        </text>
+      ))}
+
+      {/* ── Hover crosshair + dot (Rendered on top of standard axes and labels) ── */}
       {hovered && (
         <>
           {/* Vertical guideline */}
@@ -231,27 +247,28 @@ export function AssetChartSVG({
         </>
       )}
 
-      {/* Axis badges */}
+      {/* Axis badges (Rendered on top of standard axes and labels) */}
       {hovered && (() => {
         const dateObj = new Date(hovered.date);
         const dateStr = dateObj.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
         const timeStr = dateObj.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
         const xValText = `${dateStr} ${timeStr} น.`;
-        const rectW_X = xValText.length * 6.5 + 12;
-        const badgeX = Math.max(PAD_L, Math.min(W - PAD_R - rectW_X, hovered.x - rectW_X / 2));
+        const rectW_X = xValText.length * 7.5 + 16;
+        const badgeX = Math.max(2, Math.min(W - rectW_X - 2, hovered.x - rectW_X / 2));
 
         const yValText = fmtUSD(hovered.value, hideValues);
-        const rectW_Y = yValText.length * 6 + 10;
-        const badgeY = Math.max(PAD_T, Math.min(H - PAD_B - 18, hovered.y - 9));
+        const rectW_Y = yValText.length * 7 + 16;
+        const badgeX_Y = Math.max(2, PAD_L - rectW_Y - 4);
+        const badgeY = Math.max(PAD_T, Math.min(H - PAD_B - 22, hovered.y - 11));
 
         return (
           <g style={{ pointerEvents: "none" }}>
             {/* X-axis coordinate badge */}
             <rect
               x={badgeX}
-              y={H - PAD_B}
+              y={H - PAD_B + 2}
               width={rectW_X}
-              height={18}
+              height={22}
               rx={4}
               fill="#1E293B"
               stroke="#64748B"
@@ -259,9 +276,9 @@ export function AssetChartSVG({
             />
             <text
               x={badgeX + rectW_X / 2}
-              y={H - PAD_B + 12}
+              y={H - PAD_B + 17}
               textAnchor="middle"
-              fontSize="10"
+              fontSize="12"
               fill="#F8FAFC"
               fontWeight="bold"
               fontFamily="Outfit,sans-serif"
@@ -271,20 +288,20 @@ export function AssetChartSVG({
 
             {/* Y-axis coordinate badge */}
             <rect
-              x={PAD_L - rectW_Y - 2}
+              x={badgeX_Y}
               y={badgeY}
               width={rectW_Y}
-              height={18}
+              height={22}
               rx={4}
               fill="#1E293B"
               stroke="#64748B"
               strokeWidth="1"
             />
             <text
-              x={PAD_L - 6}
-              y={badgeY + 12}
-              textAnchor="end"
-              fontSize="10"
+              x={badgeX_Y + rectW_Y / 2}
+              y={badgeY + 15}
+              textAnchor="middle"
+              fontSize="12"
               fill="#F8FAFC"
               fontWeight="bold"
               fontFamily="Outfit,sans-serif"
@@ -294,22 +311,6 @@ export function AssetChartSVG({
           </g>
         );
       })()}
-
-      {/* ── Y-axis labels ── */}
-      {yTicks.map(({ v, y }, i) => (
-        <text key={i} x={PAD_L - 6} y={y + 4} textAnchor="end" fontSize="10"
-          fill="#94A3B8" fontFamily="Outfit,sans-serif" fontWeight="600">
-          {v >= 1000 ? (v / 1000).toFixed(1) + "k" : v < 1 ? v.toFixed(4) : v.toFixed(v >= 100 ? 0 : 2)}
-        </text>
-      ))}
-
-      {/* ── X-axis labels ── */}
-      {xTicks.map(({ x, date }, i) => (
-        <text key={i} x={x} y={H - PAD_B + 16} textAnchor="middle" fontSize="10"
-          fill="#94A3B8" fontFamily="Outfit,sans-serif" fontWeight="600">
-          {getDynamicDateFormat(date, visibleDurationMs, hasMultipleYears)}
-        </text>
-      ))}
     </svg>
   );
 }

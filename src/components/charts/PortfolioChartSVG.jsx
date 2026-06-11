@@ -176,100 +176,6 @@ export function PortfolioChartSVG({
         );
       })}
 
-      {/* Hover crosshair lines */}
-      {hovered && (
-        <>
-          {/* Vertical guideline */}
-          <line
-            x1={hovered.x} y1={PAD_T}
-            x2={hovered.x} y2={H - PAD_B}
-            stroke="#94A3B8" strokeWidth="1.2" strokeDasharray="4 4"
-          />
-          {/* Horizontal guideline */}
-          <line
-            x1={PAD_L} y1={hovered.y}
-            x2={hovered.x} y2={hovered.y}
-            stroke="#94A3B8" strokeWidth="1.2" strokeDasharray="4 4"
-          />
-        </>
-      )}
-
-      {/* Axis badges */}
-      {hovered && (() => {
-        const dateObj = new Date(hovered.date);
-        const dateStr = dateObj.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
-        const timeStr = dateObj.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
-        const xValText = `${dateStr} ${timeStr} น.`;
-        const rectW_X = xValText.length * 6.5 + 12;
-        const badgeX = Math.max(PAD_L, Math.min(W - PAD_R - rectW_X, hovered.x - rectW_X / 2));
-
-        const yValText = fmt.usd(hovered.value);
-        const rectW_Y = yValText.length * 6 + 10;
-        const badgeY = Math.max(PAD_T, Math.min(H - PAD_B - 18, hovered.y - 9));
-
-        return (
-          <g style={{ pointerEvents: "none" }}>
-            {/* X-axis coordinate badge */}
-            <rect
-              x={badgeX}
-              y={H - PAD_B}
-              width={rectW_X}
-              height={18}
-              rx={4}
-              fill="#1E293B"
-              stroke="#64748B"
-              strokeWidth="1"
-            />
-            <text
-              x={badgeX + rectW_X / 2}
-              y={H - PAD_B + 12}
-              textAnchor="middle"
-              fontSize="10"
-              fill="#F8FAFC"
-              fontWeight="bold"
-              fontFamily="Outfit,sans-serif"
-            >
-              {xValText}
-            </text>
-
-            {/* Y-axis coordinate badge */}
-            <rect
-              x={PAD_L - rectW_Y - 4}
-              y={badgeY}
-              width={rectW_Y}
-              height={18}
-              rx={4}
-              fill="#1E293B"
-              stroke="#64748B"
-              strokeWidth="1"
-            />
-            <text
-              x={PAD_L - 8}
-              y={badgeY + 12}
-              textAnchor="end"
-              fontSize="10"
-              fill="#F8FAFC"
-              fontWeight="bold"
-              fontFamily="Outfit,sans-serif"
-            >
-              {yValText}
-            </text>
-          </g>
-        );
-      })()}
-
-      {/* Hover dots */}
-      {hovered && (
-        <>
-          <circle cx={hovered.x} cy={hovered.y} r="5"
-            fill="#FFFFFF" stroke={hovered.value >= hovered.cost ? "#00B98A" : "#FF4B55"} strokeWidth="2.5" />
-          {hovered.cost > 0 && (
-            <circle cx={hovered.x} cy={hovered.costY} r="4.5"
-              fill="#FFFFFF" stroke="#5236FF" strokeWidth="2" />
-          )}
-        </>
-      )}
-
       {/* Y-axis values */}
       {yTicks.map(({ v, y }, i) => (
         <text key={i} x={PAD_L - 8} y={y + 4} textAnchor="end" fontSize="12"
@@ -309,6 +215,101 @@ export function PortfolioChartSVG({
           >
             {fmt.usd(costPts[costPts.length - 1].cost)}
           </text>
+        </>
+      )}
+
+      {/* Hover crosshair lines (Rendered on top of standard axes and labels) */}
+      {hovered && (
+        <>
+          {/* Vertical guideline */}
+          <line
+            x1={hovered.x} y1={PAD_T}
+            x2={hovered.x} y2={H - PAD_B}
+            stroke="#94A3B8" strokeWidth="1.2" strokeDasharray="4 4"
+          />
+          {/* Horizontal guideline */}
+          <line
+            x1={PAD_L} y1={hovered.y}
+            x2={hovered.x} y2={hovered.y}
+            stroke="#94A3B8" strokeWidth="1.2" strokeDasharray="4 4"
+          />
+        </>
+      )}
+
+      {/* Axis badges (Rendered on top of standard axes and labels) */}
+      {hovered && (() => {
+        const dateObj = new Date(hovered.date);
+        const dateStr = dateObj.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
+        const timeStr = dateObj.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+        const xValText = `${dateStr} ${timeStr} น.`;
+        const rectW_X = xValText.length * 7.5 + 16;
+        const badgeX = Math.max(2, Math.min(W - rectW_X - 2, hovered.x - rectW_X / 2));
+
+        const yValText = fmt.usd(hovered.value);
+        const rectW_Y = yValText.length * 7 + 16;
+        const badgeX_Y = Math.max(2, PAD_L - rectW_Y - 4);
+        const badgeY = Math.max(PAD_T, Math.min(H - PAD_B - 22, hovered.y - 11));
+
+        return (
+          <g style={{ pointerEvents: "none" }}>
+            {/* X-axis coordinate badge */}
+            <rect
+              x={badgeX}
+              y={H - PAD_B + 2}
+              width={rectW_X}
+              height={22}
+              rx={4}
+              fill="#1E293B"
+              stroke="#64748B"
+              strokeWidth="1"
+            />
+            <text
+              x={badgeX + rectW_X / 2}
+              y={H - PAD_B + 17}
+              textAnchor="middle"
+              fontSize="12"
+              fill="#F8FAFC"
+              fontWeight="bold"
+              fontFamily="Outfit,sans-serif"
+            >
+              {xValText}
+            </text>
+
+            {/* Y-axis coordinate badge */}
+            <rect
+              x={badgeX_Y}
+              y={badgeY}
+              width={rectW_Y}
+              height={22}
+              rx={4}
+              fill="#1E293B"
+              stroke="#64748B"
+              strokeWidth="1"
+            />
+            <text
+              x={badgeX_Y + rectW_Y / 2}
+              y={badgeY + 15}
+              textAnchor="middle"
+              fontSize="12"
+              fill="#F8FAFC"
+              fontWeight="bold"
+              fontFamily="Outfit,sans-serif"
+            >
+              {yValText}
+            </text>
+          </g>
+        );
+      })()}
+
+      {/* Hover dots (Rendered on top of everything) */}
+      {hovered && (
+        <>
+          <circle cx={hovered.x} cy={hovered.y} r="5"
+            fill="#FFFFFF" stroke={hovered.value >= hovered.cost ? "#00B98A" : "#FF4B55"} strokeWidth="2.5" />
+          {hovered.cost > 0 && (
+            <circle cx={hovered.x} cy={hovered.costY} r="4.5"
+              fill="#FFFFFF" stroke="#5236FF" strokeWidth="2" />
+          )}
         </>
       )}
     </svg>
