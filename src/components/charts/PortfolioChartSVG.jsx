@@ -10,8 +10,22 @@ export function PortfolioChartSVG({
   hovered, visibleDurationMs, hasMultipleYears,
   fmt, hideValues
 }) {
-  const renderPointGuidesAndBadges = (pt, isDiffPoint = false) => {
+  const renderPointGuidesAndBadges = (pt, type = "hover") => {
     if (!pt) return null;
+
+    let fillBg = "#1E293B";
+    let strokeCol = "#64748B";
+    let lineCol = "#94A3B8";
+
+    if (type === "diffA") {
+      fillBg = "#2563EB";   // Point 1: Blue
+      strokeCol = "#93C5FD";
+      lineCol = "#3B82F6";
+    } else if (type === "diffB") {
+      fillBg = "#D97706";   // Point 2: Amber/Orange
+      strokeCol = "#FDE68A";
+      lineCol = "#F59E0B";
+    }
 
     // Dynamic badge calculations
     const dateObj = new Date(pt.date);
@@ -32,18 +46,16 @@ export function PortfolioChartSVG({
         <line
           x1={pt.x} y1={PAD_T}
           x2={pt.x} y2={H - PAD_B}
-          stroke={isDiffPoint ? "var(--primary)" : "#94A3B8"}
-          strokeWidth={isDiffPoint ? "1.5" : "1.2"}
-          strokeDasharray={isDiffPoint ? "3 3" : "4 4"}
-          opacity={isDiffPoint ? "0.7" : "1"}
+          stroke={lineCol}
+          strokeWidth="1.2"
+          strokeDasharray="4 4"
         />
         <line
           x1={PAD_L} y1={pt.y}
           x2={pt.x} y2={pt.y}
-          stroke={isDiffPoint ? "var(--primary)" : "#94A3B8"}
-          strokeWidth={isDiffPoint ? "1.5" : "1.2"}
-          strokeDasharray={isDiffPoint ? "3 3" : "4 4"}
-          opacity={isDiffPoint ? "0.7" : "1"}
+          stroke={lineCol}
+          strokeWidth="1.2"
+          strokeDasharray="4 4"
         />
 
         {/* X-axis coordinate badge */}
@@ -53,8 +65,8 @@ export function PortfolioChartSVG({
           width={rectW_X}
           height={22}
           rx={4}
-          fill={isDiffPoint ? "var(--primary)" : "#1E293B"}
-          stroke={isDiffPoint ? "#A5B4FC" : "#64748B"}
+          fill={fillBg}
+          stroke={strokeCol}
           strokeWidth="1"
         />
         <text
@@ -76,8 +88,8 @@ export function PortfolioChartSVG({
           width={rectW_Y}
           height={22}
           rx={4}
-          fill={isDiffPoint ? "var(--primary)" : "#1E293B"}
-          stroke={isDiffPoint ? "#A5B4FC" : "#64748B"}
+          fill={fillBg}
+          stroke={strokeCol}
           strokeWidth="1"
         />
         <text
@@ -159,9 +171,9 @@ export function PortfolioChartSVG({
               {diffStartIdx !== diffEndIdx && (
                 <line x1={xA} y1={yA} x2={xB} y2={yB} stroke="var(--primary)" strokeWidth="2" strokeDasharray="4 4" opacity="0.8" />
               )}
-              <circle cx={xA} cy={yA} r="6" fill="white" stroke="var(--primary)" strokeWidth="3" />
+              <circle cx={xA} cy={yA} r="6" fill="white" stroke="#3B82F6" strokeWidth="3" />
               {diffStartIdx !== diffEndIdx && (
-                <circle cx={xB} cy={yB} r="6" fill="white" stroke="var(--primary)" strokeWidth="3" />
+                <circle cx={xB} cy={yB} r="6" fill="white" stroke="#F59E0B" strokeWidth="3" />
               )}
             </g>
           );
@@ -306,20 +318,20 @@ export function PortfolioChartSVG({
       )}
 
       {/* Guidelines and Axis badges (Rendered on top of standard axes and labels) */}
-      {!isDiffActive && hovered && renderPointGuidesAndBadges(hovered, false)}
+      {!isDiffActive && hovered && renderPointGuidesAndBadges(hovered, "hover")}
 
       {isDiffActive && diffStartIdx !== null && diffEndIdx !== null && (() => {
         const ptA = findClosestPtByTimestamp(diffStartIdx);
         const ptB = findClosestPtByTimestamp(diffEndIdx);
         
         if (ptA && ptB && ptA.x === ptB.x) {
-          return renderPointGuidesAndBadges(ptA, true);
+          return renderPointGuidesAndBadges(ptA, "diffA");
         }
 
         return (
           <>
-            {ptA && renderPointGuidesAndBadges(ptA, true)}
-            {ptB && renderPointGuidesAndBadges(ptB, true)}
+            {ptA && renderPointGuidesAndBadges(ptA, "diffA")}
+            {ptB && renderPointGuidesAndBadges(ptB, "diffB")}
           </>
         );
       })()}
