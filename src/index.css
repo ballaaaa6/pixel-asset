@@ -627,10 +627,16 @@ html, body {
   overflow: hidden;
   
   /* Glassmorphism styling */
-  background: rgba(255, 255, 255, 0.72) !important;
+  background: rgba(255, 255, 255, 0.72);
   backdrop-filter: blur(20px) saturate(190%);
   -webkit-backdrop-filter: blur(20px) saturate(190%);
-  border: 1px solid rgba(255, 255, 255, 0.45) !important;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+}
+
+/* Explicit override for Hero Net Worth Card to prevent glassmorphism background overwrite */
+.glow-tilt-card.hero-card {
+  background: linear-gradient(135deg, #5236FF 0%, #7C3AED 40%, #5236FF 100%) !important;
+  border: none !important;
 }
 
 /* Glow overlay using pseudo-element */
@@ -698,9 +704,10 @@ html, body {
   border-color: rgba(82, 54, 255, 0.25) !important;
 }
 
+/* Hero Net Worth Card hover state should not draw any border */
 .glow-tilt-card.hero-card:hover {
-  box-shadow: 0 20px 50px rgba(82, 54, 255, 0.35), 0 0 30px rgba(82, 54, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.3) !important;
+  box-shadow: 0 20px 50px rgba(82, 54, 255, 0.35), 0 0 30px rgba(82, 54, 255, 0.15) !important;
+  border: none !important;
 }
 
 /* Depth for elements inside card */
