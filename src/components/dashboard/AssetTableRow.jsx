@@ -124,10 +124,7 @@ export default function AssetTableRow({
             {!isCashAsset && asset.extPrice != null && (
               <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 2, display: "inline-flex", gap: 3 }}>
                 <span>{asset.extType}: </span>
-                <NumberTicker value={fmt.usd(asset.extPriceUSD)} />
-                <span>(</span>
-                <NumberTicker value={fmt.thb(asset.extValueTHB)} />
-                <span>)</span>
+                <NumberTicker value={fmt.usd(asset.extValueUSD)} />
               </div>
             )}
           </div>
@@ -156,9 +153,6 @@ export default function AssetTableRow({
                 <div style={{ display: "inline-flex", gap: 2, flexWrap: "wrap" }}>
                   <span>{asset.extType}: {asset.extGainUSD >= 0 ? "+" : ""}</span>
                   <NumberTicker value={fmt.usd(asset.extGainUSD)} />
-                  <span>(</span>
-                  <NumberTicker value={fmt.thb(asset.extGainUSD * exchangeRate)} />
-                  <span>)</span>
                   <span>(</span>
                   <NumberTicker value={fmt.pct(asset.extGainPct)} />
                   <span>)</span>

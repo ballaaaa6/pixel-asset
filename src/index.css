@@ -1887,11 +1887,10 @@ html, body {
 
 /* Item 2: Table row hover highlights & Glowing shadows matching category */
 .asset-row-clickable {
-  transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease !important;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease !important;
 }
 .asset-row-clickable.row-hovered {
   background-color: rgba(248, 250, 252, 0.8) !important;
-  transform: scale(1.002);
 }
 .asset-row-clickable.stock.row-hovered {
   box-shadow: inset 4px 0 0 var(--primary), 0 4px 12px rgba(82, 54, 255, 0.08) !important;
@@ -1952,7 +1951,7 @@ html, body {
 .ticker-track {
   display: inline-flex;
   white-space: nowrap;
-  animation: ticker-swipe 35s linear infinite;
+  animation: ticker-swipe 55s linear infinite;
   align-items: center;
 }
 .ticker-track:hover {
@@ -2017,8 +2016,9 @@ html, body {
 /* Odometer Number Ticker Styling */
 .number-ticker {
   display: inline-flex;
+  align-items: flex-start;
   overflow: hidden;
-  vertical-align: bottom;
+  vertical-align: baseline;
 }
 .ticker-digit-wrapper {
   display: inline-block;

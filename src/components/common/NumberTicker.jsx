@@ -5,6 +5,7 @@ export default function NumberTicker({ value, className = "", style = {} }) {
 
   return (
     <span className={`number-ticker ${className}`} style={style}>
+      <span className="ticker-baseline-helper" style={{ display: "inline-block", width: 0 }}>{"\u200B"}</span>
       {str.split("").map((char, idx) => {
         if (char >= "0" && char <= "9") {
           const digit = parseInt(char, 10);

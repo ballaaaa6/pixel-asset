@@ -83,9 +83,6 @@ export default function AssetCardMobile({
                     <span>{asset.extType}: </span>
                     <NumberTicker value={fmt.usd(asset.extPriceUSD)} />
                     <span>(</span>
-                    <NumberTicker value={fmt.thb(asset.extPriceUSD * exchangeRate)} />
-                    <span>)</span>
-                    <span>(</span>
                     <NumberTicker value={fmt.pct(asset.extChangePct)} />
                     <span>)</span>
                   </div>
