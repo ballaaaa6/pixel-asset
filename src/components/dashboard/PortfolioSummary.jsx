@@ -81,7 +81,7 @@ export default function PortfolioSummary({
         </>
       )}
       <div className="hero-divider" />
-      <div className="hero-meta">
+      <div className="hero-meta" style={{ alignItems: "flex-start" }}>
         <div className="hero-meta-item">
           <span className="hero-meta-label">สินทรัพย์ที่ถืออยู่</span>
           <span className="hero-meta-value" style={{ fontSize: 13.5, fontWeight: 700 }}>
@@ -100,7 +100,7 @@ export default function PortfolioSummary({
           </span>
         </div>
       </div>
-      <div className="hero-meta" style={{ marginTop: 10, borderTop: "1px dashed rgba(255,255,255,0.2)", paddingTop: 10 }}>
+      <div className="hero-meta" style={{ marginTop: 10, borderTop: "1px dashed rgba(255,255,255,0.2)", paddingTop: 10, alignItems: "flex-start" }}>
         <div className="hero-meta-item">
           <span className="hero-meta-label">รับรู้แล้ว (Realized)</span>
           <span className="hero-meta-value" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
@@ -126,7 +126,7 @@ export default function PortfolioSummary({
           </span>
         </div>
       </div>
-      <div className="hero-meta" style={{ marginTop: 10, borderTop: "1px dashed rgba(255,255,255,0.2)", paddingTop: 10 }}>
+      <div className="hero-meta" style={{ marginTop: 10, borderTop: "1px dashed rgba(255,255,255,0.2)", paddingTop: 10, alignItems: "flex-start" }}>
         <div className="hero-meta-item">
           <span className="hero-meta-label">ทุนสะสมทั้งหมด</span>
           <span className="hero-meta-value" style={{ fontSize: 13.5, fontWeight: 700 }}>
