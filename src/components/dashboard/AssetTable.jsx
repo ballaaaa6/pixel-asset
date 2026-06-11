@@ -118,7 +118,6 @@ export default function AssetTable({
                   <SortTh sortKey="value" align="right">มูลค่า</SortTh>
                   <SortTh sortKey="gain" align="right">กำไร/ขาดทุน</SortTh>
                   <SortTh sortKey="today" align="right">วันนี้</SortTh>
-                  <th />
                 </tr>
               </thead>
               <tbody>

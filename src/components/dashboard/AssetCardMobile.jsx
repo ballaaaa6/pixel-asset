@@ -78,7 +78,7 @@ export default function AssetCardMobile({
                   {fmt.thb(asset.regPriceUSD * exchangeRate)}
                 </div>
                 {!isCashAsset && asset.extPrice != null && (
-                  <div style={{ fontSize: 9, fontWeight: 700, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 2 }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 2, whiteSpace: "nowrap" }}>
                     {fmt.usd(asset.extPriceUSD)} ({fmt.pct(asset.extChangePct)})
                   </div>
                 )}
@@ -103,7 +103,7 @@ export default function AssetCardMobile({
                     {fmt.usd(asset.valueUSD)} ({fmt.thb(asset.valueUSD * exchangeRate)})
                   </span>
                   {!isCashAsset && asset.extPrice != null && (
-                    <span style={{ fontSize: 10, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)" }}>
+                    <span style={{ fontSize: 10, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", whiteSpace: "nowrap" }}>
                       {fmt.usd(asset.extValueUSD)} ({fmt.pct(asset.extChangePct)})
                     </span>
                   )}
@@ -124,7 +124,7 @@ export default function AssetCardMobile({
                   {`${asset.gainUSD >= 0 ? "+" : "-"}${fmt.thb(Math.abs(asset.gainUSD * exchangeRate))}`}
                 </div>
                 {!isCashAsset && asset.extPrice != null && (
-                  <div style={{ fontSize: 10, color: asset.extGainUSD >= 0 ? "var(--gain)" : "var(--loss)" }}>
+                  <div style={{ fontSize: 10, color: asset.extGainUSD >= 0 ? "var(--gain)" : "var(--loss)", whiteSpace: "nowrap" }}>
                     {`${asset.extGainUSD >= 0 ? "+" : "-"}${fmt.usd(Math.abs(asset.extGainUSD))} (${fmt.pct(asset.extGainPct)})`}
                   </div>
                 )}
@@ -144,7 +144,7 @@ export default function AssetCardMobile({
                   {`${asset.todayChg >= 0 ? "+" : "-"}${fmt.thb(Math.abs(asset.todayChg * exchangeRate))}`}
                 </div>
                 {!isCashAsset && asset.extPrice != null && (
-                  <div style={{ fontSize: 10, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)" }}>
+                  <div style={{ fontSize: 10, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", whiteSpace: "nowrap" }}>
                     {fmt.pct(asset.extChangePct)}
                   </div>
                 )}

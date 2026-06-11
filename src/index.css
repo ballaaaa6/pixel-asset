@@ -1167,7 +1167,53 @@ html, body {
 .asset-icon-wrapper.gold   { background: var(--gold-light); color: #92400E; }
 .asset-icon-wrapper.fiat   { background: #ECFDF5; color: #065F46; }
 
-.asset-name-col { display: flex; align-items: center; gap: 10px; }
+.asset-name-col { display: flex; align-items: center; gap: 10px; position: relative; }
+
+.asset-row-actions {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  gap: 4px;
+  background: var(--bg-card);
+  padding: 3px;
+  border-radius: 6px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+  border: 1px solid #E2E8F0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  transform: translateY(-2px);
+  z-index: 10;
+}
+.asset-row-clickable:hover .asset-row-actions {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+.asset-row-actions .btn-delete {
+  padding: 5px;
+  border-radius: 4px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.asset-row-actions .btn-action-add {
+  color: var(--primary);
+}
+.asset-row-actions .btn-action-add:hover {
+  background: var(--primary-light) !important;
+  color: var(--primary) !important;
+  border-color: var(--primary-light) !important;
+}
+.asset-row-actions .btn-action-trash:hover {
+  background: var(--loss-light) !important;
+  color: var(--loss) !important;
+  border-color: var(--loss-light) !important;
+}
 
 .asset-symbol   { font-weight: 800; font-size: 17px; color: var(--text-main); }
 .asset-fullname { font-size: 13.5px; color: var(--text-muted); margin-top: 2px; max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
