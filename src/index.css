@@ -2185,19 +2185,18 @@ html, body {
    ═══════════════════════════════════════════════════════════════ */
 .odo-wrapper {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   overflow: hidden;
-  height: 1.15em;
-  vertical-align: bottom;
+  height: 1.25em;
+  vertical-align: middle;
 }
 
 .odo-digit-container {
   display: inline-block;
   position: relative;
-  width: 0.62em;
-  height: 1.15em;
+  width: 0.6em;
+  height: 1.25em;
   overflow: hidden;
-  vertical-align: text-bottom;
 }
 
 .odo-digit-strip {
@@ -2211,7 +2210,7 @@ html, body {
 }
 
 .odo-digit-num {
-  height: 1.15em;
+  height: 1.25em;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2222,6 +2221,8 @@ html, body {
 }
 
 .odo-static-char {
-  display: inline-block;
-  vertical-align: baseline;
+  display: inline-flex;
+  align-items: center;
+  height: 1.25em;
+  vertical-align: middle;
 }
