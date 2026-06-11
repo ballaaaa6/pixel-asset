@@ -2219,3 +2219,89 @@ html, body {
   display: inline;
   vertical-align: baseline;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   KPI CLICKABLE STATES & POPUP DETAILS
+   ═══════════════════════════════════════════════════════════════ */
+.kpi-card.clickable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.kpi-card.clickable:hover {
+  border-color: rgba(139, 92, 246, 0.4);
+  box-shadow: 0 12px 30px rgba(139, 92, 246, 0.15), var(--shadow-sm);
+  transform: translateY(-3px) scale(1.015);
+}
+
+.kpi-card.clickable:active {
+  transform: translateY(-1px) scale(0.985);
+  box-shadow: 0 6px 15px rgba(139, 92, 246, 0.1), var(--shadow-xs);
+}
+
+.kpi-modal-summary-box {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.dark-mode .kpi-modal-summary-box {
+  background: rgba(15, 23, 42, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.kpi-detail-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.25s ease;
+}
+
+.kpi-detail-list-item:last-child {
+  border-bottom: none;
+}
+
+.kpi-detail-list-item:hover {
+  background: rgba(139, 92, 246, 0.04);
+}
+
+.allocation-bar-track {
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 6px;
+  width: 100%;
+}
+
+.allocation-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--primary), #8B5CF6);
+  transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.spotlight-card {
+  background: linear-gradient(135deg, rgba(252, 211, 77, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%);
+  border: 1.5px solid rgba(245, 158, 11, 0.25) !important;
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 8px 32px 0 rgba(245, 158, 11, 0.08);
+}
+
+.spotlight-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--gold), #FBBF24);
+}
+

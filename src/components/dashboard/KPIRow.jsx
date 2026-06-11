@@ -14,7 +14,8 @@ export default function KPIRow({
   totalGainPct,
   bestAsset,
   loading,
-  hideValues
+  hideValues,
+  onCardClick
 }) {
   const fmt = useMemo(() => ({
     usd: (n) => fmtUSD(n, hideValues),
@@ -41,7 +42,7 @@ export default function KPIRow({
 
   return (
     <div className="kpi-row stagger-1">
-      <GlowTiltCard className="kpi-card primary">
+      <GlowTiltCard className="kpi-card primary clickable" onClick={() => onCardClick?.("value")}>
         <div className="kpi-label">💰 มูลค่ารวม</div>
         <div className="kpi-value">
           <AnimatedCounter value={totalUSD} formatFn={fmt.usd} />
@@ -51,9 +52,9 @@ export default function KPIRow({
         </div>
       </GlowTiltCard>
 
-      <GlowTiltCard className={`kpi-card ${todayUp ? "gain-card" : "loss-card"}`}>
+      <GlowTiltCard className={`kpi-card clickable ${todayUp ? "gain-card" : "loss-card"}`} onClick={() => onCardClick?.("today")}>
         <div className="kpi-label">📅 วันนี้</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 4 }}>
           <div className="kpi-value" style={{ color: todayUp ? "var(--gain)" : "var(--loss)", margin: 0, whiteSpace: "nowrap" }}>
             {todayChange !== 0 ? (todayUp ? "+" : "-") : ""}
             <AnimatedCounter value={todayChange !== 0 ? Math.abs(todayChange) : 0} formatFn={(v) => v === 0 ? "—" : fmt.usd(v)} />
@@ -72,9 +73,9 @@ export default function KPIRow({
         )}
       </GlowTiltCard>
 
-      <GlowTiltCard className={`kpi-card ${totalUp ? "gain-card" : "loss-card"}`}>
+      <GlowTiltCard className={`kpi-card clickable ${totalUp ? "gain-card" : "loss-card"}`} onClick={() => onCardClick?.("pnl")}>
         <div className="kpi-label">📊 กำไร/ขาดทุนรวม</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 4 }}>
           <div className="kpi-value" style={{ color: totalUp ? "var(--gain)" : "var(--loss)", margin: 0, whiteSpace: "nowrap" }}>
             {totalGain !== 0 ? (totalUp ? "+" : "-") : ""}
             <AnimatedCounter value={totalGain !== 0 ? Math.abs(totalGain) : 0} formatFn={(v) => v === 0 ? "—" : fmt.usd(v)} />
@@ -93,7 +94,7 @@ export default function KPIRow({
         )}
       </GlowTiltCard>
 
-      <GlowTiltCard className="kpi-card gold-card">
+      <GlowTiltCard className="kpi-card gold-card clickable" onClick={() => onCardClick?.("best")}>
         <div className="kpi-label">🏆 ดีที่สุด</div>
         {bestAsset ? (
           <>

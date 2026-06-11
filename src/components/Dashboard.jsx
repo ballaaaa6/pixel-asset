@@ -16,6 +16,7 @@ import PortfolioSummary from "./dashboard/PortfolioSummary";
 import DonutChart from "./dashboard/DonutChart";
 import AssetTable from "./dashboard/AssetTable";
 import PnLDetailsModal from "./dashboard/PnLDetailsModal";
+import KPIDetailsModal from "./dashboard/KPIDetailsModal";
 import ProfileModal from "./dashboard/ProfileModal";
 import PortfolioChart from "./charts/PortfolioChart";
 import CostValueBar from "./dashboard/CostValueBar";
@@ -62,6 +63,7 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
   const [editingLot, setEditingLot] = useState(null);
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [showPnLDetailsModal, setShowPnLDetailsModal] = useState(false);
+  const [activeKpiDetail, setActiveKpiDetail] = useState(null);
   const [hoveredSymbol, setHoveredSymbol] = useState(null);
   const [hoveredCategory, setHoveredCategory] = useState(null);
 
@@ -86,6 +88,33 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
       localStorage.removeItem(`profile_pic_${user.username}`); localStorage.removeItem(`profile_nickname_${user.username}`); localStorage.removeItem(`portfolio_name_${user.username}`);
       await syncProfileToServer("StockVault", "", ""); showToast("🗑️ ล้างข้อมูลทั้งหมดในระบบเรียบร้อยแล้ว!", "success"); setProfileModalOpen(false);
     } catch (err) { showToast("ล้างข้อมูลไม่สำเร็จ: " + err.message, "error"); }
+  };
+
+  const handleSaveTransaction = async (formData) => {
+    if (editingLot) {
+      if (await handleEditLot(editingAsset.id, editingLot.id, formData)) {
+        setModalOpen(false); setEditingAsset(null); setEditingLot(null);
+      }
+      return;
+    }
+    const isBatch = Array.isArray(formData);
+    const transactions = isBatch ? formData : [formData];
+    const cleanTransactions = [];
+    for (const tx of transactions) {
+      if (isTransactionDuplicate(tx, assets)) {
+        const typeText = tx.transactionType === "BUY" 
+          ? ((tx.type === "fiat" || tx.category === "fiat") ? "ฝากเงินสด" : "ซื้อ")
+          : ((tx.type === "fiat" || tx.category === "fiat") ? "ถอนเงินสด" : "ขาย");
+        const qtyText = (tx.type === "fiat" || tx.category === "fiat") ? `${tx.qty} THB` : `${tx.qty} หน่วย`;
+        const priceText = (tx.type === "fiat" || tx.category === "fiat") ? "" : ` @ ${tx.symbol.endsWith(".BK") ? "฿" : "$"}${tx.avgPrice}`;
+        const confirmMsg = `⚠️ ตรวจพบธุรกรรมที่อาจซ้ำซ้อน:\nมีรายการ ${typeText} ${tx.symbol} จำนวน ${qtyText}${priceText} วันที่ ${tx.date} ${tx.time ? "เวลา " + tx.time + " น." : ""} อยู่ในระบบแล้ว\n\nคุณต้องการบันทึกธุรกรรมนี้เพิ่มอีกรายการใช่หรือไม่?`;
+        if (!await askConfirm(confirmMsg, "⚠️ ตรวจพบธุรกรรมซ้ำซ้อน")) continue;
+      }
+      cleanTransactions.push(tx);
+    }
+    if (cleanTransactions.length === 0) return;
+    const success = await handleSaveAsset(isBatch ? cleanTransactions : cleanTransactions[0]);
+    if (success !== false) { setModalOpen(false); setEditingAsset(null); }
   };
 
   const handleLogoutConfirm = async () => { if (await askConfirm("คุณแน่ใจหรือไม่ที่จะออกจากระบบพอร์ตของคุณ?", "🚪 ยืนยันการออกจากระบบ")) onLogout(); };
@@ -155,6 +184,7 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
             bestAsset={hasPrices ? bestAsset : null}
             loading={!hasPrices && assets.length > 0}
             hideValues={hideValues}
+            onCardClick={setActiveKpiDetail}
           />
 
           {hasPrices && (
@@ -248,135 +278,66 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
 
       {showPnLDetailsModal && (
         <PnLDetailsModal
-          isOpen={showPnLDetailsModal}
-          onClose={() => setShowPnLDetailsModal(false)}
-          assets={assets}
-          prices={prices}
-          exchangeRate={exchangeRate}
-          historicalRates={historicalRates}
-          totalUSD={totalUSD}
-          totalCostUSD={totalCostUSD}
-          totalRealizedUSD={totalRealizedUSD}
-          totalUnrealizedUSD={totalUnrealizedUSD}
-          totalGainUSD={totalGainUSD}
-          totalGainPct={totalGainPct}
-          initialCapitalUSD={initialCapitalUSD}
-          onClearAsset={handleClearAsset}
-          onDeleteAsset={handleDeleteAsset}
+          isOpen={showPnLDetailsModal} onClose={() => setShowPnLDetailsModal(false)}
+          assets={assets} prices={prices} exchangeRate={exchangeRate} historicalRates={historicalRates}
+          totalUSD={totalUSD} totalCostUSD={totalCostUSD} totalRealizedUSD={totalRealizedUSD}
+          totalUnrealizedUSD={totalUnrealizedUSD} totalGainUSD={totalGainUSD} totalGainPct={totalGainPct}
+          initialCapitalUSD={initialCapitalUSD} onClearAsset={handleClearAsset} onDeleteAsset={handleDeleteAsset}
+        />
+      )}
+
+      {activeKpiDetail && (
+        <KPIDetailsModal
+          isOpen={!!activeKpiDetail} type={activeKpiDetail} onClose={() => setActiveKpiDetail(null)}
+          assets={assets} prices={prices} exchangeRate={exchangeRate} totalUSD={totalUSD}
+          totalCostUSD={totalCostUSD} todayChangeUSD={todayChangeUSD} todayChangePct={todayChangePct}
+          totalGainUSD={totalGainUSD} totalGainPct={totalGainPct} totalGainTHB={totalGainTHB}
+          totalRealizedUSD={totalRealizedUSD} totalUnrealizedUSD={totalUnrealizedUSD}
+          bestAsset={bestAsset} sortedAssets={sortedAssets} donutSegments={donutSegments}
         />
       )}
 
       {currentSelectedAsset && (
         <AssetDetailPanel
           asset={currentSelectedAsset}
-          price={
-            (currentSelectedAsset.type === "fiat" || currentSelectedAsset.category === "fiat")
-              ? prices[getCurrencyTicker(currentSelectedAsset.symbol)]
-              : prices[currentSelectedAsset.symbol]
-          }
-          exchangeRate={exchangeRate}
-          historicalRates={historicalRates}
-          onClose={() => setSelectedAsset(null)}
-          hideValues={hideValues}
-          onEditLot={(asset, lot) => {
-            setEditingAsset(asset);
-            setEditingLot(lot);
-            setModalOpen(true);
-          }}
+          price={(currentSelectedAsset.type === "fiat" || currentSelectedAsset.category === "fiat") ? prices[getCurrencyTicker(currentSelectedAsset.symbol)] : prices[currentSelectedAsset.symbol]}
+          exchangeRate={exchangeRate} historicalRates={historicalRates}
+          onClose={() => setSelectedAsset(null)} hideValues={hideValues}
+          onEditLot={(asset, lot) => { setEditingAsset(asset); setEditingLot(lot); setModalOpen(true); }}
         />
       )}
 
       <ProfileModal
-        isOpen={profileModalOpen}
-        onClose={() => setProfileModalOpen(false)}
-        profilePic={profilePic}
-        setProfilePic={setProfilePic}
-        nickname={nickname}
-        newNickname={newNickname}
-        setNewNickname={setNewNickname}
-        oldPassword={oldPassword}
-        setOldPassword={setOldPassword}
-        newPassword={newPassword}
-        setNewPassword={setNewPassword}
-        avatarHovered={avatarHovered}
-        setAvatarHovered={setAvatarHovered}
-        avatarPreviewOpen={avatarPreviewOpen}
-        setAvatarPreviewOpen={setAvatarPreviewOpen}
-        presetModalOpen={presetModalOpen}
-        setPresetModalOpen={setPresetModalOpen}
-        handleAvatarUpload={handleAvatarUpload}
-        handleSaveProfile={handleSaveProfile}
-        handleChangePassword={handleChangePassword}
-        handleExport={handleExport}
-        handleImport={handleImport}
-        handleClearPortfolio={handleClearPortfolio}
-        handleClearAllData={handleClearAllData}
-        onLogout={handleLogoutConfirm}
+        isOpen={profileModalOpen} onClose={() => setProfileModalOpen(false)}
+        profilePic={profilePic} setProfilePic={setProfilePic} nickname={nickname}
+        newNickname={newNickname} setNewNickname={setNewNickname}
+        oldPassword={oldPassword} setOldPassword={setOldPassword}
+        newPassword={newPassword} setNewPassword={setNewPassword}
+        avatarHovered={avatarHovered} setAvatarHovered={setAvatarHovered}
+        avatarPreviewOpen={avatarPreviewOpen} setAvatarPreviewOpen={setAvatarPreviewOpen}
+        presetModalOpen={presetModalOpen} setPresetModalOpen={setPresetModalOpen}
+        handleAvatarUpload={handleAvatarUpload} handleSaveProfile={handleSaveProfile}
+        handleChangePassword={handleChangePassword} handleExport={handleExport}
+        handleImport={handleImport} handleClearPortfolio={handleClearPortfolio}
+        handleClearAllData={handleClearAllData} onLogout={handleLogoutConfirm}
         askConfirm={askConfirm}
       />
 
       {modalOpen && (
         <AssetModal
-          isOpen={modalOpen}
-          editingAsset={editingAsset}
-          editingLot={editingLot}
+          isOpen={modalOpen} editingAsset={editingAsset} editingLot={editingLot}
           onClose={() => { setModalOpen(false); setEditingAsset(null); setEditingLot(null); }}
           onDeleteLot={async (assetId, lotId) => {
-            if (await handleDeleteLot(assetId, lotId)) {
-              setModalOpen(false);
-              setEditingAsset(null);
-              setEditingLot(null);
-            }
+            if (await handleDeleteLot(assetId, lotId)) { setModalOpen(false); setEditingAsset(null); setEditingLot(null); }
           }}
-          onSave={async (formData) => {
-            if (editingLot) {
-              if (await handleEditLot(editingAsset.id, editingLot.id, formData)) {
-                setModalOpen(false);
-                setEditingAsset(null);
-                setEditingLot(null);
-              }
-              return;
-            }
-            const isBatch = Array.isArray(formData);
-            const transactions = isBatch ? formData : [formData];
-            const cleanTransactions = [];
-
-            for (const tx of transactions) {
-              if (isTransactionDuplicate(tx, assets)) {
-                const typeText = tx.transactionType === "BUY" 
-                  ? ((tx.type === "fiat" || tx.category === "fiat") ? "ฝากเงินสด" : "ซื้อ")
-                  : ((tx.type === "fiat" || tx.category === "fiat") ? "ถอนเงินสด" : "ขาย");
-                const qtyText = (tx.type === "fiat" || tx.category === "fiat") ? `${tx.qty} THB` : `${tx.qty} หน่วย`;
-                const priceText = (tx.type === "fiat" || tx.category === "fiat") ? "" : ` @ ${tx.symbol.endsWith(".BK") ? "฿" : "$"}${tx.avgPrice}`;
-
-                const confirmMsg = `⚠️ ตรวจพบธุรกรรมที่อาจซ้ำซ้อน:\nมีรายการ ${typeText} ${tx.symbol} จำนวน ${qtyText}${priceText} วันที่ ${tx.date} ${tx.time ? "เวลา " + tx.time + " น." : ""} อยู่ในระบบแล้ว\n\nคุณต้องการบันทึกธุรกรรมนี้เพิ่มอีกรายการใช่หรือไม่?`;
-                if (!await askConfirm(confirmMsg, "⚠️ ตรวจพบธุรกรรมซ้ำซ้อน")) {
-                  continue;
-                }
-              }
-              cleanTransactions.push(tx);
-            }
-
-            if (cleanTransactions.length === 0) {
-              return;
-            }
-
-            const success = await handleSaveAsset(isBatch ? cleanTransactions : cleanTransactions[0]);
-            if (success !== false) {
-              setModalOpen(false);
-              setEditingAsset(null);
-            }
-          }}
-          exchangeRate={exchangeRate}
-          showToast={showToast}
-          onSessionExpired={onSessionExpired}
+          onSave={handleSaveTransaction}
+          exchangeRate={exchangeRate} showToast={showToast} onSessionExpired={onSessionExpired}
         />
       )}
 
       {confirmConfig && (
         <CustomConfirmModal
-          title={confirmConfig.title}
-          message={confirmConfig.message}
+          title={confirmConfig.title} message={confirmConfig.message}
           onConfirm={() => { confirmConfig.resolve(true); setConfirmConfig(null); }}
           onCancel={() => { confirmConfig.resolve(false); setConfirmConfig(null); }}
         />
