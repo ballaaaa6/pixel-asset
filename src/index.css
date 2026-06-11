@@ -639,9 +639,8 @@ html, body {
   border: none !important;
 }
 
-/* Glow overlay using pseudo-element */
-.glow-tilt-card::before {
-  content: "";
+/* Glow overlay element */
+.glow-overlay {
   position: absolute;
   top: 0;
   left: 0;
@@ -657,7 +656,7 @@ html, body {
 }
 
 /* Specific glows for different card categories */
-.glow-tilt-card.primary::before {
+.glow-tilt-card.primary .glow-overlay {
   background: radial-gradient(
     circle 160px at var(--mouse-x, -999px) var(--mouse-y, -999px),
     rgba(82, 54, 255, 0.09),
@@ -665,7 +664,7 @@ html, body {
   );
 }
 
-.glow-tilt-card.gain-card::before {
+.glow-tilt-card.gain-card .glow-overlay {
   background: radial-gradient(
     circle 160px at var(--mouse-x, -999px) var(--mouse-y, -999px),
     rgba(0, 185, 138, 0.12),
@@ -673,7 +672,7 @@ html, body {
   );
 }
 
-.glow-tilt-card.loss-card::before {
+.glow-tilt-card.loss-card .glow-overlay {
   background: radial-gradient(
     circle 160px at var(--mouse-x, -999px) var(--mouse-y, -999px),
     rgba(255, 75, 85, 0.12),
@@ -681,7 +680,7 @@ html, body {
   );
 }
 
-.glow-tilt-card.gold-card::before {
+.glow-tilt-card.gold-card .glow-overlay {
   background: radial-gradient(
     circle 160px at var(--mouse-x, -999px) var(--mouse-y, -999px),
     rgba(245, 158, 11, 0.14),
@@ -689,7 +688,7 @@ html, body {
   );
 }
 
-.glow-tilt-card.hero-card::before {
+.glow-tilt-card.hero-card .glow-overlay {
   background: radial-gradient(
     circle 200px at var(--mouse-x, -999px) var(--mouse-y, -999px),
     rgba(255, 255, 255, 0.18),

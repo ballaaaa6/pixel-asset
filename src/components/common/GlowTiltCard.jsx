@@ -61,6 +61,7 @@ export default function GlowTiltCard({ children, className = "", style = {}, max
       onMouseLeave={handleMouseLeave}
       {...props}
     >
+      <div className="glow-overlay" />
       {children}
     </div>
   );
