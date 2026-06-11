@@ -62,12 +62,7 @@ export default function AssetCardMobile({
               {!isCashAsset && isBest && <span className="best-badge" style={{ padding: "1px 6px", borderRadius: 4 }}>🏆 Best</span>}
             </div>
             <div className="asset-fullname">{getAssetFullName(asset.symbol, asset.name, asset.category)}</div>
-            <MarketBadge state={pData?.marketState} />
-            {!isCashAsset && asset.extPrice != null && (
-              <div style={{ fontSize: 11, fontWeight: 700, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 4 }}>
-                {asset.extType}: {fmt.usd(asset.extPriceUSD)} ({fmt.pct(asset.extChangePct)})
-              </div>
-            )}
+            <MarketBadge state={pData?.marketState} extChangePct={asset.extChangePct} />
           </div>
         </div>
         <div className="mobile-card-right">
@@ -82,6 +77,11 @@ export default function AssetCardMobile({
                 <div className="price-thb">
                   {fmt.thb(asset.regPriceUSD * exchangeRate)}
                 </div>
+                {!isCashAsset && asset.extPrice != null && (
+                  <div style={{ fontSize: 9, fontWeight: 700, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 2 }}>
+                    {fmt.usd(asset.extPriceUSD)} ({fmt.pct(asset.extChangePct)})
+                  </div>
+                )}
               </>
             )
           ) : (
@@ -98,9 +98,16 @@ export default function AssetCardMobile({
               isCashAsset ? (
                 `${fmt.qty(asset.qty)} ${asset.symbol} (≈ ${fmt.usd(asset.valueUSD)})`
               ) : (
-                <span>
-                  {fmt.usd(asset.valueUSD)} ({fmt.thb(asset.valueUSD * exchangeRate)})
-                </span>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                  <span>
+                    {fmt.usd(asset.valueUSD)} ({fmt.thb(asset.valueUSD * exchangeRate)})
+                  </span>
+                  {!isCashAsset && asset.extPrice != null && (
+                    <span style={{ fontSize: 10, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)" }}>
+                      {fmt.usd(asset.extValueUSD)} ({fmt.pct(asset.extChangePct)})
+                    </span>
+                  )}
+                </div>
               )
             ) : "—"}
           </span>
@@ -116,6 +123,11 @@ export default function AssetCardMobile({
                 <div className="price-thb" style={{ fontSize: 11 }}>
                   {`${asset.gainUSD >= 0 ? "+" : "-"}${fmt.thb(Math.abs(asset.gainUSD * exchangeRate))}`}
                 </div>
+                {!isCashAsset && asset.extPrice != null && (
+                  <div style={{ fontSize: 10, color: asset.extGainUSD >= 0 ? "var(--gain)" : "var(--loss)" }}>
+                    {`${asset.extGainUSD >= 0 ? "+" : "-"}${fmt.usd(Math.abs(asset.extGainUSD))} (${fmt.pct(asset.extGainPct)})`}
+                  </div>
+                )}
               </div>
             ) : "—")}
           </span>
@@ -131,6 +143,11 @@ export default function AssetCardMobile({
                 <div className="price-thb" style={{ fontSize: 11 }}>
                   {`${asset.todayChg >= 0 ? "+" : "-"}${fmt.thb(Math.abs(asset.todayChg * exchangeRate))}`}
                 </div>
+                {!isCashAsset && asset.extPrice != null && (
+                  <div style={{ fontSize: 10, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)" }}>
+                    {fmt.pct(asset.extChangePct)}
+                  </div>
+                )}
               </div>
             ) : "—")}
           </span>

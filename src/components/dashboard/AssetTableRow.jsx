@@ -68,16 +68,11 @@ export default function AssetTableRow({
             </div>
             <div className="asset-fullname">{getAssetFullName(asset.symbol, asset.name, asset.category)}</div>
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
-              <MarketBadge state={pData?.marketState} />
+              <MarketBadge state={pData?.marketState} extChangePct={asset.extChangePct} />
               <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", background: "#F1F5F9", padding: "1px 6px", borderRadius: 4 }}>
                 {weightPct.toFixed(2)}%
               </span>
             </div>
-            {!isCashAsset && asset.extPrice != null && (
-              <div style={{ fontSize: 11, fontWeight: 700, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 4 }}>
-                {asset.extType}: {fmt.usd(asset.extPriceUSD)} ({fmt.pct(asset.extChangePct)})
-              </div>
-            )}
           </div>
         </div>
       </td>
@@ -96,6 +91,11 @@ export default function AssetTableRow({
               <div className="price-thb">
                 {fmt.thb(asset.regPriceUSD * exchangeRate)}
               </div>
+              {!isCashAsset && asset.extPrice != null && (
+                <div style={{ fontSize: 10, fontWeight: 700, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 2 }}>
+                  {fmt.usd(asset.extPriceUSD)} ({fmt.pct(asset.extChangePct)})
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -116,6 +116,11 @@ export default function AssetTableRow({
                 fmt.thb(asset.regValueTHB)
               )}
             </div>
+            {!isCashAsset && asset.extPrice != null && (
+              <div style={{ fontSize: 10, color: asset.extChangePct >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 2 }}>
+                {fmt.usd(asset.extValueUSD)} ({fmt.pct(asset.extChangePct)})
+              </div>
+            )}
           </div>
         )}
       </td>
@@ -133,6 +138,11 @@ export default function AssetTableRow({
                 {`${asset.regGainUSD >= 0 ? "+" : "-"}${fmt.thb(Math.abs(asset.regGainUSD * exchangeRate))}`}
               </div>
             </div>
+            {!isCashAsset && asset.extPrice != null && (
+              <div className={`pnl-cell ${asset.extGainUSD >= 0 ? "positive" : "negative"}`} style={{ fontSize: 10, marginTop: 2, whiteSpace: "nowrap" }}>
+                {`${asset.extGainUSD >= 0 ? "+" : "-"}${fmt.usd(Math.abs(asset.extGainUSD))} (${fmt.pct(asset.extGainPct)})`}
+              </div>
+            )}
           </div>
         )}
       </td>
@@ -147,6 +157,11 @@ export default function AssetTableRow({
                 {fmt.pct(asset.regTodayPct)}
               </div>
             </div>
+            {!isCashAsset && asset.extPrice != null && (
+              <div className={`pnl-cell ${asset.extChangePct >= 0 ? "positive" : "negative"}`} style={{ fontSize: 10, marginTop: 2 }}>
+                {fmt.pct(asset.extChangePct)}
+              </div>
+            )}
           </div>
         )}
       </td>
