@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { fmtUSD, fmtTHB, fmtPct } from "../../utils/formatters";
+import GlowTiltCard from "../common/GlowTiltCard";
 
 export default function KPIRow({
   totalUSD,
@@ -39,7 +40,7 @@ export default function KPIRow({
 
   return (
     <div className="kpi-row stagger-1">
-      <div className="kpi-card primary">
+      <GlowTiltCard className="kpi-card primary">
         <div className="kpi-label">💰 มูลค่ารวม</div>
         <div className="kpi-value">
           {fmt.usd(totalUSD)}
@@ -47,9 +48,9 @@ export default function KPIRow({
         <div className="kpi-sub">
           {fmt.thb(totalTHB)}
         </div>
-      </div>
+      </GlowTiltCard>
 
-      <div className={`kpi-card ${todayUp ? "gain-card" : "loss-card"}`}>
+      <GlowTiltCard className={`kpi-card ${todayUp ? "gain-card" : "loss-card"}`}>
         <div className="kpi-label">📅 วันนี้</div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
           <div className="kpi-value" style={{ color: todayUp ? "var(--gain)" : "var(--loss)", margin: 0, whiteSpace: "nowrap" }}>
@@ -66,9 +67,9 @@ export default function KPIRow({
             {(todayUp ? "+" : "-") + fmt.thb(Math.abs(todayChangeTHB))}
           </div>
         )}
-      </div>
+      </GlowTiltCard>
 
-      <div className={`kpi-card ${totalUp ? "gain-card" : "loss-card"}`}>
+      <GlowTiltCard className={`kpi-card ${totalUp ? "gain-card" : "loss-card"}`}>
         <div className="kpi-label">📊 กำไร/ขาดทุนรวม</div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
           <div className="kpi-value" style={{ color: totalUp ? "var(--gain)" : "var(--loss)", margin: 0, whiteSpace: "nowrap" }}>
@@ -85,9 +86,9 @@ export default function KPIRow({
             {(totalUp ? "+" : "-") + fmt.thb(Math.abs(totalGainTHB))}
           </div>
         )}
-      </div>
+      </GlowTiltCard>
 
-      <div className="kpi-card gold-card">
+      <GlowTiltCard className="kpi-card gold-card">
         <div className="kpi-label">🏆 ดีที่สุด</div>
         {bestAsset ? (
           <>
@@ -99,7 +100,7 @@ export default function KPIRow({
         ) : (
           <div className="kpi-value small" style={{ color: "var(--text-muted)" }}>—</div>
         )}
-      </div>
+      </GlowTiltCard>
     </div>
   );
 }

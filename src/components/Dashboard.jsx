@@ -8,6 +8,7 @@ import { useProfile } from "../hooks/useProfile";
 import { getCurrencyTicker, getDisplaySymbol } from "../utils/assetHelpers";
 import { isTransactionDuplicate } from "../utils/portfolioTransactionHelpers";
 import CustomConfirmModal from "./common/CustomConfirmModal";
+import GlowTiltCard from "./common/GlowTiltCard";
 
 import DashboardHeader from "./dashboard/DashboardHeader";
 import KPIRow from "./dashboard/KPIRow";
@@ -186,7 +187,7 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
                 hideValues={hideValues}
               />
 
-              <div className="card stagger-3">
+              <GlowTiltCard className="card stagger-3">
                 <DonutChart
                   segments={hasPrices && donutSegments.length > 0 ? donutSegments : []}
                   activeAssets={sortedAssets}
@@ -196,11 +197,11 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
                   hoveredCategory={hoveredCategory}
                   setHoveredCategory={setHoveredCategory}
                 />
-              </div>
+              </GlowTiltCard>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <div className="card stagger-2" style={{ padding: "16px 14px 10px" }}>
+              <GlowTiltCard className="card stagger-2" style={{ padding: "16px 14px 10px" }}>
                 <PortfolioChart
                   history={portfolioHistory}
                   range={chartRange}
@@ -212,7 +213,7 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
                   chartCategory={chartCategory}
                   setChartCategory={setChartCategory}
                 />
-              </div>
+              </GlowTiltCard>
 
               <AssetTable
                 sortedAssets={sortedAssets}

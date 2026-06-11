@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { fmtUSD, fmtTHB, fmtPct } from "../../utils/formatters";
+import GlowTiltCard from "../common/GlowTiltCard";
 
 export default function PortfolioSummary({
   hasPrices,
@@ -24,7 +25,7 @@ export default function PortfolioSummary({
   }), [hideValues]);
 
   return (
-    <div className="hero-card stagger-2">
+    <GlowTiltCard className="hero-card stagger-2">
       <div className="hero-label">🏦 มูลค่าพอร์ตโฟลิโอรวม</div>
       {hasPrices ? (
         <>
@@ -147,6 +148,6 @@ export default function PortfolioSummary({
           </span>
         </div>
       )}
-    </div>
+    </GlowTiltCard>
   );
 }
