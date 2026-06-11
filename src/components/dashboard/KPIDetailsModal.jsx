@@ -57,7 +57,7 @@ export default function KPIDetailsModal({
     <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal-content" style={{ background: "var(--bg-modal)", backdropFilter: "blur(20px)" }}>
         <div className="modal-header" style={{ borderBottom: "1px solid var(--border)", paddingBottom: 14 }}>
-          <span className="modal-title" style={{ fontSize: 16, fontWeight: 800 }}>{modalTitle}</span>
+          <span className="modal-title" style={{ fontSize: 19, fontWeight: 800 }}>{modalTitle}</span>
           <button className="btn-close" onClick={onClose} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
             <X size={16} />
           </button>

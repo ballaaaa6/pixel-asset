@@ -11,7 +11,7 @@ export default function TodayDetailView({ sortedAssets, todayChangeUSD, todayCha
     const g = withChg.filter(a => a.todayChg > 0).length;
     const l = withChg.filter(a => a.todayChg < 0).length;
 
-    // Find best percent gain today and worst percent loss today
+    // Find best percent gainer today
     const sortedByPct = [...active].sort((a, b) => b.todayPct - a.todayPct);
     const win = sortedByPct.length > 0 && sortedByPct[0].todayPct > 0 ? sortedByPct[0] : null;
     const los = sortedByPct.length > 0 && sortedByPct[sortedByPct.length - 1].todayPct < 0 ? sortedByPct[sortedByPct.length - 1] : null;
@@ -32,7 +32,7 @@ export default function TodayDetailView({ sortedAssets, todayChangeUSD, todayCha
     <div>
       {/* Top Header Card */}
       <div style={{
-        padding: 18,
+        padding: 20,
         background: todayUp 
           ? "linear-gradient(135deg, rgba(16, 185, 129, 0.16) 0%, rgba(52, 211, 153, 0.08) 100%)"
           : "linear-gradient(135deg, rgba(239, 68, 68, 0.16) 0%, rgba(248, 113, 113, 0.08) 100%)",
@@ -42,67 +42,67 @@ export default function TodayDetailView({ sortedAssets, todayChangeUSD, todayCha
         textAlign: "center",
         boxShadow: todayUp ? "0 10px 25px -5px rgba(16, 185, 129, 0.08)" : "0 10px 25px -5px rgba(239, 68, 68, 0.08)"
       }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.6 }}>ความเคลื่อนไหวพอร์ตวันนี้</div>
-        <div style={{ fontSize: 28, fontWeight: 800, color: todayUp ? "var(--gain)" : "var(--loss)", marginTop: 6, display: "flex", alignItems: "baseline", justifyContent: "center", gap: 4 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.6 }}>ความเคลื่อนไหวพอร์ตวันนี้</div>
+        <div style={{ fontSize: 32, fontWeight: 800, color: todayUp ? "var(--gain)" : "var(--loss)", marginTop: 6, display: "flex", alignItems: "baseline", justifyContent: "center", gap: 4 }}>
           {todayChangeUSD !== 0 && (todayUp ? "+" : "-")}
           {fmt.usd(Math.abs(todayChangeUSD))}
-          <span style={{ fontSize: 13, marginLeft: 6, fontWeight: 700 }} className={`kpi-badge ${todayUp ? "up" : "down"}`}>
+          <span style={{ fontSize: 15, marginLeft: 6, fontWeight: 700 }} className={`kpi-badge ${todayUp ? "up" : "down"}`}>
             {todayUp ? "▲" : "▼"}{fmt.pct(todayChangePct)}
           </span>
         </div>
-        <div style={{ fontSize: 14, color: todayUp ? "var(--gain)" : "var(--loss)", fontWeight: 700, marginTop: 2 }}>
+        <div style={{ fontSize: 16.5, color: todayUp ? "var(--gain)" : "var(--loss)", fontWeight: 700, marginTop: 2 }}>
           {todayChangeUSD >= 0 ? "+" : "-"}{fmt.thb(Math.abs(todayChangeUSD * exchangeRate))}
         </div>
         
         {/* Sentiment Badge */}
-        <div className={`daily-sentiment-badge ${sentimentClass}`}>
+        <div className={`daily-sentiment-badge ${sentimentClass}`} style={{ fontSize: 13, padding: "6px 14px", marginTop: 12 }}>
           {sentimentLabel}
         </div>
       </div>
 
       {/* Grid 2x2: Market Movers Stats & Winner/Loser */}
-      <div className="stats-grid-2x2">
-        <div className="stats-grid-card">
-          <span style={{ fontSize: 9.5, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>ขึ้น/ลง วันนี้</span>
-          <span style={{ fontSize: 11, fontWeight: 800, color: "var(--text-main)", marginTop: 4 }}>
+      <div className="stats-grid-2x2" style={{ gap: 12, marginBottom: 16 }}>
+        <div className="stats-grid-card" style={{ padding: "12px 14px" }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>ขึ้น/ลง วันนี้</span>
+          <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)", marginTop: 6 }}>
             🟢 ขึ้น {gainers} | 🔴 ลง {losers}
           </span>
         </div>
-        <div className="stats-grid-card">
-          <span style={{ fontSize: 9.5, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>ดาวรุ่งพุ่งแรงวันนี้</span>
-          <span style={{ fontSize: 11, fontWeight: 800, color: "var(--gain)", marginTop: 4 }}>
+        <div className="stats-grid-card" style={{ padding: "12px 14px" }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>ดาวรุ่งพุ่งแรงวันนี้</span>
+          <span style={{ fontSize: 13, fontWeight: 800, color: "var(--gain)", marginTop: 6 }}>
             {winner ? `${getDisplaySymbol(winner.symbol)} (+${winner.todayPct.toFixed(2)}%)` : "—"}
           </span>
         </div>
       </div>
 
-      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", marginBottom: 10 }}>🔥 รายการที่เคลื่อนไหวแรงสุดวันนี้ (Movers)</div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-muted)", marginBottom: 12 }}>🔥 รายการที่เคลื่อนไหวแรงสุดวันนี้ (Movers)</div>
       
-      <div style={{ maxHeight: 180, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 12 }}>
+      <div style={{ maxHeight: 220, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 12 }}>
         {movers.length === 0 ? (
-          <div style={{ padding: 24, textAlign: "center", color: "var(--text-muted)", fontSize: 12.5 }}>ไม่มีข้อมูลการเคลื่อนไหวราคาในวันนี้</div>
+          <div style={{ padding: 24, textAlign: "center", color: "var(--text-muted)", fontSize: 14.5 }}>ไม่มีข้อมูลการเคลื่อนไหวราคาในวันนี้</div>
         ) : (
           movers.map((item) => {
             const isUp = item.todayChg > 0;
             return (
-              <div key={item.id} className="kpi-detail-list-item">
+              <div key={item.id} className="kpi-detail-list-item" style={{ padding: "12px 16px" }}>
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ fontWeight: 800, fontSize: 13 }}>{getDisplaySymbol(item.symbol)}</span>
-                    <span className={`badge-type ${item.category || "stock"}`} style={{ fontSize: 9, padding: "1px 4px", borderRadius: 4 }}>
+                    <span style={{ fontWeight: 800, fontSize: 14.5 }}>{getDisplaySymbol(item.symbol)}</span>
+                    <span className={`badge-type ${item.category || "stock"}`} style={{ fontSize: 10.5, padding: "2px 6px", borderRadius: 4 }}>
                       {CATEGORY_LABELS[item.category] || item.category || "stock"}
                     </span>
                   </div>
-                  <div style={{ fontSize: 10.5, color: "var(--text-muted)", marginTop: 1 }}>
+                  <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
                     จำนวนถือ: {item.qty} หน่วย
                   </div>
                 </div>
                 
                 <div style={{ textAlign: "right" }}>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: isUp ? "var(--gain)" : "var(--loss)" }}>
+                  <div style={{ fontWeight: 800, fontSize: 14.5, color: isUp ? "var(--gain)" : "var(--loss)" }}>
                     {isUp ? "+" : ""}{fmt.usd(item.todayChg)}
                   </div>
-                  <div style={{ fontSize: 10.5, color: isUp ? "var(--gain)" : "var(--loss)", fontWeight: 700, marginTop: 1 }}>
+                  <div style={{ fontSize: 12, color: isUp ? "var(--gain)" : "var(--loss)", fontWeight: 700, marginTop: 2 }}>
                     {isUp ? "▲" : "▼"}{fmt.pct(item.todayPct)}
                   </div>
                 </div>
