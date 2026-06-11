@@ -33,6 +33,92 @@ export function AssetChartSVG({
   hideValues,
 }) {
   const color = isUp ? "#00B98A" : "#FF4B55";
+
+  const renderPointGuidesAndBadges = (pt, isDiffPoint = false) => {
+    if (!pt) return null;
+
+    // Dynamic badge calculations
+    const dateObj = new Date(pt.date);
+    const dateStr = dateObj.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
+    const timeStr = dateObj.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+    const xValText = `${dateStr} ${timeStr} น.`;
+    const rectW_X = xValText.length * 7.5 + 16;
+    const badgeX = Math.max(2, Math.min(W - rectW_X - 2, pt.x - rectW_X / 2));
+
+    const yValText = fmtUSD(pt.value, hideValues);
+    const rectW_Y = yValText.length * 7 + 16;
+    const badgeX_Y = Math.max(2, PAD_L - rectW_Y - 4);
+    const badgeY = Math.max(PAD_T, Math.min(H - PAD_B - 22, pt.y - 11));
+
+    return (
+      <g style={{ pointerEvents: "none" }}>
+        {/* Guidelines */}
+        <line
+          x1={pt.x} y1={PAD_T}
+          x2={pt.x} y2={H - PAD_B}
+          stroke={isDiffPoint ? "var(--primary)" : "#94A3B8"}
+          strokeWidth={isDiffPoint ? "1.5" : "1.2"}
+          strokeDasharray={isDiffPoint ? "3 3" : "4 4"}
+          opacity={isDiffPoint ? "0.7" : "1"}
+        />
+        <line
+          x1={PAD_L} y1={pt.y}
+          x2={pt.x} y2={pt.y}
+          stroke={isDiffPoint ? "var(--primary)" : "#94A3B8"}
+          strokeWidth={isDiffPoint ? "1.5" : "1.2"}
+          strokeDasharray={isDiffPoint ? "3 3" : "4 4"}
+          opacity={isDiffPoint ? "0.7" : "1"}
+        />
+
+        {/* X-axis coordinate badge */}
+        <rect
+          x={badgeX}
+          y={H - PAD_B + 2}
+          width={rectW_X}
+          height={22}
+          rx={4}
+          fill={isDiffPoint ? "var(--primary)" : "#1E293B"}
+          stroke={isDiffPoint ? "#A5B4FC" : "#64748B"}
+          strokeWidth="1"
+        />
+        <text
+          x={badgeX + rectW_X / 2}
+          y={H - PAD_B + 17}
+          textAnchor="middle"
+          fontSize="12"
+          fill="#F8FAFC"
+          fontWeight="bold"
+          fontFamily="Outfit,sans-serif"
+        >
+          {xValText}
+        </text>
+
+        {/* Y-axis coordinate badge */}
+        <rect
+          x={badgeX_Y}
+          y={badgeY}
+          width={rectW_Y}
+          height={22}
+          rx={4}
+          fill={isDiffPoint ? "var(--primary)" : "#1E293B"}
+          stroke={isDiffPoint ? "#A5B4FC" : "#64748B"}
+          strokeWidth="1"
+        />
+        <text
+          x={badgeX_Y + rectW_Y / 2}
+          y={badgeY + 15}
+          textAnchor="middle"
+          fontSize="12"
+          fill="#F8FAFC"
+          fontWeight="bold"
+          fontFamily="Outfit,sans-serif"
+        >
+          {yValText}
+        </text>
+      </g>
+    );
+  };
+
   const latestCost = activeCostPts.length > 0 ? activeCostPts[activeCostPts.length - 1].cost : 0;
 
   return (
@@ -87,8 +173,8 @@ export function AssetChartSVG({
           stroke="#F1F5F9" strokeWidth="1" />
       ))}
 
-      {/* ── Diff selection overlay ── */}
-      {isDiffActive && diffStartIdx !== null && diffEndIdx !== null && diffStartIdx !== diffEndIdx && (() => {
+      {/* ── Diff selection overlay (connection line and dots only) ── */}
+      {isDiffActive && diffStartIdx !== null && diffEndIdx !== null && (() => {
         const ptA = findClosestPtByTimestamp(diffStartIdx);
         const ptB = findClosestPtByTimestamp(diffEndIdx);
         if (ptA && ptB) {
@@ -96,11 +182,13 @@ export function AssetChartSVG({
           const { x: xB, y: yB } = ptB;
           return (
             <g style={{ pointerEvents: "none" }}>
-              <line x1={xA} y1={PAD_T} x2={xA} y2={H - PAD_B} stroke="var(--primary)" strokeWidth="1.5" strokeDasharray="3 3" opacity="0.6" />
-              <line x1={xB} y1={PAD_T} x2={xB} y2={H - PAD_B} stroke="var(--primary)" strokeWidth="1.5" strokeDasharray="3 3" opacity="0.6" />
-              <line x1={xA} y1={yA} x2={xB} y2={yB} stroke="var(--primary)" strokeWidth="2" strokeDasharray="4 4" opacity="0.8" />
+              {diffStartIdx !== diffEndIdx && (
+                <line x1={xA} y1={yA} x2={xB} y2={yB} stroke="var(--primary)" strokeWidth="2" strokeDasharray="4 4" opacity="0.8" />
+              )}
               <circle cx={xA} cy={yA} r="6" fill="white" stroke="var(--primary)" strokeWidth="3" />
-              <circle cx={xB} cy={yB} r="6" fill="white" stroke="var(--primary)" strokeWidth="3" />
+              {diffStartIdx !== diffEndIdx && (
+                <circle cx={xB} cy={yB} r="6" fill="white" stroke="var(--primary)" strokeWidth="3" />
+              )}
             </g>
           );
         }
@@ -226,89 +314,22 @@ export function AssetChartSVG({
         </text>
       ))}
 
-      {/* ── Hover crosshair + dot (Rendered on top of standard axes and labels) ── */}
-      {hovered && (
-        <>
-          {/* Vertical guideline */}
-          <line x1={hovered.x} y1={PAD_T} x2={hovered.x} y2={H - PAD_B}
-            stroke="#94A3B8" strokeWidth="1.2" strokeDasharray="4 4" />
-          {/* Horizontal guideline */}
-          <line x1={PAD_L} y1={hovered.y} x2={hovered.x} y2={hovered.y}
-            stroke="#94A3B8" strokeWidth="1.2" strokeDasharray="4 4" />
-          
-          <circle cx={hovered.x} cy={hovered.y} r="5"
-            fill="white"
-            stroke={hovered.cost != null && hovered.value >= hovered.cost ? "#00B98A" : hovered.cost != null ? "#FF4B55" : "#94A3B8"}
-            strokeWidth="2.5" />
-          {hovered.costY != null && (
-            <circle cx={hovered.x} cy={hovered.costY} r="4"
-              fill="white" stroke="#5236FF" strokeWidth="2" />
-          )}
-        </>
-      )}
+      {/* Guidelines and Axis badges (Rendered on top of standard axes and labels) */}
+      {!isDiffActive && hovered && renderPointGuidesAndBadges(hovered, false)}
 
-      {/* Axis badges (Rendered on top of standard axes and labels) */}
-      {hovered && (() => {
-        const dateObj = new Date(hovered.date);
-        const dateStr = dateObj.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
-        const timeStr = dateObj.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
-        const xValText = `${dateStr} ${timeStr} น.`;
-        const rectW_X = xValText.length * 7.5 + 16;
-        const badgeX = Math.max(2, Math.min(W - rectW_X - 2, hovered.x - rectW_X / 2));
-
-        const yValText = fmtUSD(hovered.value, hideValues);
-        const rectW_Y = yValText.length * 7 + 16;
-        const badgeX_Y = Math.max(2, PAD_L - rectW_Y - 4);
-        const badgeY = Math.max(PAD_T, Math.min(H - PAD_B - 22, hovered.y - 11));
+      {isDiffActive && diffStartIdx !== null && diffEndIdx !== null && (() => {
+        const ptA = findClosestPtByTimestamp(diffStartIdx);
+        const ptB = findClosestPtByTimestamp(diffEndIdx);
+        
+        if (ptA && ptB && ptA.x === ptB.x) {
+          return renderPointGuidesAndBadges(ptA, true);
+        }
 
         return (
-          <g style={{ pointerEvents: "none" }}>
-            {/* X-axis coordinate badge */}
-            <rect
-              x={badgeX}
-              y={H - PAD_B + 2}
-              width={rectW_X}
-              height={22}
-              rx={4}
-              fill="#1E293B"
-              stroke="#64748B"
-              strokeWidth="1"
-            />
-            <text
-              x={badgeX + rectW_X / 2}
-              y={H - PAD_B + 17}
-              textAnchor="middle"
-              fontSize="12"
-              fill="#F8FAFC"
-              fontWeight="bold"
-              fontFamily="Outfit,sans-serif"
-            >
-              {xValText}
-            </text>
-
-            {/* Y-axis coordinate badge */}
-            <rect
-              x={badgeX_Y}
-              y={badgeY}
-              width={rectW_Y}
-              height={22}
-              rx={4}
-              fill="#1E293B"
-              stroke="#64748B"
-              strokeWidth="1"
-            />
-            <text
-              x={badgeX_Y + rectW_Y / 2}
-              y={badgeY + 15}
-              textAnchor="middle"
-              fontSize="12"
-              fill="#F8FAFC"
-              fontWeight="bold"
-              fontFamily="Outfit,sans-serif"
-            >
-              {yValText}
-            </text>
-          </g>
+          <>
+            {ptA && renderPointGuidesAndBadges(ptA, true)}
+            {ptB && renderPointGuidesAndBadges(ptB, true)}
+          </>
         );
       })()}
     </svg>
