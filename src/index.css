@@ -2184,19 +2184,16 @@ html, body {
    ODOMETER DIGITAL ROLL ANIMATION
    ═══════════════════════════════════════════════════════════════ */
 .odo-wrapper {
-  display: inline-flex;
-  align-items: center;
-  overflow: hidden;
-  height: 1.25em;
-  vertical-align: middle;
+  display: inline-block;
+  vertical-align: baseline;
+  white-space: nowrap;
 }
 
 .odo-digit-container {
   display: inline-block;
   position: relative;
-  width: 0.6em;
-  height: 1.25em;
-  overflow: hidden;
+  vertical-align: baseline;
+  clip-path: inset(0); /* Clips the strip without altering the CSS baseline like overflow: hidden does */
 }
 
 .odo-digit-strip {
@@ -2210,10 +2207,8 @@ html, body {
 }
 
 .odo-digit-num {
-  height: 1.25em;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
+  text-align: center;
   font-family: inherit;
   font-weight: inherit;
   color: inherit;
@@ -2221,8 +2216,6 @@ html, body {
 }
 
 .odo-static-char {
-  display: inline-flex;
-  align-items: center;
-  height: 1.25em;
-  vertical-align: middle;
+  display: inline;
+  vertical-align: baseline;
 }

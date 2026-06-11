@@ -60,13 +60,13 @@ export default function PortfolioSummary({
                 e.currentTarget.style.transform = "translateY(0)";
               }}
               title="คลิกเพื่อดูรายละเอียดกำไร/ขาดทุนรายสินทรัพย์">
-              <span style={{ display: "inline-flex", alignItems: "center" }}>
+              <span style={{ display: "inline-flex", alignItems: "baseline" }}>
                 {totalGainUSD >= 0 ? "▲ " : "▼ "}
                 <AnimatedCounter value={Math.abs(totalGainUSD)} formatFn={fmt.usd} />
                 &nbsp;({fmt.pct(totalGainPct)})
               </span>
               <span style={{ opacity: 0.5 }}>|</span>
-              <span style={{ display: "inline-flex", alignItems: "center" }}>
+              <span style={{ display: "inline-flex", alignItems: "baseline" }}>
                 {totalGainTHB >= 0 ? "▲ " : "▼ "}
                 <AnimatedCounter value={Math.abs(totalGainTHB)} formatFn={(v) => fmt.thb(v, 2)} />
               </span>
@@ -151,7 +151,7 @@ export default function PortfolioSummary({
           alignItems: "center"
         }}>
           <span style={{ fontSize: 11, opacity: 0.9, fontWeight: 600 }}>กำไร/ขาดทุนวันนี้</span>
-          <span style={{ fontSize: 13.5, fontWeight: 800, color: todayChangeUSD >= 0 ? "#6EE7B7" : "#FCA5A5", display: "inline-flex", alignItems: "center" }}>
+          <span style={{ fontSize: 13.5, fontWeight: 800, color: todayChangeUSD >= 0 ? "#6EE7B7" : "#FCA5A5", display: "inline-flex", alignItems: "baseline" }}>
             {todayChangeUSD >= 0 ? "+" : "-"}
             <AnimatedCounter value={Math.abs(todayChangeUSD)} formatFn={fmt.usd} />
             &nbsp;

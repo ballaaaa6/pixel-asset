@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 
-// Individual digit rolling cylinder component
 function OdometerDigit({ digit }) {
   const [currentDigit, setCurrentDigit] = useState(digit);
 
@@ -13,6 +12,8 @@ function OdometerDigit({ digit }) {
 
   return (
     <span className="odo-digit-container">
+      {/* Hidden placeholder to establish correct width, height, and perfect CSS baseline */}
+      <span style={{ visibility: "hidden" }}>0</span>
       <span
         className="odo-digit-strip"
         style={{

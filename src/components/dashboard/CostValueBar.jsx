@@ -24,7 +24,7 @@ export default function CostValueBar({
         <span className="card-section-title" style={{ margin: 0, fontSize: 15.5, fontWeight: 700, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 6 }}>
           ⚖️ สัดส่วนต้นทุนเทียบกับมูลค่าปัจจุบัน (Cost vs. Value)
         </span>
-        <span style={{ fontSize: 15, fontWeight: 800, color: isProfit ? "var(--gain)" : "var(--loss)", display: "inline-flex", gap: 3, flexWrap: "wrap", alignItems: "center" }}>
+        <span style={{ fontSize: 15, fontWeight: 800, color: isProfit ? "var(--gain)" : "var(--loss)", display: "inline-flex", gap: 3, flexWrap: "wrap", alignItems: "baseline" }}>
           {isProfit ? "กำไรสะสม: " : "ขาดทุนสะสม: "}
           <AnimatedCounter value={totalGainUSD} formatFn={(v) => fmtUSD(v, hideValues)} />
           &nbsp;(
@@ -86,7 +86,7 @@ export default function CostValueBar({
 
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 15, fontWeight: 700, marginTop: 8, color: "var(--text-muted)", flexWrap: "wrap", gap: 8 }}>
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-          <span style={{ display: "inline-flex", alignItems: "center" }}>
+          <span style={{ display: "inline-flex", alignItems: "baseline" }}>
             <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", background: "var(--primary)", marginRight: 6 }} />
             ต้นทุนรวม:&nbsp;
             <strong style={{ color: "var(--text-main)" }}>
@@ -96,7 +96,7 @@ export default function CostValueBar({
               )
             </strong>
           </span>
-          <span style={{ display: "inline-flex", alignItems: "center" }}>
+          <span style={{ display: "inline-flex", alignItems: "baseline" }}>
             <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", background: isProfit ? "var(--gain)" : "var(--loss)", marginRight: 6 }} />
             มูลค่าปัจจุบัน:&nbsp;
             <strong style={{ color: "var(--text-main)" }}>
