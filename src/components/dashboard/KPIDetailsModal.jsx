@@ -64,7 +64,7 @@ export default function KPIDetailsModal({
         <div style={{ marginTop: 16 }}>
           {type === "value" && (
             <ValueDetailView
-              assets={assets}
+              assets={sortedAssets}
               exchangeRate={exchangeRate}
               totalUSD={totalUSD}
               fmt={fmt}

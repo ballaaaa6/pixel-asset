@@ -18,14 +18,15 @@ export default function TodayDetailView({ sortedAssets, todayChangeUSD, todayCha
     <div>
       {/* Top Header Card */}
       <div style={{
-        padding: 16,
+        padding: 18,
         background: todayUp 
-          ? "linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(52, 211, 153, 0.04) 100%)"
-          : "linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(248, 113, 113, 0.04) 100%)",
-        border: todayUp ? "1.5px solid rgba(16, 185, 129, 0.25)" : "1.5px solid rgba(239, 68, 68, 0.25)",
-        borderRadius: 14,
-        marginBottom: 16,
-        textAlign: "center"
+          ? "linear-gradient(135deg, rgba(16, 185, 129, 0.16) 0%, rgba(52, 211, 153, 0.08) 100%)"
+          : "linear-gradient(135deg, rgba(239, 68, 68, 0.16) 0%, rgba(248, 113, 113, 0.08) 100%)",
+        border: todayUp ? "1.5px solid rgba(16, 185, 129, 0.35)" : "1.5px solid rgba(239, 68, 68, 0.35)",
+        borderRadius: 16,
+        marginBottom: 18,
+        textAlign: "center",
+        boxShadow: todayUp ? "0 10px 25px -5px rgba(16, 185, 129, 0.08)" : "0 10px 25px -5px rgba(239, 68, 68, 0.08)"
       }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.6 }}>ความเคลื่อนไหวพอร์ตวันนี้</div>
         <div style={{ fontSize: 28, fontWeight: 800, color: todayUp ? "var(--gain)" : "var(--loss)", marginTop: 6, display: "flex", alignItems: "baseline", justifyContent: "center", gap: 4 }}>

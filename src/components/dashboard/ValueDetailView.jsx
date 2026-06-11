@@ -19,12 +19,13 @@ export default function ValueDetailView({ assets, exchangeRate, totalUSD, fmt })
     <div>
       {/* Top Header Card */}
       <div style={{
-        padding: 16,
-        background: "linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.04) 100%)",
-        border: "1.5px solid rgba(139, 92, 246, 0.15)",
-        borderRadius: 14,
-        marginBottom: 16,
-        textAlign: "center"
+        padding: 18,
+        background: "linear-gradient(135deg, rgba(82, 54, 255, 0.15) 0%, rgba(139, 92, 246, 0.08) 100%)",
+        border: "1.5px solid rgba(82, 54, 255, 0.3)",
+        borderRadius: 16,
+        marginBottom: 18,
+        textAlign: "center",
+        boxShadow: "0 10px 25px -5px rgba(82, 54, 255, 0.08)"
       }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.6 }}>มูลค่าตลาดพอร์ตโฟลิโอปัจจุบัน</div>
         <div style={{ fontSize: 28, fontWeight: 800, color: "var(--primary)", marginTop: 6 }}>{fmt.usd(totalUSD)}</div>
