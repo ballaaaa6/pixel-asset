@@ -127,13 +127,13 @@ export default function PortfolioSummary({
           <span className="hero-meta-label">ทุนสะสมทั้งหมด</span>
           <span className="hero-meta-value" style={{ fontSize: 13.5, fontWeight: 700 }}>
             <AnimatedCounter value={initialCapitalUSD} formatFn={fmt.usd} />
-            <span style={{ color: "rgba(255, 255, 255, 0.8)", fontWeight: 600, marginLeft: 4 }}>
-              (<AnimatedCounter value={initialCapitalUSD * exchangeRate} formatFn={(v) => fmt.thb(v, 2)} />)
-            </span>
           </span>
         </div>
         <div className="hero-meta-item" style={{ textAlign: "right" }}>
-          {/* Kept empty to balance layout columns */}
+          <span className="hero-meta-label">มูลค่าทุนสะสม (THB)</span>
+          <span className="hero-meta-value" style={{ fontSize: 13.5, color: "rgba(255, 255, 255, 0.9)", fontWeight: 700 }}>
+            (<AnimatedCounter value={initialCapitalUSD * exchangeRate} formatFn={(v) => fmt.thb(v, 2)} />)
+          </span>
         </div>
       </div>
       {hasPrices && todayChangeUSD !== 0 && (
