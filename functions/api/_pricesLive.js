@@ -135,7 +135,13 @@ export async function fetchDetailedAssetHistory(historyParam, tf, context, corsH
       return new Response(JSON.stringify({ error: "ดึงข้อมูลไม่สำเร็จ", status: resp.status }), { status: resp.status, headers: corsHeaders });
     }
 
-    const data = await resp.json();
+    let data;
+    try {
+      data = await resp.json();
+    } catch (e) {
+      return new Response(JSON.stringify({ error: "ไม่สามารถแปลงข้อมูลราคาจาก Yahoo Finance ได้ชั่วคราว (เซิร์ฟเวอร์อาจบล็อกคำขอ)", status: 502 }), { status: 502, headers: corsHeaders });
+    }
+
     const result = data?.chart?.result?.[0];
     if (!result) {
       return new Response(JSON.stringify({ error: "ไม่มีข้อมูลกราฟ" }), { status: 404, headers: corsHeaders });

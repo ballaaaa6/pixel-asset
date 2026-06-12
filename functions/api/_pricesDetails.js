@@ -109,12 +109,14 @@ export async function fetchDetailedAsset(symbol, tf, context, corsHeaders) {
     const fromDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const oneYearLater = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
+    const isNonEquity = symbol.includes("-") || symbol.includes("=") || symbol.includes("/") || symbol.startsWith("^");
+
     const [profileRes, metricsRes, newsRes, earningsRes, calendarRes, historyRes, liveChartRes] = await Promise.all([
-      safeFetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${symbol}&token=${token}`),
-      safeFetch(`https://finnhub.io/api/v1/stock/metric?symbol=${symbol}&metric=all&token=${token}`),
-      safeFetch(`https://finnhub.io/api/v1/company-news?symbol=${symbol}&from=${fromDate}&to=${toDate}&token=${token}`),
-      safeFetch(`https://finnhub.io/api/v1/stock/earnings?symbol=${symbol}&token=${token}`),
-      safeFetch(`https://finnhub.io/api/v1/calendar/earnings?symbol=${symbol}&from=${toDate}&to=${oneYearLater}&token=${token}`),
+      isNonEquity ? Promise.resolve(null) : safeFetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${symbol}&token=${token}`),
+      isNonEquity ? Promise.resolve(null) : safeFetch(`https://finnhub.io/api/v1/stock/metric?symbol=${symbol}&metric=all&token=${token}`),
+      isNonEquity ? Promise.resolve(null) : safeFetch(`https://finnhub.io/api/v1/company-news?symbol=${symbol}&from=${fromDate}&to=${toDate}&token=${token}`),
+      isNonEquity ? Promise.resolve(null) : safeFetch(`https://finnhub.io/api/v1/stock/earnings?symbol=${symbol}&token=${token}`),
+      isNonEquity ? Promise.resolve(null) : safeFetch(`https://finnhub.io/api/v1/calendar/earnings?symbol=${symbol}&from=${toDate}&to=${oneYearLater}&token=${token}`),
       safeFetch(`https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1y&includePrePost=true`, { headers: YF_HEADERS }),
       liveChartPromise
     ]);

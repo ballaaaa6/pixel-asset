@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { BookOpen, BarChart3, Landmark, Percent, Calendar } from "lucide-react";
 import StockSummaryTab from "./StockSummaryTab";
 import StockQuarterlyTab from "./StockQuarterlyTab";
@@ -7,6 +7,7 @@ import StockPerformanceTab from "./StockPerformanceTab";
 import StockNewsTab from "./StockNewsTab";
 
 export default function StockInfoTabs({ 
+  symbol = "",
   profile = {}, 
   metrics = {}, 
   earnings = [], 
@@ -16,13 +17,25 @@ export default function StockInfoTabs({
 }) {
   const [activeTab, setActiveTab] = useState("summary");
 
-  const tabs = [
-    { id: "summary", label: "สรุปบริษัท", icon: BookOpen },
+  const isNonEquity = symbol.includes("-") || symbol.includes("=") || symbol.includes("/") || symbol.startsWith("^");
+
+  const allTabs = [
+    { id: "summary", label: "สรุปสินทรัพย์", icon: BookOpen },
     { id: "quarterly", label: "สรุปไตรมาส", icon: Calendar },
     { id: "financials", label: "ข้อมูลการเงิน", icon: Landmark },
     { id: "performance", label: "ผลตอบแทน", icon: Percent },
     { id: "news", label: "ข่าวล่าสุด", icon: BarChart3 }
   ];
+
+  const tabs = isNonEquity 
+    ? allTabs.filter(t => t.id === "summary" || t.id === "performance" || t.id === "news")
+    : allTabs;
+
+  useEffect(() => {
+    if (!tabs.find(t => t.id === activeTab)) {
+      setActiveTab("summary");
+    }
+  }, [symbol, activeTab]);
 
   const formatLargeNum = (num) => {
     if (num == null) return "-";

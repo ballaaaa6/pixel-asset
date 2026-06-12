@@ -69,18 +69,36 @@ export default function StockAnalyzer({ showToast }) {
     setError("");
     setShowDrop(false);
     try {
-      // Fetch details & history concurrently
-      const [historyRes, detailsRes] = await Promise.all([
+      // Fetch details & history concurrently, wrapping details so it doesn't block history on failure
+      const fetchDetails = async () => {
+        try {
+          const res = await fetch(`/api/prices?details=${encodeURIComponent(sym)}`);
+          if (res.ok) {
+            return await res.json();
+          }
+        } catch (e) {
+          console.error("Failed to fetch detailed asset info:", e);
+        }
+        return {
+          symbol: sym,
+          profile: { name: sym, exchange: "GLOBAL", currency: sym.endsWith(".BK") ? "THB" : "USD" },
+          metrics: { metric: {} },
+          news: [],
+          earnings: [],
+          calendar: []
+        };
+      };
+
+      const [historyRes, detailsData] = await Promise.all([
         fetch(`/api/prices?history=${encodeURIComponent(sym)}&tf=${tf}`),
-        fetch(`/api/prices?details=${encodeURIComponent(sym)}`)
+        fetchDetails()
       ]);
 
-      if (!historyRes.ok || !detailsRes.ok) {
-        throw new Error("ดึงข้อมูลหุ้นไม่สำเร็จ กรุณาตรวจสอบสัญลักษณ์");
+      if (!historyRes.ok) {
+        throw new Error("ดึงข้อมูลประวัติราคาไม่สำเร็จ กรุณาตรวจสอบสัญลักษณ์");
       }
 
       const historyData = await historyRes.json();
-      const detailsData = await detailsRes.json();
 
       if (!historyData.candles || historyData.candles.length === 0) {
         throw new Error("ไม่พบประวัติราคายอดนิยมของหุ้นตัวนี้");
@@ -204,15 +222,16 @@ export default function StockAnalyzer({ showToast }) {
               currency={details?.profile?.currency || "USD"}
             />
 
-            {/* Fundamentals Info Tabs */}
-            <StockInfoTabs 
-              profile={details.profile} 
-              metrics={details.metrics} 
-              earnings={details.earnings} 
-              news={details.news} 
-              calendar={details.calendar}
-              thaiSummary={details.thaiSummary}
-            />
+             {/* Fundamentals Info Tabs */}
+             <StockInfoTabs 
+               symbol={selectedSymbol}
+               profile={details?.profile || {}} 
+               metrics={details?.metrics || {}} 
+               earnings={details?.earnings || []} 
+               news={details?.news || []} 
+               calendar={details?.calendar || []}
+               thaiSummary={details?.thaiSummary || ""}
+             />
           </div>
 
         </div>
