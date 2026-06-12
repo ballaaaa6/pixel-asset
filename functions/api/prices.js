@@ -512,31 +512,55 @@ export async function onRequestGet(context) {
         profile.shareOutstanding = (yfSummary?.defaultKeyStatistics?.sharesOutstanding?.raw) ? (yfSummary.defaultKeyStatistics.sharesOutstanding.raw / 1e6) : null;
       }
 
-      // If Finnhub metrics is empty, merge from Yahoo Finance
-      if (!metrics || !metrics.metric) {
-        metrics = metrics || {};
-        metrics.metric = metrics.metric || {};
+      // Always enrich metrics from Yahoo Finance if available (PE, PS, Forward PE, ROE, ROA, Debt/Equity, margins, yields)
+      metrics = metrics || {};
+      metrics.metric = metrics.metric || {};
+      if (yfSummary) {
+        const keyStats = yfSummary.defaultKeyStatistics || {};
+        const finData = yfSummary.financialData || {};
+        const priceData = yfSummary.price || {};
+        const sumDetail = yfSummary.summaryDetail || {};
         
-        const keyStats = yfSummary?.defaultKeyStatistics || {};
-        const finData = yfSummary?.financialData || {};
-        const priceData = yfSummary?.price || {};
+        metrics.metric.marketCapitalization = priceData.marketCap?.raw || keyStats.enterpriseValue?.raw || metrics.metric.marketCapitalization || null;
+        metrics.metric.peTrailing = keyStats.trailingPE?.raw || sumDetail.trailingPE?.raw || metrics.metric.peTrailing || null;
+        metrics.metric.pbCurrent = keyStats.priceToBook?.raw || metrics.metric.pbCurrent || null;
+        metrics.metric.epsTTM = keyStats.trailingEps?.raw || metrics.metric.epsTTM || null;
         
-        metrics.metric.marketCapitalization = priceData.marketCap?.raw || keyStats.enterpriseValue?.raw || null;
-        metrics.metric.peTrailing = keyStats.trailingPE?.raw || null;
-        metrics.metric.pbCurrent = keyStats.priceToBook?.raw || null;
-        metrics.metric.epsTTM = keyStats.trailingEps?.raw || null;
+        // Extended valuation metrics
+        metrics.metric.psTrailing = sumDetail.priceToSalesTrailing12Months?.raw || keyStats.priceToSales?.raw || metrics.metric.psTrailing || null;
+        metrics.metric.pegRatio = keyStats.pegRatio?.raw || metrics.metric.pegRatio || null;
+        metrics.metric.forwardPE = keyStats.forwardPE?.raw || sumDetail.forwardPE?.raw || metrics.metric.forwardPE || null;
+        metrics.metric.evToEbitda = keyStats.enterpriseToEbitda?.raw || metrics.metric.evToEbitda || null;
+        metrics.metric.evToRevenue = keyStats.enterpriseToRevenue?.raw || metrics.metric.evToRevenue || null;
         
+        // Efficiency & solvency ratios
+        metrics.metric.returnOnEquity = finData.returnOnEquity?.raw != null ? finData.returnOnEquity.raw * 100 : metrics.metric.returnOnEquity || null;
+        metrics.metric.returnOnAssets = finData.returnOnAssets?.raw != null ? finData.returnOnAssets.raw * 100 : metrics.metric.returnOnAssets || null;
+        metrics.metric.debtToEquity = finData.debtToEquity?.raw || metrics.metric.debtToEquity || null;
+        metrics.metric.currentRatio = finData.currentRatio?.raw || metrics.metric.currentRatio || null;
+        metrics.metric.quickRatio = finData.quickRatio?.raw || metrics.metric.quickRatio || null;
+        metrics.metric.operatingCashflow = finData.operatingCashflow?.raw || metrics.metric.operatingCashflow || null;
+        metrics.metric.freeCashflow = finData.freeCashflow?.raw || metrics.metric.freeCashflow || null;
+
+        // Yield extensions to avoid blanks
+        metrics.metric.dividendYieldTrailing = sumDetail.trailingAnnualDividendYield?.raw != null ? sumDetail.trailingAnnualDividendYield.raw * 100 : metrics.metric.dividendYieldTrailing || null;
+        metrics.metric.dividendYieldForward = sumDetail.dividendYield?.raw != null ? sumDetail.dividendYield.raw * 100 : metrics.metric.dividendYieldForward || null;
+
         // Convert margins to percent (Yahoo is ratio e.g. 0.405 -> 40.5%)
-        metrics.metric.grossMarginTTM = finData.grossMargins?.raw != null ? finData.grossMargins.raw * 100 : null;
-        metrics.metric.netProfitMarginTTM = finData.profitMargins?.raw != null ? finData.profitMargins.raw * 100 : null;
+        if (metrics.metric.grossMarginTTM == null && finData.grossMargins?.raw != null) {
+          metrics.metric.grossMarginTTM = finData.grossMargins.raw * 100;
+        }
+        if (metrics.metric.netProfitMarginTTM == null && finData.profitMargins?.raw != null) {
+          metrics.metric.netProfitMarginTTM = finData.profitMargins.raw * 100;
+        }
         
-        metrics.metric["52WeekHigh"] = keyStats.fiftyTwoWeekHigh?.raw || null;
-        metrics.metric["52WeekLow"] = keyStats.fiftyTwoWeekLow?.raw || null;
-        metrics.metric.dividendPerShareTTM = keyStats.dividendRate?.raw || null;
-        metrics.metric.dividendYield5YAvg = yfSummary?.summaryDetail?.fiveYearAvgDividendYield?.raw || null;
-        metrics.metric["50DayAverage"] = yfSummary?.summaryDetail?.fiftyDayAverage?.raw || null;
-        metrics.metric["200DayAverage"] = yfSummary?.summaryDetail?.twoHundredDayAverage?.raw || null;
-        metrics.metric.currentPrice = finData.currentPrice?.raw || priceData.regularMarketPrice?.raw || null;
+        metrics.metric["52WeekHigh"] = keyStats.fiftyTwoWeekHigh?.raw || metrics.metric["52WeekHigh"] || null;
+        metrics.metric["52WeekLow"] = keyStats.fiftyTwoWeekLow?.raw || metrics.metric["52WeekLow"] || null;
+        metrics.metric.dividendPerShareTTM = keyStats.dividendRate?.raw || sumDetail.dividendRate?.raw || metrics.metric.dividendPerShareTTM || null;
+        metrics.metric.dividendYield5YAvg = sumDetail.fiveYearAvgDividendYield?.raw || metrics.metric.dividendYield5YAvg || null;
+        metrics.metric["50DayAverage"] = sumDetail.fiftyDayAverage?.raw || metrics.metric["50DayAverage"] || null;
+        metrics.metric["200DayAverage"] = sumDetail.twoHundredDayAverage?.raw || metrics.metric["200DayAverage"] || null;
+        metrics.metric.currentPrice = finData.currentPrice?.raw || priceData.regularMarketPrice?.raw || metrics.metric.currentPrice || null;
       }
 
       // If Finnhub news is empty, fetch news from Yahoo Finance search
@@ -585,6 +609,30 @@ export async function onRequestGet(context) {
           };
         }).reverse(); // Latest first
       }
+
+      // Map Yahoo Finance quarterly financials (revenue & net income) onto earnings
+      const yfFinancials = yfSummary?.earnings?.financialsChart?.quarterly || [];
+      const financialsMap = {};
+      yfFinancials.forEach(f => {
+        if (f.date) {
+          financialsMap[f.date] = {
+            revenue: f.revenue?.raw ?? f.revenue ?? null,
+            netIncome: f.earnings?.raw ?? f.earnings ?? null
+          };
+        }
+      });
+
+      earnings = earnings.map(e => {
+        // Match either "1Q2024" or standard quarter/year keys
+        const targetDateKey1 = `${e.quarter}Q${e.year}`;
+        const targetDateKey2 = e.period || "";
+        const extra = financialsMap[targetDateKey1] || financialsMap[targetDateKey2] || {};
+        return {
+          ...e,
+          revenue: extra.revenue || null,
+          netIncome: extra.netIncome || null
+        };
+      });
 
       // If Finnhub calendar is empty, merge from Yahoo Finance
       if (!calendar || !calendar.earningsCalendar || calendar.earningsCalendar.length === 0) {

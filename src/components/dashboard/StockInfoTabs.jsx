@@ -26,10 +26,11 @@ export default function StockInfoTabs({
 
   const formatLargeNum = (num) => {
     if (num == null) return "-";
-    if (num >= 1e12) return `$${(num / 1e12).toFixed(2)}T`;
-    if (num >= 1e9) return `$${(num / 1e9).toFixed(2)}B`;
-    if (num >= 1e6) return `$${(num / 1e6).toFixed(2)}M`;
-    return `$${num.toLocaleString()}`;
+    const prefix = profile.currency === "THB" ? "฿" : "$";
+    if (num >= 1e12) return `${prefix}${(num / 1e12).toFixed(2)}T`;
+    if (num >= 1e9) return `${prefix}${(num / 1e9).toFixed(2)}B`;
+    if (num >= 1e6) return `${prefix}${(num / 1e6).toFixed(2)}M`;
+    return `${prefix}${num.toLocaleString()}`;
   };
 
   const fmtPercent = (val) => {
@@ -37,9 +38,10 @@ export default function StockInfoTabs({
     return `${val.toFixed(2)}%`;
   };
 
-  const fmtVal = (val, prefix = "") => {
+  const fmtVal = (val, customPrefix = null) => {
     if (val == null) return "-";
-    return `${prefix}${val.toLocaleString()}`;
+    const prefix = customPrefix !== null ? customPrefix : (profile.currency === "THB" ? "฿" : "$");
+    return `${prefix}${val.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
   };
 
   return (
@@ -103,6 +105,7 @@ export default function StockInfoTabs({
           <StockQuarterlyTab 
             earnings={earnings} 
             calendar={calendar} 
+            currency={profile.currency || "USD"}
           />
         )}
 
@@ -118,6 +121,7 @@ export default function StockInfoTabs({
         {activeTab === "performance" && (
           <StockPerformanceTab 
             metrics={metrics} 
+            currency={profile.currency || "USD"}
           />
         )}
 

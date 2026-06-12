@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { createPortal } from "react-dom";
 import { X, AlertCircle } from "lucide-react";
 
-export default function StockQuarterlyTab({ earnings = [], calendar = [] }) {
+export default function StockQuarterlyTab({ earnings = [], calendar = [], currency = "USD" }) {
   const [selectedEarning, setSelectedEarning] = useState(null);
 
   const getScreenerNextEstimate = () => {
@@ -12,6 +12,15 @@ export default function StockQuarterlyTab({ earnings = [], calendar = [] }) {
   };
 
   const nextEstimate = getScreenerNextEstimate();
+
+  const formatMoney = (val) => {
+    if (val == null) return "-";
+    const prefix = currency === "THB" ? "฿" : "$";
+    if (Math.abs(val) >= 1e12) return `${prefix}${(val / 1e12).toFixed(2)}T`;
+    if (Math.abs(val) >= 1e9) return `${prefix}${(val / 1e9).toFixed(2)}B`;
+    if (Math.abs(val) >= 1e6) return `${prefix}${(val / 1e6).toFixed(2)}M`;
+    return `${prefix}${val.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -109,7 +118,7 @@ export default function StockQuarterlyTab({ earnings = [], calendar = [] }) {
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-muted)" }}>ข้อมูลประกอบ:</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-muted)" }}>ข้อมูลประกอบงบไตรมาส:</span>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 12.5, color: "var(--text-main)", lineHeight: 1.4 }}>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <span>ส่วนต่างกำไรต่อหุ้น (Surprise Value):</span>
@@ -119,9 +128,26 @@ export default function StockQuarterlyTab({ earnings = [], calendar = [] }) {
                     <span>วันประกาศปิดรอบงบ (Report Period):</span>
                     <strong>{selectedEarning.period}</strong>
                   </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px dashed var(--border)", paddingTop: 8 }}>
+                    <span>รายได้รวมประเมินไตรมาส (Revenue):</span>
+                    <strong>{formatMoney(selectedEarning.revenue)}</strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>กำไรสุทธิไตรมาส (Net Income):</span>
+                    <strong>{formatMoney(selectedEarning.netIncome)}</strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>อัตรากำไรสุทธิไตรมาส (Net Margin):</span>
+                    <strong>
+                      {selectedEarning.revenue && selectedEarning.netIncome 
+                        ? `${((selectedEarning.netIncome / selectedEarning.revenue) * 100).toFixed(2)}%`
+                        : "-"
+                      }
+                    </strong>
+                  </div>
                   
                   {nextEstimate && (
-                    <div style={{ marginTop: 8, paddingTop: 10, borderTop: "1px dashed var(--border)", display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div style={{ marginTop: 8, paddingTop: 10, borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 6 }}>
                       <span style={{ fontSize: 12, fontWeight: 800, color: "var(--primary)" }}>🔮 คาดการณ์งบรอบถัดไป:</span>
                       <div style={{ display: "flex", justifyContent: "space-between" }}>
                         <span>วันประกาศคาดการณ์ถัดไป:</span>

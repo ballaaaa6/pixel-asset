@@ -96,8 +96,8 @@ export default function TechnicalChart({ candles = [], symbol = "", currentPrice
 
   const handleMouseMove = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const ratio = (x - paddingLeft) / chartWidth;
+    const mouseXInSvg = ((e.clientX - rect.left) / rect.width) * width;
+    const ratio = (mouseXInSvg - paddingLeft) / chartWidth;
     let idx = Math.round(ratio * (candles.length - 1));
     idx = Math.max(0, Math.min(candles.length - 1, idx));
     setHoveredIdx(idx);
