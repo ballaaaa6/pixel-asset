@@ -44,11 +44,29 @@ export default function DonutChart({
         <PieChart size={16} />
         <span>สัดส่วนสินทรัพย์</span>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div className="chart-range-tabs" style={{ margin: 0, height: 26, display: "flex", alignItems: "center" }}>
-          <button type="button" className={`chart-range-tab ${viewMode === "donut" ? "active" : ""}`} onClick={() => setViewMode("donut")} style={{ padding: "2px 8px", fontSize: 10, height: 22, lineHeight: "18px" }}>Donut</button>
-          <button type="button" className={`chart-range-tab ${viewMode === "treemap" ? "active" : ""}`} onClick={() => setViewMode("treemap")} style={{ padding: "2px 8px", fontSize: 10, height: 22, lineHeight: "18px" }}>Treemap</button>
-        </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <button
+          type="button"
+          onClick={() => setViewMode(viewMode === "donut" ? "treemap" : "donut")}
+          style={{
+            background: "var(--primary-light)",
+            border: "1px solid var(--primary-light)",
+            color: "var(--primary)",
+            borderRadius: 10,
+            padding: "4px 10px",
+            fontSize: 11,
+            fontWeight: 800,
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+            height: 26,
+            transition: "var(--transition)"
+          }}
+          className="ripple-btn"
+        >
+          {viewMode === "donut" ? "📐 Treemap" : "🍩 Donut"}
+        </button>
         {drillCategory && viewMode === "donut" && (
           <button
             onClick={() => {
@@ -57,25 +75,24 @@ export default function DonutChart({
               setHoveredSymbol(null);
             }}
             style={{
-              background: "var(--primary-light)",
-              color: "var(--primary)",
-              border: "none",
+              background: "rgba(241, 245, 249, 0.9)",
+              color: "var(--text-main)",
+              border: "1px solid var(--border)",
               borderRadius: 10,
-              padding: "6px 14px",
-              fontSize: 12,
-              fontWeight: 800,
+              padding: "4px 8px",
+              fontSize: 11,
+              fontWeight: 700,
               cursor: "pointer",
               display: "inline-flex",
               alignItems: "center",
-              gap: 6,
+              gap: 4,
               transition: "var(--transition)",
-              boxShadow: "var(--shadow-xs)",
               height: 26
             }}
             className="ripple-btn"
-            title="ย้อนกลับไปดูภาพรวมทุกหมวดหมู่"
+            title="กลับ"
           >
-            ← ย้อนกลับ
+            ← กลับ
           </button>
         )}
       </div>
