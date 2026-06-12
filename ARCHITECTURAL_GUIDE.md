@@ -29,36 +29,49 @@ d:/antigravity/us stock tracker/
 │       │   └── change-password.js   # POST /api/auth/change-password
 │       ├── ocr.js                   # POST /api/ocr — Gemini Vision slip scan
 │       ├── portfolio.js             # GET/POST /api/portfolio — CRUD portfolio lots
-│       ├── prices.js                # GET /api/prices — Yahoo Finance price fetch
+│       ├── prices.js                # GET /api/prices — Yahoo Finance price fetch (1124 lines ⚠️)
 │       ├── profile.js               # GET/POST /api/profile — user profile sync
-│       └── scan.js                  # POST /api/scan — full Tesseract OCR pipeline (694 lines ⚠️)
+│       ├── scan.js                  # POST /api/scan — full Tesseract OCR pipeline (797 lines ⚠️)
+│       └── thaiStocks.js            # GET /api/thaiStocks — list of Thai stock names/symbols
 │
 ├── src/
 │   ├── main.jsx                     # React entry point (9 lines ✅)
-│   ├── App.jsx                      # Route controller: Login/Register/Dashboard (79 lines ✅)
+│   ├── App.jsx                      # Route controller: Login/Register/Dashboard (84 lines ✅)
 │   ├── index.css                    # Global styles — Vanilla CSS ONLY (large but expected)
 │   │
 │   ├── components/
-│   │   ├── Dashboard.jsx            # ⛔ 2207 lines — NEEDS SPLIT (state + profile + avatar + chart logic)
-│   │   ├── AssetModal.jsx           # ⛔ 1500 lines — NEEDS SPLIT (CURRENCIES array 165+ entries + OCR + form)
-│   │   ├── AssetDetailPanel.jsx     # ⚠️  649 lines — close to limit, duplicates logic from Dashboard
+│   │   ├── charts/                  # SVG charts, tooltips, and helpers
+│   │   │   ├── AssetChart.jsx       # Chart container (142 lines ✅)
+│   │   │   ├── AssetChartSVG.jsx    # SVG rendering (308 lines ✅)
+│   │   │   ├── TechnicalChart.jsx   # Candlestick/EMA (345 lines ✅)
+│   │   │   └── ...
+│   │   ├── common/                  # Shared UI components (BrokerBadge, AssetLogo, GlowTiltCard)
+│   │   ├── dashboard/               # Dashboard parts (AssetTable, StockAnalyzer, DonutChart)
+│   │   ├── modal/                   # Modals (AssetSearchSelector, ReceiptUploadZone)
 │   │   │
-│   │   ├── charts/
-│   │   │   ├── AssetChart.jsx       # ⛔ 1510 lines — NEEDS SPLIT (EMA calc + zoom + tooltip + SVG all in one)
-│   │   │   ├── PortfolioChart.jsx   # ⛔ 1284 lines — NEEDS SPLIT (zoom + diff + tooltip + SVG all in one)
-│   │   │   ├── chartUtils.js        # ✅ 135 lines — SVG math helpers (smoothPath, interpolateData, etc.)
-│   │   │   └── SparklineChart.jsx   # ✅  25 lines — mini trend line
-│   │   │
-│   │   ├── common/
-│   │   │   └── AssetLogo.jsx        # ✅  63 lines — logo with fallback cascade
-│   │   │
-│   │   └── dashboard/
-│   │       ├── DashboardHeader.jsx  # ✅ 138 lines — nav bar
-│   │       ├── KPIRow.jsx           # ✅  90 lines — metric cards
-│   │       ├── PortfolioSummary.jsx # ✅ 150 lines — net worth hero
-│   │       ├── DonutChart.jsx       # ✅ 253 lines — allocation pie
-│   │       ├── AssetTable.jsx       # ✅ 394 lines — holdings table (borderline)
-│   │       └── PnLDetailsModal.jsx  # ✅ 369 lines — P&L breakdown modal
+│   │   ├── AssetDetailPanel.jsx     # Detail sidebar panel (276 lines ✅)
+│   │   ├── AssetModal.jsx           # Add/edit transaction form (311 lines ✅)
+│   │   ├── Dashboard.jsx            # Main dashboard shell (325 lines ✅)
+│   │   ├── Login.jsx                # Login page (137 lines ✅)
+│   │   └── Register.jsx             # Register page (157 lines ✅)
+│   │
+│   ├── hooks/                       # Custom hooks for state and fetching
+│   │   ├── useAssetChart.js         # Zoom/pan/mouse state for asset charts
+│   │   ├── usePortfolioData.js      # Core portfolio data state (335 lines ✅)
+│   │   └── ...
+│   │
+│   └── utils/                       # Core utility functions
+│       ├── assetHelpers.js          # Business logic, ticker conversion (322 lines ✅)
+│       ├── formatters.js            # Standard data formatters (83 lines ✅)
+│       └── ocrParser.js             # Client-side OCR parser (166 lines ✅)
+│
+├── ARCHITECTURAL_GUIDE.md           # (this file)
+├── .agents/active.md                # Current task & branch info
+├── .agents/sessions/                # Task planning notes
+├── vite.config.js
+├── wrangler.toml
+├── package.json
+```eakdown modal
 │   │
 │   └── utils/
 │       ├── formatters.js            # ✅  80 lines — pure format functions (USD, THB, date, pct, qty)
@@ -163,57 +176,17 @@ DashboardHeader  KPIRow  AssetTable   PortfolioChart
 
 ---
 
-## 6. ปัญหาที่ต้องแก้ไข (Priority Order)
+## 6. สถานะการควบคุมขนาดไฟล์ (File Size Status)
 
-### 🔴 Priority 1 — แก้ทันที (ไฟล์ใหญ่เกินกฎ)
-
-#### Dashboard.jsx (2207 บรรทัด → ควรเป็น ~300)
-แยกออกเป็น:
-- `src/hooks/usePortfolioData.js` — fetchAssets, fetchPrices, sparklines, portfolioHistory
-- `src/hooks/useProfile.js` — profilePic, nickname, avatarUpload, syncProfile  
-- `src/components/dashboard/ProfileModal.jsx` — UI modal แก้ไข profile
-- `src/components/dashboard/AvatarWidget.jsx` — avatar preview + upload button
-- `src/utils/constants.js` — `PRESET_AVATARS`, `CATEGORY_LABELS` (ย้ายออกจาก Dashboard)
-
-#### AssetModal.jsx (1500 บรรทัด → ควรเป็น ~300)
-แยกออกเป็น:
-- `src/utils/constants.js` — `CURRENCIES` array 165+ entries (ย้ายออก)
-- `src/components/modal/LotForm.jsx` — form กรอก qty/price/date
-- `src/components/modal/OcrPanel.jsx` — UI OCR / upload slip
-- `src/components/modal/AssetSearch.jsx` — search + dropdown เลือก symbol
-
-#### AssetChart.jsx (1510 บรรทัด → ควรเป็น ~350)
-แยกออกเป็น:
-- `src/hooks/useAssetChart.js` — zoom/drag/diff/EMA state และ mouse handlers
-- `src/components/charts/AssetChartSVG.jsx` — SVG rendering เท่านั้น
-- `src/components/charts/AssetChartTooltip.jsx` — tooltip UI
-
-#### PortfolioChart.jsx (1284 บรรทัด → ควรเป็น ~350)
-แยกออกเป็น:
-- `src/hooks/usePortfolioChart.js` — zoom/drag/diff/interpolation state
-- `src/components/charts/PortfolioChartSVG.jsx` — SVG rendering
-- `src/components/charts/PortfolioChartTooltip.jsx` — tooltip UI
+### 🟢 ทุกไฟล์ใน `src/` ผ่านกฎขนาดไฟล์ ≤ 400 บรรทัดแล้ว (100% Completed)
+การแยกองค์ประกอบของ UI Components, Hooks, และ Utilities เสร็จสมบูรณ์แล้ว ทำให้ทุกไฟล์ใน `src/` มีขนาดไม่เกิน 400 บรรทัด (ตรวจสอบและผ่านการทดสอบด้วย `check-file-size.js` เรียบร้อย)
 
 ---
 
-### 🟡 Priority 2 — แก้ในรอบถัดไป
-
-#### AssetDetailPanel.jsx (649 บรรทัด)
-- ลบ `getHistoricalRate` ออก → import จาก `assetHelpers.js`
-- ลบ `getRealizedPnLInTHB` ออก → import จาก `assetHelpers.js`
-- แยก transaction history list ออกเป็น `dashboard/AssetTransactionHistory.jsx`
-
-#### AssetModal.jsx — duplicate functions
-- ลบ local `getDisplaySymbol`, `getCurrencyTicker` ออก → import จาก `assetHelpers.js`
-- ลบ local `fmtDate`, `fmtUSD`, `fmtQty` ออก → import จาก `formatters.js`
-
----
-
-### 🟢 Priority 3 — Nice to have
-
-- `scan.js` (694 บรรทัด) — แยก helper functions ออกเป็น `functions/api/_scanHelpers.js`
-- เพิ่ม `src/utils/constants.js` รวม PRESET_AVATARS + CURRENCIES + CATEGORY_LABELS
-- เพิ่ม JSDoc comment บน props ของทุก component
+### ⚠️ ไฟล์ฝั่ง Backend (`functions/api/`) ที่มีขนาดใหญ่และควรแยกในอนาคต (Nice to Have)
+ปัจจุบันกฎขนาดไฟล์ 400 บรรทัดครอบคลุมเฉพาะไฟล์ภายใต้ `src/` แต่ไฟล์ของ backend functions เหล่านี้ค่อนข้างใหญ่ และควรพิจารณา refactor เมื่อมีโอกาส เพื่อประหยัด Token และทำความเข้าใจง่ายขึ้น:
+- `functions/api/prices.js` (1124 บรรทัด ⚠️) — จัดการ Live Prices, Sparklines, Search และ Company Details (มีขนาดใหญ่เนื่องจากรวมโค้ด API endpoint logic เข้าด้วยกัน)
+- `functions/api/scan.js` (797 บรรทัด ⚠️) — ตัวจัดการ OCR Slip Scan pipeline และ Cross-validation
 
 ---
 
@@ -221,9 +194,9 @@ DashboardHeader  KPIRow  AssetTable   PortfolioChart
 
 1. **บอก scope ให้ชัด** — "แก้เฉพาะ Dashboard.jsx ส่วน profile state เท่านั้น"
 2. **อ้างไฟล์ด้วย path** — ใช้ link `[Dashboard.jsx](file:///d:/antigravity/us%20stock%20tracker/src/components/Dashboard.jsx)`
-3. **แยกงานเป็น Priority** — ทำ Priority 1 ก่อน แล้ว review ก่อนทำ Priority 2
-4. **ใช้ /goal command** สำหรับงานใหญ่ที่ต้องทำหลาย step ต่อเนื่อง
-5. **ไม่ต้องบอกให้ push** — Agent จะ build + commit + push ทุกครั้งที่แก้โค้ด
+3. **แยกงานเป็นเรื่องย่อย** — ทำเป็นส่วนๆ แล้วตรวจสอบความถูกต้องก่อนเริ่มส่วนอื่น
+4. **ใช้ /goal command** สำหรับงานใหญ่ที่ต้องทำงานต่อเนื่องหลายขั้นตอน
+5. **ไม่ต้องบอกให้ push** — Agent จะ build + commit + push ทุกครั้งที่แก้โค้ดสำเร็จ
 
 ---
 
@@ -254,21 +227,18 @@ Commit types: `feat`, `fix`, `refactor`, `docs`, `chore`
 
 ---
 
-## 10. ไฟล์ที่ตามกฎแล้ว (ห้ามทำให้ใหญ่ขึ้น)
+## 10. ขนาดไฟล์ล่าสุด (ตรวจสอบเมื่อ 2026-06-13)
 
 | ไฟล์ | บรรทัด | สถานะ |
 |---|---|---|
 | `src/main.jsx` | 9 | ✅ |
-| `src/App.jsx` | 79 | ✅ |
-| `src/utils/formatters.js` | 80 | ✅ |
-| `src/utils/assetHelpers.js` | 150 | ✅ |
-| `src/utils/ocrParser.js` | 165 | ✅ |
-| `src/components/charts/chartUtils.js` | 135 | ✅ |
-| `src/components/charts/SparklineChart.jsx` | 25 | ✅ |
-| `src/components/common/AssetLogo.jsx` | 63 | ✅ |
-| `src/components/dashboard/DashboardHeader.jsx` | 138 | ✅ |
-| `src/components/dashboard/KPIRow.jsx` | 90 | ✅ |
-| `src/components/dashboard/PortfolioSummary.jsx` | 150 | ✅ |
-| `src/components/dashboard/DonutChart.jsx` | 253 | ✅ |
-| `src/components/dashboard/PnLDetailsModal.jsx` | 369 | ✅ |
-| `src/components/dashboard/AssetTable.jsx` | 394 | ✅ (borderline) |
+| `src/App.jsx` | 84 | ✅ |
+| `src/components/Dashboard.jsx` | 325 | ✅ |
+| `src/components/AssetModal.jsx` | 311 | ✅ |
+| `src/components/AssetDetailPanel.jsx` | 276 | ✅ |
+| `src/components/charts/AssetChart.jsx` | 142 | ✅ |
+| `src/components/charts/PortfolioChart.jsx` | 149 | ✅ |
+| `src/hooks/usePortfolioData.js` | 335 | ✅ |
+| `src/utils/assetHelpers.js` | 322 | ✅ |
+| `src/utils/formatters.js` | 83 | ✅ |
+| `src/utils/ocrParser.js` | 166 | ✅ |
