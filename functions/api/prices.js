@@ -73,6 +73,78 @@ const YF_HEADERS = {
   "Accept-Language": "en-US,en;q=0.9"
 };
 
+function extractChartPriceInfo(symbol, result, now) {
+  if (!result) return null;
+  const meta = result.meta || {};
+  const rawPrice = meta.regularMarketPrice || 0;
+  const prevClose = meta.chartPreviousClose || meta.previousClose || rawPrice;
+
+  let marketState = "REGULAR";
+  const ctp = meta.currentTradingPeriod;
+  if (ctp) {
+    const pre = ctp.pre;
+    const reg = ctp.regular;
+    const post = ctp.post;
+    
+    if (pre && now >= pre.start && now < pre.end) {
+      marketState = "PRE";
+    } else if (reg && now >= reg.start && now < reg.end) {
+      marketState = "REGULAR";
+    } else if (post && now >= post.start && now < post.end) {
+      marketState = "POST";
+    } else {
+      marketState = "CLOSED";
+    }
+  }
+
+  const timestamps = result.timestamp || [];
+  const rawCloses = result.indicators?.quote?.[0]?.close || [];
+  const paired = timestamps.map((ts, i) => ({
+    ts,
+    close: rawCloses[i]
+  })).filter(p => p.close != null && p.close > 0);
+
+  const lastPoint = paired[paired.length - 1];
+  const lastPrice = lastPoint ? lastPoint.close : rawPrice;
+
+  const price = rawPrice;
+  const change = price - prevClose;
+  const changePercent = prevClose > 0 ? (change / prevClose) * 100 : 0;
+
+  let prePrice = null;
+  let postPrice = null;
+
+  const isBK = symbol.toUpperCase().endsWith(".BK");
+  const hasPrePost = meta.hasPrePostMarketData || false;
+
+  if (lastPoint && hasPrePost && !isBK) {
+    const localTime = new Date((lastPoint.ts + (meta.gmtoffset || 0)) * 1000);
+    const hour = localTime.getUTCHours();
+    const minute = localTime.getUTCMinutes();
+    const timeInMinutes = hour * 60 + minute;
+
+    if (timeInMinutes < 570) {
+      prePrice = lastPrice;
+    } else if (timeInMinutes >= 960) {
+      postPrice = lastPrice;
+    }
+  }
+
+  return {
+    symbol,
+    price,
+    change,
+    changePercent,
+    previousClose: prevClose,
+    currency: meta.currency || "USD",
+    marketState,
+    prePrice,
+    preChangePercent: prePrice && prevClose ? ((prePrice - prevClose) / prevClose) * 100 : null,
+    postPrice,
+    postChangePercent: postPrice && price ? ((postPrice - price) / price) * 100 : null
+  };
+}
+
 export async function onRequestGet(context) {
   const { request } = context;
   const url = new URL(request.url);
@@ -277,91 +349,8 @@ export async function onRequestGet(context) {
             const result = data?.chart?.result?.[0];
             if (!result) return null;
 
-            const meta = result.meta;
-            const rawPrice = meta.regularMarketPrice || 0;
-            const prevClose = meta.chartPreviousClose || meta.previousClose || rawPrice;
-
-            let marketState = "REGULAR";
-            const now = Math.floor(Date.now() / 1000);
-            const ctp = meta.currentTradingPeriod;
-            if (ctp) {
-              const pre = ctp.pre;
-              const reg = ctp.regular;
-              const post = ctp.post;
-              
-              if (pre && now >= pre.start && now < pre.end) {
-                marketState = "PRE";
-              } else if (reg && now >= reg.start && now < reg.end) {
-                marketState = "REGULAR";
-              } else if (post && now >= post.start && now < post.end) {
-                marketState = "POST";
-              } else {
-                marketState = "CLOSED";
-              }
-            }
-
-            const timestamps = result.timestamp || [];
-            const rawCloses = result.indicators?.quote?.[0]?.close || [];
-            const paired = timestamps.map((ts, i) => ({
-              ts,
-              close: rawCloses[i]
-            })).filter(p => p.close != null && p.close > 0);
-
-            const lastPoint = paired[paired.length - 1];
-            const lastPrice = lastPoint ? lastPoint.close : rawPrice;
-
-            // Determine true regular session price
-            let price = rawPrice;
-            let isRegularSessionNow = false;
-            if (ctp && ctp.regular) {
-              isRegularSessionNow = now >= ctp.regular.start && now < ctp.regular.end;
-            }
-
-            if (isRegularSessionNow) {
-              price = rawPrice;
-            } else {
-              let chartReg = null;
-              try {
-                chartReg = meta.tradingPeriods?.regular?.[0]?.[0];
-              } catch {}
-              if (chartReg) {
-                const regStart = chartReg.start;
-                const regEnd = chartReg.end;
-                const regularPoints = paired.filter(p => p.ts >= regStart && p.ts <= regEnd);
-                if (regularPoints.length > 0) {
-                  price = regularPoints[regularPoints.length - 1].close;
-                } else {
-                  price = rawPrice;
-                }
-              } else {
-                price = rawPrice;
-              }
-            }
-
-            const change = price - prevClose;
-            const changePercent = prevClose > 0 ? (change / prevClose) * 100 : 0;
-
-            let prePrice = null;
-            let postPrice = null;
-
-            if (marketState === "PRE") {
-              prePrice = lastPrice;
-            } else if (marketState === "POST") {
-              postPrice = lastPrice;
-            } else if (marketState === "CLOSED") {
-              let chartPost = null;
-              let chartReg = null;
-              try {
-                chartPost = meta.tradingPeriods?.post?.[0]?.[0];
-                chartReg = meta.tradingPeriods?.regular?.[0]?.[0];
-              } catch {}
-
-              if (chartPost && lastPoint && lastPoint.ts >= chartPost.start && lastPoint.ts <= chartPost.end) {
-                postPrice = lastPrice;
-              } else if (chartReg && lastPoint && lastPoint.ts > chartReg.end) {
-                postPrice = lastPrice;
-              }
-            }
+            const parsed = extractChartPriceInfo(symbol, result, Math.floor(Date.now() / 1000));
+            if (!parsed) return null;
 
             // Fetch Beta from Finnhub with Cache API
             let beta = null;
@@ -393,21 +382,7 @@ export async function onRequestGet(context) {
 
             const dividends = result.events?.dividends;
             const entry = {
-              symbol,
-              price,
-              change,
-              changePercent,
-              previousClose: prevClose,
-              currency: meta.currency || "USD",
-              marketState,
-              prePrice,
-              preChangePercent: prePrice && prevClose
-                ? ((prePrice - prevClose) / prevClose) * 100
-                : null,
-              postPrice,
-              postChangePercent: postPrice && price
-                ? ((postPrice - price) / price) * 100
-                : null,
+              ...parsed,
               dividends: dividends || null,
               beta
             };
@@ -523,7 +498,56 @@ export async function onRequestGet(context) {
       const symbol = detailsParam.trim().toUpperCase();
       const cacheKey = `https://cache.local/details/${symbol}`;
       const cached = await getCache(cacheKey);
-      if (cached) return new Response(cached, { status: 200, headers: corsHeaders });
+      if (cached) {
+        let detailsData = JSON.parse(cached);
+        let livePriceInfo = null;
+        try {
+          const cachedLivePrice = await getCache(`https://cache.local/price/${symbol}`);
+          if (cachedLivePrice) {
+            livePriceInfo = JSON.parse(cachedLivePrice);
+          } else {
+            const liveChartRes = await fetch(`https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=5m&range=1d&includePrePost=true`, { headers: YF_HEADERS });
+            if (liveChartRes.ok) {
+              const liveChartData = await liveChartRes.json();
+              const liveResult = liveChartData?.chart?.result?.[0];
+              if (liveResult) {
+                livePriceInfo = extractChartPriceInfo(symbol, liveResult, Math.floor(Date.now() / 1000));
+                if (livePriceInfo) {
+                  putCache(context, `https://cache.local/price/${symbol}`, JSON.stringify(livePriceInfo), 30);
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.error("Failed to get fresh live price on details cache hit:", e);
+        }
+
+        if (livePriceInfo) {
+          const activePrice = livePriceInfo.postPrice || livePriceInfo.prePrice || livePriceInfo.price;
+          if (detailsData.metrics && detailsData.metrics.metric) {
+            detailsData.metrics.metric.currentPrice = activePrice;
+          }
+        }
+        return new Response(JSON.stringify(detailsData), { status: 200, headers: corsHeaders });
+      }
+
+      const safeFetch = (url, options) => fetch(url, options).catch(err => {
+        console.error(`Fetch failed for ${url}:`, err);
+        return null;
+      });
+
+      // Check cache for live price first to avoid duplicate fetch
+      let livePriceInfo = null;
+      try {
+        const cachedLivePrice = await getCache(`https://cache.local/price/${symbol}`);
+        if (cachedLivePrice) {
+          livePriceInfo = JSON.parse(cachedLivePrice);
+        }
+      } catch {}
+
+      const liveChartPromise = livePriceInfo 
+        ? Promise.resolve(null)
+        : safeFetch(`https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=5m&range=1d&includePrePost=true`, { headers: YF_HEADERS });
 
       // Fetch Yahoo Finance quote summary for company description, officers, and fundamental key statistics
       let longBusinessSummary = "";
@@ -569,18 +593,14 @@ export async function onRequestGet(context) {
       const fromDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
       const oneYearLater = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-      const safeFetch = (url, options) => fetch(url, options).catch(err => {
-        console.error(`Fetch failed for ${url}:`, err);
-        return null;
-      });
-
-      const [profileRes, metricsRes, newsRes, earningsRes, calendarRes, historyRes] = await Promise.all([
+      const [profileRes, metricsRes, newsRes, earningsRes, calendarRes, historyRes, liveChartRes] = await Promise.all([
         safeFetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${symbol}&token=${token}`),
         safeFetch(`https://finnhub.io/api/v1/stock/metric?symbol=${symbol}&metric=all&token=${token}`),
         safeFetch(`https://finnhub.io/api/v1/company-news?symbol=${symbol}&from=${fromDate}&to=${toDate}&token=${token}`),
         safeFetch(`https://finnhub.io/api/v1/stock/earnings?symbol=${symbol}&token=${token}`),
         safeFetch(`https://finnhub.io/api/v1/calendar/earnings?symbol=${symbol}&from=${toDate}&to=${oneYearLater}&token=${token}`),
-        safeFetch(`https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1y&includePrePost=true`, { headers: YF_HEADERS })
+        safeFetch(`https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1y&includePrePost=true`, { headers: YF_HEADERS }),
+        liveChartPromise
       ]);
 
       let profile = profileRes && profileRes.ok ? await profileRes.json() : {};
@@ -591,6 +611,22 @@ export async function onRequestGet(context) {
       let historyData = null;
       if (historyRes && historyRes.ok) {
         try { historyData = await historyRes.json(); } catch {}
+      }
+
+      if (!livePriceInfo && liveChartRes && liveChartRes.ok) {
+        try {
+          const liveChartData = await liveChartRes.json();
+          const liveResult = liveChartData?.chart?.result?.[0];
+          if (liveResult) {
+            livePriceInfo = extractChartPriceInfo(symbol, liveResult, Math.floor(Date.now() / 1000));
+            if (livePriceInfo) {
+              const liveCacheKey = `https://cache.local/price/${symbol}`;
+              putCache(context, liveCacheKey, JSON.stringify(livePriceInfo), 30);
+            }
+          }
+        } catch (e) {
+          console.error("Failed to parse live chart in details:", e);
+        }
       }
 
       // If Finnhub profile is empty or missing name/exchange, merge from Yahoo Finance
@@ -740,7 +776,12 @@ export async function onRequestGet(context) {
       }
 
       // Populate basic metrics from chart if missing (highly useful if quoteSummary fails)
-      metrics.metric.currentPrice = metrics.metric.currentPrice || chartCurrentPrice || null;
+      if (livePriceInfo) {
+        const activePrice = livePriceInfo.postPrice || livePriceInfo.prePrice || livePriceInfo.price;
+        metrics.metric.currentPrice = activePrice;
+      } else {
+        metrics.metric.currentPrice = metrics.metric.currentPrice || chartCurrentPrice || null;
+      }
       metrics.metric["52WeekHigh"] = metrics.metric["52WeekHigh"] || chart52WHigh || null;
       metrics.metric["52WeekLow"] = metrics.metric["52WeekLow"] || chart52WLow || null;
       metrics.metric["50DayAverage"] = metrics.metric["50DayAverage"] || chart50DayAvg || null;
