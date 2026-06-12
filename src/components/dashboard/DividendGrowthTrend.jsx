@@ -93,15 +93,15 @@ export default function DividendGrowthTrend({ yocLeaderboard, computedAssets, av
               </div>
 
               <div className="table-wrapper" style={{ maxHeight: 350, overflowY: "auto", overflowX: "auto" }}>
-                <table className="asset-table" style={{ width: "100%", fontSize: 12 }}>
+                <table className="asset-table compact-table" style={{ width: "100%" }}>
                   <thead>
                     <tr>
-                      <th>สินทรัพย์</th>
-                      <th style={{ textAlign: "right" }}>ราคาทุนเฉลี่ย</th>
+                      <th>หุ้น</th>
+                      <th style={{ textAlign: "right" }}>ทุนเฉลี่ย</th>
                       <th style={{ textAlign: "right" }}>ราคาตลาด</th>
-                      <th style={{ textAlign: "right" }}>Current Yield</th>
-                      <th style={{ textAlign: "right" }}>Yield on Cost (YOC)</th>
-                      <th style={{ textAlign: "center" }}>เปรียบเทียบ</th>
+                      <th style={{ textAlign: "right" }}>Yield ปัจจุบัน</th>
+                      <th style={{ textAlign: "right" }}>Yield ทุน (YOC)</th>
+                      <th style={{ textAlign: "center" }}>ส่วนต่าง</th>
                     </tr>
                   </thead>
                   <tbody>

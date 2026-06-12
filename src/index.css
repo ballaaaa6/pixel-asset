@@ -2907,3 +2907,20 @@ html, body {
   }
 }
 
+.compact-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.compact-table th {
+  padding: 8px 6px !important;
+  font-size: 11px !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  white-space: nowrap;
+}
+.compact-table td {
+  padding: 8px 6px !important;
+  font-size: 12px !important;
+  vertical-align: middle;
+}
+
