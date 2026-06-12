@@ -238,20 +238,29 @@ export async function onRequestGet(context) {
 
             // Determine true regular session price
             let price = rawPrice;
+            let isRegularSessionNow = false;
             if (ctp && ctp.regular) {
-              const regStart = ctp.regular.start;
-              const regEnd = ctp.regular.end;
-              if (now < regStart) {
-                // If we are before the regular market opens, lock the regular price to the previous close
-                price = prevClose;
-              } else {
-                // Otherwise, get the last data point inside the regular session
+              isRegularSessionNow = now >= ctp.regular.start && now < ctp.regular.end;
+            }
+
+            if (isRegularSessionNow) {
+              price = rawPrice;
+            } else {
+              let chartReg = null;
+              try {
+                chartReg = meta.tradingPeriods?.regular?.[0]?.[0];
+              } catch {}
+              if (chartReg) {
+                const regStart = chartReg.start;
+                const regEnd = chartReg.end;
                 const regularPoints = paired.filter(p => p.ts >= regStart && p.ts <= regEnd);
                 if (regularPoints.length > 0) {
                   price = regularPoints[regularPoints.length - 1].close;
                 } else {
                   price = rawPrice;
                 }
+              } else {
+                price = rawPrice;
               }
             }
 
