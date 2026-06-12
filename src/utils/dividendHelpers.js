@@ -2,7 +2,9 @@ const SECTOR_MAPPING = {
   // US tech/telecom
   "AAPL": "Technology", "MSFT": "Technology", "NVDA": "Technology", "GOOGL": "Technology", "GOOG": "Technology", 
   "META": "Technology", "TSLA": "Technology", "NFLX": "Technology", "AMZN": "Technology", "AVGO": "Technology",
-  "CSCO": "Technology", "ORCL": "Technology", "T": "Telecom", "VZ": "Telecom", "CMCSA": "Telecom",
+  "CSCO": "Technology", "ORCL": "Technology", "MU": "Technology", "SNDK": "Technology", "AMD": "Technology",
+  "INTC": "Technology", "TSM": "Technology", "ASML": "Technology", "QCOM": "Technology",
+  "T": "Telecom", "VZ": "Telecom", "CMCSA": "Telecom",
   // US Financials
   "JPM": "Financials", "BAC": "Financials", "WFC": "Financials", "MS": "Financials", "GS": "Financials", "C": "Financials", "V": "Financials", "MA": "Financials",
   // US REITs

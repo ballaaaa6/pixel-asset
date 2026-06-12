@@ -1,7 +1,9 @@
 export const SECTOR_MAPPING = {
   "AAPL": "Technology", "MSFT": "Technology", "NVDA": "Technology", "GOOGL": "Technology", "GOOG": "Technology", 
   "META": "Technology", "TSLA": "Consumer Goods", "NFLX": "Technology", "AMZN": "Consumer Goods", "AVGO": "Technology",
-  "CSCO": "Technology", "ORCL": "Technology", "T": "Telecom", "VZ": "Telecom", "CMCSA": "Telecom",
+  "CSCO": "Technology", "ORCL": "Technology", "MU": "Technology", "SNDK": "Technology", "AMD": "Technology",
+  "INTC": "Technology", "TSM": "Technology", "ASML": "Technology", "QCOM": "Technology",
+  "T": "Telecom", "VZ": "Telecom", "CMCSA": "Telecom",
   "JPM": "Financials", "BAC": "Financials", "WFC": "Financials", "MS": "Financials", "GS": "Financials", "C": "Financials", "V": "Financials", "MA": "Financials",
   "O": "Real Estate (REIT)", "AMT": "Real Estate (REIT)", "PLD": "Real Estate (REIT)", "CCI": "Real Estate (REIT)", "WY": "Real Estate (REIT)", "EQIX": "Real Estate (REIT)", "PSA": "Real Estate (REIT)", "SPG": "Real Estate (REIT)", "VICI": "Real Estate (REIT)",
   "KO": "Consumer Goods", "PEP": "Consumer Goods", "COST": "Consumer Goods", "WMT": "Consumer Goods", "PG": "Consumer Goods", "NKE": "Consumer Goods", "MCD": "Consumer Goods", "SBUX": "Consumer Goods", "HD": "Consumer Goods", "LOW": "Consumer Goods", "CL": "Consumer Goods",
