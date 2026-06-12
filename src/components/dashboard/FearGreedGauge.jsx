@@ -31,7 +31,6 @@ export default function FearGreedGauge() {
 
   // SVG Gauge calculations
   // Center is (110, 100), Radius is 75
-  const needleAngle = (fearGreedValue / 100) * 180 - 180; // -180 to 0
   const angleRad = (fearGreedValue / 100) * Math.PI - Math.PI; // -PI to 0
   const markerX = 110 + 75 * Math.cos(angleRad);
   const markerY = 100 + 75 * Math.sin(angleRad);
@@ -57,7 +56,7 @@ export default function FearGreedGauge() {
       onClick={() => setShowGreedModal(true)} 
       title="คลิกเพื่อวิเคราะห์กลยุทธ์อารมณ์ตลาด"
     >
-      <span style={{ fontSize: 16, fontWeight: 800, color: "var(--text-main)", marginBottom: 16, display: "flex", alignItems: "center", gap: 6 }}>
+      <span style={{ fontSize: 18, fontWeight: 800, color: "var(--text-main)", marginBottom: 16, display: "flex", alignItems: "center", gap: 6 }}>
         🔥 Fear & Greed Index
       </span>
       
@@ -82,19 +81,6 @@ export default function FearGreedGauge() {
           
           {/* Main gradient track */}
           <path d="M 35 100 A 75 75 0 0 1 185 100" fill="none" stroke="url(#gaugeGrad)" strokeWidth="12" strokeLinecap="round" />
-          
-          {/* Floating needle that doesn't overlap the center score area (starts from r=22 to r=65) */}
-          <line 
-            x1="110" 
-            y1="78" 
-            x2="110" 
-            y2="38" 
-            stroke="var(--text-main)" 
-            strokeWidth="3.5" 
-            strokeLinecap="round" 
-            transform={`rotate(${needleAngle} 110 100)`} 
-            style={{ transition: "transform 1.2s cubic-bezier(0.4, 0, 0.2, 1)" }} 
-          />
           
           {/* Glowing marker dot at the current value position on the arc */}
           <circle 
@@ -121,10 +107,10 @@ export default function FearGreedGauge() {
           alignItems: "center",
           justifyContent: "center"
         }}>
-          <span style={{ fontSize: 36, fontWeight: 900, color: getFearGreedColor(fearGreedValue), lineHeight: 1 }}>
+          <span style={{ fontSize: 42, fontWeight: 900, color: getFearGreedColor(fearGreedValue), lineHeight: 1 }}>
             {fearGreedValue}
           </span>
-          <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)", marginTop: 4 }}>
+          <span style={{ fontSize: 15, fontWeight: 800, color: "var(--text-main)", marginTop: 4 }}>
             {getFearGreedLabel(fearGreedValue)}
           </span>
         </div>
@@ -139,7 +125,7 @@ export default function FearGreedGauge() {
           <div style={{ flex: 1, background: "#10B981" }} title="61-80 Greed" />
           <div style={{ flex: 1, background: "#047857" }} title="81-100 Extreme Greed" />
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", width: "100%", marginTop: 6, fontSize: 11, color: "var(--text-muted)", fontWeight: 800 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", width: "100%", marginTop: 6, fontSize: 13, color: "var(--text-muted)", fontWeight: 800 }}>
           <span>0 (กลัวจัด)</span>
           <span>50 (ปกติ)</span>
           <span>100 (โลภจัด)</span>
@@ -147,7 +133,7 @@ export default function FearGreedGauge() {
       </div>
       
       <div style={{ textAlign: "center", marginTop: 12, background: "rgba(0,0,0,0.01)", padding: "8px 12px", borderRadius: 12, border: "1px solid var(--border)", width: "100%", boxSizing: "border-box" }}>
-        <span style={{ fontSize: 13, color: "var(--text-muted)", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+        <span style={{ fontSize: 15, color: "var(--text-muted)", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
           ตลาดกำลังมีความมั่นใจ ควรรักษาวินัยการลงทุน 🔍
         </span>
       </div>
