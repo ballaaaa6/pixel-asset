@@ -166,10 +166,8 @@ export async function onRequestGet(context) {
             if (!result) return null;
 
             const meta = result.meta;
-            const price = meta.regularMarketPrice || 0;
-            const prevClose = meta.chartPreviousClose || meta.previousClose || price;
-            const change = price - prevClose;
-            const changePercent = prevClose > 0 ? (change / prevClose) * 100 : 0;
+            const rawPrice = meta.regularMarketPrice || 0;
+            const prevClose = meta.chartPreviousClose || meta.previousClose || rawPrice;
 
             let marketState = "REGULAR";
             const now = Math.floor(Date.now() / 1000);
@@ -198,7 +196,29 @@ export async function onRequestGet(context) {
             })).filter(p => p.close != null && p.close > 0);
 
             const lastPoint = paired[paired.length - 1];
-            const lastPrice = lastPoint ? lastPoint.close : price;
+            const lastPrice = lastPoint ? lastPoint.close : rawPrice;
+
+            // Determine true regular session price
+            let price = rawPrice;
+            if (ctp && ctp.regular) {
+              const regStart = ctp.regular.start;
+              const regEnd = ctp.regular.end;
+              if (now < regStart) {
+                // If we are before the regular market opens, lock the regular price to the previous close
+                price = prevClose;
+              } else {
+                // Otherwise, get the last data point inside the regular session
+                const regularPoints = paired.filter(p => p.ts >= regStart && p.ts <= regEnd);
+                if (regularPoints.length > 0) {
+                  price = regularPoints[regularPoints.length - 1].close;
+                } else {
+                  price = rawPrice;
+                }
+              }
+            }
+
+            const change = price - prevClose;
+            const changePercent = prevClose > 0 ? (change / prevClose) * 100 : 0;
 
             let prePrice = null;
             let postPrice = null;
