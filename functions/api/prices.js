@@ -275,7 +275,16 @@ export async function onRequestGet(context) {
             } else if (marketState === "POST") {
               postPrice = lastPrice;
             } else if (marketState === "CLOSED") {
-              if (ctp && ctp.post && lastPoint && lastPoint.ts >= ctp.post.start && lastPoint.ts <= ctp.post.end) {
+              let chartPost = null;
+              let chartReg = null;
+              try {
+                chartPost = meta.tradingPeriods?.post?.[0]?.[0];
+                chartReg = meta.tradingPeriods?.regular?.[0]?.[0];
+              } catch {}
+
+              if (chartPost && lastPoint && lastPoint.ts >= chartPost.start && lastPoint.ts <= chartPost.end) {
+                postPrice = lastPrice;
+              } else if (chartReg && lastPoint && lastPoint.ts > chartReg.end) {
                 postPrice = lastPrice;
               }
             }
