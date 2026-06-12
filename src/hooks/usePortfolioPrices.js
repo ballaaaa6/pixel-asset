@@ -17,9 +17,12 @@ export function usePortfolioPrices({ user, chartRange, showToast }) {
   const fetchPrices = useCallback(async (portfolioAssets, isManual = false) => {
     setRefreshing(true);
     try {
-      const symbols = portfolioAssets
+      const portfolioSymbols = portfolioAssets
         .map(a => (a.type === "fiat" || a.category === "fiat") ? (a.symbol === "USD" ? null : getCurrencyTicker(a.symbol)) : a.symbol)
-        .filter(Boolean).join(",");
+        .filter(Boolean);
+      
+      const fixedTapeSymbols = ["^GSPC", "^NDX", "^RUT", "^SET.BK", "THB=X", "BTC-USD", "GC=F", "CL=F"];
+      const symbols = [...new Set([...portfolioSymbols, ...fixedTapeSymbols])].join(",");
 
       if (!symbols) {
         setPrices({});

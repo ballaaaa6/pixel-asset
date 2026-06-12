@@ -1,32 +1,34 @@
 import React from "react";
-import { getDisplaySymbol } from "../../utils/assetHelpers";
 
-export default function TickerTape({ assets, prices }) {
-  // Filter unique assets that are not fiat cash
-  const uniqueAssets = React.useMemo(() => {
-    const seen = new Set();
-    return assets.filter(a => {
-      if (a.category === "fiat" || a.type === "fiat") return false;
-      if (seen.has(a.symbol)) return false;
-      seen.add(a.symbol);
-      return true;
-    });
-  }, [assets]);
+const TICKER_TAPE_ITEMS = [
+  { symbol: "^GSPC", label: "S&P 500" },
+  { symbol: "^NDX", label: "Nasdaq 100" },
+  { symbol: "^RUT", label: "Russell 2000" },
+  { symbol: "^SET.BK", label: "SET Index" },
+  { symbol: "THB=X", label: "USD/THB" },
+  { symbol: "BTC-USD", label: "BTC/USD" },
+  { symbol: "GC=F", label: "XAU/USD (Gold)" },
+  { symbol: "CL=F", label: "Crude Oil (WTI)" }
+];
+
+export default function TickerTape({ prices }) {
+  const hasPrices = React.useMemo(() => {
+    return TICKER_TAPE_ITEMS.some(item => prices && prices[item.symbol] != null);
+  }, [prices]);
 
   // Ensure there are enough items to fill screen width and loop seamlessly at -50% translation
   const duplicatedList = React.useMemo(() => {
-    let list = [...uniqueAssets];
-    if (list.length === 0) return [];
-    while (list.length < 15) {
-      list = [...list, ...uniqueAssets];
+    let list = [...TICKER_TAPE_ITEMS];
+    while (list.length < 16) {
+      list = [...list, ...TICKER_TAPE_ITEMS];
     }
     return [...list, ...list];
-  }, [uniqueAssets]);
+  }, []);
 
-  if (uniqueAssets.length === 0) return null;
+  if (!hasPrices) return null;
 
-  const renderItem = (asset, idx) => {
-    const pData = prices[asset.symbol];
+  const renderItem = (item, idx) => {
+    const pData = prices[item.symbol];
     if (!pData) return null;
 
     // Use live price: Regular price during market hours, or Pre/Post-market prices outside
@@ -50,17 +52,23 @@ export default function TickerTape({ assets, prices }) {
     const price = extPrice ?? regPrice;
     const pctChange = extPrice != null ? extChangePct : (pData.changePercent ?? 0);
     const isUp = pctChange >= 0;
-    const isThai = asset.symbol.toUpperCase().endsWith(".BK");
 
-    const priceStr = isThai
-      ? `฿${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-      : `$${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    let priceStr = "";
+    if (item.symbol === "THB=X") {
+      priceStr = `฿${price.toFixed(2)}`;
+    } else if (item.symbol === "^SET.BK") {
+      priceStr = `${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} จุด`;
+    } else if (item.symbol.startsWith("^")) {
+      priceStr = `${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    } else {
+      priceStr = `$${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
 
     const pctStr = `${Math.abs(pctChange).toFixed(2)}%`;
 
     return (
-      <div key={`${asset.symbol}-${idx}`} className="ticker-item">
-        <span className="ticker-item-symbol">{getDisplaySymbol(asset.symbol)}</span>
+      <div key={`${item.symbol}-${idx}`} className="ticker-item">
+        <span className="ticker-item-symbol">{item.label}</span>
         <span className="ticker-item-price">
           {priceStr}
         </span>
@@ -74,7 +82,7 @@ export default function TickerTape({ assets, prices }) {
   return (
     <div className="ticker-tape-container">
       <div className="ticker-track">
-        {duplicatedList.map((asset, idx) => renderItem(asset, idx))}
+        {duplicatedList.map((item, idx) => renderItem(item, idx))}
       </div>
     </div>
   );
