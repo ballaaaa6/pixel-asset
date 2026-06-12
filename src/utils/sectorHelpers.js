@@ -44,3 +44,20 @@ export const getCorrelation = (sym1, sym2) => {
   const val = ((Math.abs(hash) % 201) - 100) / 100;
   return parseFloat(val.toFixed(2));
 };
+
+export const getSectorBeta = (sectorName) => {
+  const mapping = {
+    "Technology": 1.25,
+    "Financials": 1.10,
+    "Consumer Goods": 0.85,
+    "Healthcare": 0.75,
+    "Real Estate (REIT)": 0.65,
+    "Energy & Utilities": 0.80,
+    "Telecom": 0.70,
+    "Industrials": 1.05,
+    "Other": 1.00,
+    "Other (TH)": 1.00
+  };
+  return mapping[sectorName] || 1.00;
+};
+
