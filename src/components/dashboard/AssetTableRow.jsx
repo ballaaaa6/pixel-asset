@@ -22,6 +22,7 @@ export default function AssetTableRow({
   handleDeleteAsset,
   hasPrices,
   fmt,
+  hideValues,
   hoveredSymbol,
   setHoveredSymbol,
   hoveredCategory,
@@ -83,7 +84,7 @@ export default function AssetTableRow({
         ) : isCashAsset ? (
           <span style={{ color: "var(--text-faint)", fontSize: 13 }}>—</span>
         ) : (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10 }}>
+          <div className={hideValues ? "privacy-blurred" : ""} style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10 }}>
             <div>
               <div className="num-tick" style={{ fontWeight: 700, fontSize: 14 }}>
                 {fmt.usd(asset.regPriceUSD)}
@@ -105,7 +106,7 @@ export default function AssetTableRow({
         {!hasPrices ? (
           <div className="skeleton skeleton-text" style={{ width: 80, height: 16, marginLeft: "auto" }} />
         ) : (
-          <div>
+          <div className={hideValues ? "privacy-blurred" : ""}>
             <div style={{ fontWeight: 700, fontSize: 14 }}>
               {fmt.usd(isCashAsset ? asset.valueUSD : asset.regValueUSD)}
             </div>
@@ -129,7 +130,7 @@ export default function AssetTableRow({
         {!hasPrices || asset.costUSD === 0 || isCashAsset ? (
           <span style={{ color: "var(--text-faint)", fontSize: 13 }}>—</span>
         ) : (
-          <div>
+          <div className={hideValues ? "privacy-blurred" : ""}>
             <div className={`pnl-cell ${asset.regGainUSD >= 0 ? "positive" : "negative"}`}>
               <div style={{ fontWeight: 700, fontSize: 14, whiteSpace: "nowrap" }}>
                 {`${asset.regGainUSD >= 0 ? "+" : "-"}${fmt.usd(Math.abs(asset.regGainUSD))} (${fmt.pct(asset.regGainPct)})`}

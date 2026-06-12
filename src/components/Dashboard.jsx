@@ -242,6 +242,8 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
                   setHoveredSymbol={setHoveredSymbol}
                   hoveredCategory={hoveredCategory}
                   setHoveredCategory={setHoveredCategory}
+                  hideValues={hideValues}
+                  setSelectedAsset={setSelectedAsset}
                 />
               </GlowTiltCard>
             </div>
@@ -328,6 +330,10 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
         isOpen={investorModalOpen}
         onClose={() => setInvestorModalOpen(false)}
         askConfirm={askConfirm}
+        totalUSD={totalUSD}
+        totalGainUSD={totalGainUSD}
+        totalGainPct={totalGainPct}
+        assetsCount={assets.length}
         {...profileProps}
       />
 

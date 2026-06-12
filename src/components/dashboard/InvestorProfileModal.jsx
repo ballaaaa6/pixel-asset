@@ -2,11 +2,13 @@ import React, { useState, useEffect } from "react";
 import { X, Eye, Plus, Edit3, Save, Sparkles } from "lucide-react";
 import { PRESET_AVATARS } from "../../utils/constants";
 import { registerModal } from "../../utils/modalStack";
+import { exportCardAsImage as rawExportCardAsImage } from "../../utils/cardExporter";
 
 export default function InvestorProfileModal({
   isOpen, onClose, profilePic, setProfilePic, nickname, firstName, lastName, birthday, traderStyle, experience, riskLevel, portfolioTarget, targetYield, favoriteStock, bio,
   newNickname, setNewNickname, newFirstName, setNewFirstName, newLastName, setNewLastName, newBirthday, setNewBirthday, newTraderStyle, setNewTraderStyle, newExperience, setNewExperience, newRiskLevel, setNewRiskLevel, newPortfolioTarget, setNewPortfolioTarget, newTargetYield, setNewTargetYield, newFavoriteStock, setNewFavoriteStock, newBio, setNewBio,
   handleAvatarUpload, handleSaveProfile, getAge, avatarPreviewOpen, setAvatarPreviewOpen, avatarHovered, setAvatarHovered, presetModalOpen, setPresetModalOpen, askConfirm,
+  totalUSD, totalGainUSD, totalGainPct, assetsCount
 }) {
   const [isEditing, setIsEditing] = useState(false);
 
@@ -37,6 +39,12 @@ export default function InvestorProfileModal({
   const badge = getBadge(experience);
   const age = getAge();
 
+  const exportCardAsImage = () => {
+    rawExportCardAsImage({
+      nickname, firstName, lastName, birthday, traderStyle, experience, riskLevel, portfolioTarget, targetYield, favoriteStock, bio, profilePic, age, badge, totalUSD, totalGainUSD, totalGainPct, assetsCount
+    });
+  };
+
   return (
     <>
       <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -63,7 +71,7 @@ export default function InvestorProfileModal({
                   <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
                     <div style={{ position: "relative", cursor: "pointer" }} onMouseEnter={() => setAvatarHovered(true)} onMouseLeave={() => setAvatarHovered(false)} onClick={() => profilePic && setAvatarPreviewOpen(true)}>
                       <img src={profilePic || `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='90' height='90' viewBox='0 0 80 80'><rect width='80' height='80' fill='%23FFFFFF' fill-opacity='0.2'/><text x='50%' y='60%' font-size='36' text-anchor='middle' fill='%23FFFFFF'>👤</text></svg>`}
-                        alt="avatar" style={{ width: 84, height: 84, borderRadius: "50%", objectFit: "cover", border: "3px solid rgba(255,255,255,0.6)" }} />
+                         alt="avatar" style={{ width: 84, height: 84, borderRadius: "50%", objectFit: "cover", border: "3px solid rgba(255,255,255,0.6)" }} />
                       {profilePic && avatarHovered && (
                         <div style={{ position: "absolute", top: 0, left: 0, width: 84, height: 84, borderRadius: "50%", background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center" }}><Eye size={18} color="white" /></div>
                       )}
@@ -99,7 +107,10 @@ export default function InvestorProfileModal({
                   )}
                 </div>
 
-                <button className="btn btn-primary ripple-btn" onClick={() => setIsEditing(true)} style={{ height: 44, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Edit3 size={15} /> แก้ไขข้อมูลโปรไฟล์</button>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button className="btn btn-primary ripple-btn" onClick={() => setIsEditing(true)} style={{ flex: 1, height: 44, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Edit3 size={15} /> แก้ไขข้อมูลโปรไฟล์</button>
+                  <button className="btn ripple-btn" onClick={exportCardAsImage} style={{ flex: 1, height: 44, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "linear-gradient(135deg, #10B981 0%, #059669 100%)", color: "white", border: "none" }}><Sparkles size={15} /> เซฟรูปภาพแชร์การ์ด</button>
+                </div>
               </div>
             ) : (
               /* ── EDIT FORM ── */

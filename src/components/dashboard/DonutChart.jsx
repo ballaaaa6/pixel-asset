@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { PieChart } from "lucide-react";
+import PortfolioTreemap from "./PortfolioTreemap";
 
 const DONUT_COLORS = ["#5236FF", "#00B98A", "#F59E0B", "#FF4B55", "#8B5CF6", "#06B6D4", "#EC4899", "#84CC16"];
 const CATEGORY_LABELS = { stock: "หุ้น", crypto: "คริปโต", gold: "ทองคำ/น้ำมัน", fiat: "เงินสด" };
@@ -11,10 +12,13 @@ export default function DonutChart({
   hoveredSymbol,
   setHoveredSymbol,
   hoveredCategory,
-  setHoveredCategory
+  setHoveredCategory,
+  hideValues,
+  setSelectedAsset
 }) {
   const [drillCategory, setDrillCategory] = useState(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [viewMode, setViewMode] = useState("donut"); // "donut" or "treemap"
 
   const R = 68, CX = 80, CY = 80, SW = 18;
   const circumference = 2 * Math.PI * R;
@@ -40,37 +44,41 @@ export default function DonutChart({
         <PieChart size={16} />
         <span>สัดส่วนสินทรัพย์</span>
       </div>
-      {drillCategory ? (
-        <button
-          onClick={() => {
-            setDrillCategory(null);
-            setHoveredCategory(null);
-            setHoveredSymbol(null);
-          }}
-          style={{
-            background: "var(--primary-light)",
-            color: "var(--primary)",
-            border: "none",
-            borderRadius: 10,
-            padding: "6px 14px",
-            fontSize: 12,
-            fontWeight: 800,
-            cursor: "pointer",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            transition: "var(--transition)",
-            boxShadow: "var(--shadow-xs)",
-            height: 28
-          }}
-          className="ripple-btn"
-          title="ย้อนกลับไปดูภาพรวมทุกหมวดหมู่"
-        >
-          ← ย้อนกลับ
-        </button>
-      ) : (
-        <div style={{ height: 28 }} />
-      )}
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div className="chart-range-tabs" style={{ margin: 0, height: 26, display: "flex", alignItems: "center" }}>
+          <button type="button" className={`chart-range-tab ${viewMode === "donut" ? "active" : ""}`} onClick={() => setViewMode("donut")} style={{ padding: "2px 8px", fontSize: 10, height: 22, lineHeight: "18px" }}>Donut</button>
+          <button type="button" className={`chart-range-tab ${viewMode === "treemap" ? "active" : ""}`} onClick={() => setViewMode("treemap")} style={{ padding: "2px 8px", fontSize: 10, height: 22, lineHeight: "18px" }}>Treemap</button>
+        </div>
+        {drillCategory && viewMode === "donut" && (
+          <button
+            onClick={() => {
+              setDrillCategory(null);
+              setHoveredCategory(null);
+              setHoveredSymbol(null);
+            }}
+            style={{
+              background: "var(--primary-light)",
+              color: "var(--primary)",
+              border: "none",
+              borderRadius: 10,
+              padding: "6px 14px",
+              fontSize: 12,
+              fontWeight: 800,
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              transition: "var(--transition)",
+              boxShadow: "var(--shadow-xs)",
+              height: 26
+            }}
+            className="ripple-btn"
+            title="ย้อนกลับไปดูภาพรวมทุกหมวดหมู่"
+          >
+            ← ย้อนกลับ
+          </button>
+        )}
+      </div>
     </div>
   );
 
@@ -79,38 +87,42 @@ export default function DonutChart({
     return (
       <div className="donut-card-body" style={{ minHeight: 300, display: "flex", flexDirection: "column", justifyContent: "flex-start", alignItems: "stretch" }}>
         {renderHeader()}
-        <div className="chart-container" style={{ paddingTop: 0 }}>
-          <div className="donut-wrapper">
-            <svg viewBox="0 0 160 160" className="donut-chart-svg">
-              <circle cx={CX} cy={CY} r={R} fill="none" stroke="#F1F5F9" strokeWidth={SW} />
-            </svg>
-            <div className="donut-center-label">
-              <div className="donut-center-count" style={{ color: "var(--text-faint)" }}>
-                {activeAssets?.length > 0 ? activeAssets.length : "—"}
-              </div>
-              <div className="donut-center-text">
-                {activeAssets?.length > 0 ? "กำลังโหลด..." : "ว่างเปล่า"}
+        {viewMode === "donut" ? (
+          <div className="chart-container" style={{ paddingTop: 0 }}>
+            <div className="donut-wrapper">
+              <svg viewBox="0 0 160 160" className="donut-chart-svg">
+                <circle cx={CX} cy={CY} r={R} fill="none" stroke="#F1F5F9" strokeWidth={SW} />
+              </svg>
+              <div className="donut-center-label">
+                <div className="donut-center-count" style={{ color: "var(--text-faint)" }}>
+                  {activeAssets?.length > 0 ? activeAssets.length : "—"}
+                </div>
+                <div className="donut-center-text">
+                  {activeAssets?.length > 0 ? "กำลังโหลด..." : "ว่างเปล่า"}
+                </div>
               </div>
             </div>
-          </div>
-          <div className="legend-list">
-            {hasAssets ? (
-              /* Skeleton rows when assets exist but no prices yet */
-              [1, 2, 3, 4].map(i => (
-                <div key={i} className="legend-item">
-                  <div className="skeleton skeleton-circle" style={{ width: 10, height: 10, flexShrink: 0 }} />
-                  <div className="skeleton skeleton-text" style={{ flex: 1, height: 12 }} />
-                  <div className="skeleton skeleton-text" style={{ width: 30, height: 12 }} />
+            <div className="legend-list">
+              {hasAssets ? (
+                /* Skeleton rows when assets exist but no prices yet */
+                [1, 2, 3, 4].map(i => (
+                  <div key={i} className="legend-item">
+                    <div className="skeleton skeleton-circle" style={{ width: 10, height: 10, flexShrink: 0 }} />
+                    <div className="skeleton skeleton-text" style={{ flex: 1, height: 12 }} />
+                    <div className="skeleton skeleton-text" style={{ width: 30, height: 12 }} />
+                  </div>
+                ))
+              ) : (
+                /* Empty state hint */
+                <div style={{ gridColumn: "1/-1", textAlign: "center", padding: "12px 0", fontSize: 12, color: "var(--text-faint)" }}>
+                  เพิ่มสินทรัพย์เพื่อดูสัดส่วน
                 </div>
-              ))
-            ) : (
-              /* Empty state hint */
-              <div style={{ gridColumn: "1/-1", textAlign: "center", padding: "12px 0", fontSize: 12, color: "var(--text-faint)" }}>
-                เพิ่มสินทรัพย์เพื่อดูสัดส่วน
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="skeleton-pulse" style={{ width: "100%", height: 260, borderRadius: 12 }} />
+        )}
       </div>
     );
   }
@@ -181,31 +193,115 @@ export default function DonutChart({
     <div className="donut-card-body" style={{ minHeight: 300, display: "flex", flexDirection: "column", justifyContent: "flex-start", alignItems: "stretch", position: "relative" }}>
       {renderHeader()}
 
-      <div className="chart-container" style={{ paddingTop: 0 }}>
-        <div
-          className="donut-wrapper"
-          onMouseMove={handleMouseMove}
-          onMouseLeave={() => {
-            setHoveredCategory(null);
-            setHoveredSymbol(null);
-          }}
-        >
-          <svg viewBox="0 0 160 160" className="donut-chart-svg">
-            {/* Background track */}
-            <circle cx={CX} cy={CY} r={R} fill="none" stroke="#F1F5F9" strokeWidth={SW} />
-            {/* Segments */}
+      {viewMode === "donut" ? (
+        <div className="chart-container" style={{ paddingTop: 0 }}>
+          <div
+            className="donut-wrapper"
+            onMouseMove={handleMouseMove}
+            onMouseLeave={() => {
+              setHoveredCategory(null);
+              setHoveredSymbol(null);
+            }}
+          >
+            <svg viewBox="0 0 160 160" className="donut-chart-svg">
+              {/* Background track */}
+              <circle cx={CX} cy={CY} r={R} fill="none" stroke="#F1F5F9" strokeWidth={SW} />
+              {/* Segments */}
+              {slices.map((s, i) => {
+                const isSliceActive = hoveredSlice && hoveredSlice.id === s.id;
+                return (
+                  <circle
+                    key={i}
+                    cx={CX} cy={CY} r={R}
+                    fill="none"
+                    stroke={s.color}
+                    strokeWidth={isSliceActive ? SW + 3 : SW}
+                    strokeLinecap="butt"
+                    strokeDasharray={`${s.dash} ${s.gap}`}
+                    strokeDashoffset={s.strokeDashoffset}
+                    onMouseEnter={() => {
+                      if (!drillCategory) {
+                        setHoveredCategory(s.id);
+                        setHoveredSymbol(null);
+                      } else {
+                        setHoveredSymbol(s.id);
+                        setHoveredCategory(drillCategory);
+                      }
+                    }}
+                    onClick={() => {
+                      if (!drillCategory) {
+                        setDrillCategory(s.id);
+                        setHoveredCategory(null);
+                        setHoveredSymbol(null);
+                      }
+                    }}
+                    style={{
+                      cursor: !drillCategory ? "pointer" : "default",
+                      transition: "stroke-width 0.2s ease, stroke-dasharray 0.8s cubic-bezier(0.4,0,0.2,1), stroke-dashoffset 0.8s cubic-bezier(0.4,0,0.2,1)"
+                    }}
+                  />
+                );
+              })}
+              {/* White center hole */}
+              <circle cx={CX} cy={CY} r={R - SW / 2 - 2} fill="white" />
+            </svg>
+
+            <div className="donut-center-label" style={{ pointerEvents: "none" }}>
+              <div className="donut-center-count">{displayCount}</div>
+              <div className="donut-center-text">{centerText}</div>
+            </div>
+
+            {/* Floating Tooltip */}
+            {hoveredSlice && (
+              <div
+                className="chart-tooltip-box"
+                style={{
+                  position: "absolute",
+                  top: mousePos.y - 65,
+                  left: mousePos.x,
+                  transform: mousePos.x < 80 ? "translateX(15px)" : "translateX(calc(-100% - 15px))",
+                  zIndex: 1000,
+                  pointerEvents: "none",
+                  background: "var(--text-main)",
+                  color: "white",
+                  padding: "8px 12px",
+                  borderRadius: 12,
+                  boxShadow: "var(--shadow-md)",
+                  fontSize: 12,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 2
+                }}
+              >
+                <div style={{ fontWeight: 800, color: "white" }}>{hoveredSlice.label}</div>
+                {hoveredSlice.fullName && (
+                  <div style={{ fontSize: 10, color: "var(--text-faint)", whiteSpace: "normal", maxWidth: 140 }}>
+                    {hoveredSlice.fullName}
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: 12, justifyContent: "space-between", fontSize: 11, marginTop: 4 }}>
+                  <span style={{ color: "var(--text-faint)" }}>สัดส่วน:</span>
+                  <span style={{ color: hoveredSlice.color, fontWeight: 800 }}>{hoveredSlice.pct.toFixed(1)}%</span>
+                </div>
+                {hoveredSlice.value !== undefined && (
+                  <div style={{ display: "flex", gap: 12, justifyContent: "space-between", fontSize: 11 }}>
+                    <span style={{ color: "var(--text-faint)" }}>มูลค่า:</span>
+                    <span style={{ fontWeight: 800, color: "white" }}>
+                      ${hoveredSlice.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="legend-list">
             {slices.map((s, i) => {
               const isSliceActive = hoveredSlice && hoveredSlice.id === s.id;
               return (
-                <circle
+                <div
                   key={i}
-                  cx={CX} cy={CY} r={R}
-                  fill="none"
-                  stroke={s.color}
-                  strokeWidth={isSliceActive ? SW + 3 : SW}
-                  strokeLinecap="butt"
-                  strokeDasharray={`${s.dash} ${s.gap}`}
-                  strokeDashoffset={s.strokeDashoffset}
+                  className="legend-item"
                   onMouseEnter={() => {
                     if (!drillCategory) {
                       setHoveredCategory(s.id);
@@ -214,6 +310,10 @@ export default function DonutChart({
                       setHoveredSymbol(s.id);
                       setHoveredCategory(drillCategory);
                     }
+                  }}
+                  onMouseLeave={() => {
+                    setHoveredCategory(null);
+                    setHoveredSymbol(null);
                   }}
                   onClick={() => {
                     if (!drillCategory) {
@@ -224,105 +324,29 @@ export default function DonutChart({
                   }}
                   style={{
                     cursor: !drillCategory ? "pointer" : "default",
-                    transition: "stroke-width 0.2s ease, stroke-dasharray 0.8s cubic-bezier(0.4,0,0.2,1), stroke-dashoffset 0.8s cubic-bezier(0.4,0,0.2,1)"
+                    opacity: (hoveredCategory || hoveredSymbol) && !isSliceActive ? 0.4 : 1,
+                    transition: "opacity 0.2s ease"
                   }}
-                />
+                >
+                  <div className="legend-color" style={{ background: s.color }} />
+                  <span className="legend-name" style={{ fontWeight: isSliceActive ? 800 : 600 }}>{s.label}</span>
+                  <span className="legend-pct" style={{ color: s.color, fontWeight: 800 }}>{s.pct.toFixed(1)}%</span>
+                </div>
               );
             })}
-            {/* White center hole */}
-            <circle cx={CX} cy={CY} r={R - SW / 2 - 2} fill="white" />
-          </svg>
-
-          <div className="donut-center-label" style={{ pointerEvents: "none" }}>
-            <div className="donut-center-count">{displayCount}</div>
-            <div className="donut-center-text">{centerText}</div>
           </div>
-
-          {/* Floating Tooltip */}
-          {hoveredSlice && (
-            <div
-              className="chart-tooltip-box"
-              style={{
-                position: "absolute",
-                top: mousePos.y - 65,
-                left: mousePos.x,
-                transform: mousePos.x < 80 ? "translateX(15px)" : "translateX(calc(-100% - 15px))",
-                zIndex: 1000,
-                pointerEvents: "none",
-                background: "var(--text-main)",
-                color: "white",
-                padding: "8px 12px",
-                borderRadius: 12,
-                boxShadow: "var(--shadow-md)",
-                fontSize: 12,
-                display: "flex",
-                flexDirection: "column",
-                gap: 2
-              }}
-            >
-              <div style={{ fontWeight: 800, color: "white" }}>{hoveredSlice.label}</div>
-              {hoveredSlice.fullName && (
-                <div style={{ fontSize: 10, color: "var(--text-faint)", whiteSpace: "normal", maxWidth: 140 }}>
-                  {hoveredSlice.fullName}
-                </div>
-              )}
-              <div style={{ display: "flex", gap: 12, justifyContent: "space-between", fontSize: 11, marginTop: 4 }}>
-                <span style={{ color: "var(--text-faint)" }}>สัดส่วน:</span>
-                <span style={{ color: hoveredSlice.color, fontWeight: 800 }}>{hoveredSlice.pct.toFixed(1)}%</span>
-              </div>
-              {hoveredSlice.value !== undefined && (
-                <div style={{ display: "flex", gap: 12, justifyContent: "space-between", fontSize: 11 }}>
-                  <span style={{ color: "var(--text-faint)" }}>มูลค่า:</span>
-                  <span style={{ fontWeight: 800, color: "white" }}>
-                    ${hoveredSlice.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
         </div>
-
-        <div className="legend-list">
-          {slices.map((s, i) => {
-            const isSliceActive = hoveredSlice && hoveredSlice.id === s.id;
-            return (
-              <div
-                key={i}
-                className="legend-item"
-                onMouseEnter={() => {
-                  if (!drillCategory) {
-                    setHoveredCategory(s.id);
-                    setHoveredSymbol(null);
-                  } else {
-                    setHoveredSymbol(s.id);
-                    setHoveredCategory(drillCategory);
-                  }
-                }}
-                onMouseLeave={() => {
-                  setHoveredCategory(null);
-                  setHoveredSymbol(null);
-                }}
-                onClick={() => {
-                  if (!drillCategory) {
-                    setDrillCategory(s.id);
-                    setHoveredCategory(null);
-                    setHoveredSymbol(null);
-                  }
-                }}
-                style={{
-                  cursor: !drillCategory ? "pointer" : "default",
-                  opacity: (hoveredCategory || hoveredSymbol) && !isSliceActive ? 0.4 : 1,
-                  transition: "opacity 0.2s ease"
-                }}
-              >
-                <div className="legend-color" style={{ background: s.color }} />
-                <span className="legend-name" style={{ fontWeight: isSliceActive ? 800 : 600 }}>{s.label}</span>
-                <span className="legend-pct" style={{ color: s.color, fontWeight: 800 }}>{s.pct.toFixed(1)}%</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      ) : (
+        <PortfolioTreemap
+          activeAssets={activeAssets}
+          hasAssets={hasAssets}
+          hoveredSymbol={hoveredSymbol}
+          setHoveredSymbol={setHoveredSymbol}
+          hoveredCategory={hoveredCategory}
+          setHoveredCategory={setHoveredCategory}
+          hideValues={hideValues}
+        />
+      )}
     </div>
   );
 }

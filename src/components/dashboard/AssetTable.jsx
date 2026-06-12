@@ -32,11 +32,11 @@ export default function AssetTable({
   setHoveredCategory
 }) {
   const fmt = useMemo(() => ({
-    usd: (n) => fmtUSD(n, hideValues),
-    thb: (n, decimals = 2) => fmtTHB(n, decimals, hideValues),
+    usd: (n) => fmtUSD(n, false),
+    thb: (n, decimals = 2) => fmtTHB(n, decimals, false),
     pct: fmtPct,
-    qty: (n) => fmtQty(n, hideValues),
-  }), [hideValues]);
+    qty: (n) => fmtQty(n, false),
+  }), []);
 
   const SortTh = ({ sortKey, children, align = "left" }) => {
     const isActive = sortConfig.key === sortKey;
@@ -138,6 +138,7 @@ export default function AssetTable({
                     handleDeleteAsset={handleDeleteAsset}
                     hasPrices={hasPrices}
                     fmt={fmt}
+                    hideValues={hideValues}
                     hoveredSymbol={hoveredSymbol}
                     setHoveredSymbol={setHoveredSymbol}
                     hoveredCategory={hoveredCategory}
@@ -166,6 +167,7 @@ export default function AssetTable({
                 hasPrices={hasPrices}
                 sparklines={sparklines}
                 fmt={fmt}
+                hideValues={hideValues}
                 hoveredSymbol={hoveredSymbol}
                 setHoveredSymbol={setHoveredSymbol}
                 hoveredCategory={hoveredCategory}

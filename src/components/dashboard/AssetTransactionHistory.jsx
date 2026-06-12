@@ -104,33 +104,41 @@ export function AssetTransactionHistory({
                       )}
                     </td>
                     <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 600 }}>
-                      {isBuy ? "+" : "-"}{fmtQty(Math.abs(lot.lotQty))} {isCashAsset ? asset.symbol : ""}
+                      <div className={hideValues ? "privacy-blurred" : ""}>
+                        {isBuy ? "+" : "-"}{fmtQty(Math.abs(lot.lotQty))} {isCashAsset ? asset.symbol : ""}
+                      </div>
                     </td>
                     <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 600 }}>
-                      <div>{fmtUSD(lot.lotPriceUSD)}</div>
-                      <div style={{ fontSize: 10, color: "var(--text-faint)", fontWeight: "normal" }}>
-                        ({fmtTHB(lot.lotPriceUSD * rowRate)})
+                      <div className={hideValues ? "privacy-blurred" : ""}>
+                        <div>{fmtUSD(lot.lotPriceUSD)}</div>
+                        <div style={{ fontSize: 10, color: "var(--text-faint)", fontWeight: "normal" }}>
+                          ({fmtTHB(lot.lotPriceUSD * rowRate)})
+                        </div>
                       </div>
                     </td>
                     <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 700 }}>
-                      <div>{fmtUSD(Math.abs(lot.transactionValueUSD))}</div>
-                      <div style={{ fontSize: 10, color: "var(--text-faint)", fontWeight: "normal" }}>
-                        ({fmtTHB(Math.abs(lot.transactionValueUSD) * rowRate)})
+                      <div className={hideValues ? "privacy-blurred" : ""}>
+                        <div>{fmtUSD(Math.abs(lot.transactionValueUSD))}</div>
+                        <div style={{ fontSize: 10, color: "var(--text-faint)", fontWeight: "normal" }}>
+                          ({fmtTHB(Math.abs(lot.transactionValueUSD) * rowRate)})
+                        </div>
                       </div>
                     </td>
                     {!isCashAsset && (
                       <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 800, color: lot.pnl >= 0 ? "var(--gain)" : "var(--loss)" }}>
-                        <div>
-                          {lot.pnl >= 0 ? "+" : ""}{fmtUSD(lot.pnl)}
-                        </div>
-                        <div style={{ fontSize: 10, color: lot.pnl >= 0 ? "var(--gain)" : "var(--loss)", opacity: 0.8, fontWeight: "normal" }}>
-                          ({lot.pnl >= 0 ? "+" : ""}{fmtTHB(lot.pnl * rowRate)})
-                        </div>
-                        <div style={{ fontSize: 10, opacity: 0.85 }}>
-                          ({lot.pnl >= 0 ? "▲" : "▼"}{fmtPct(lot.pnlPct)})
-                          <span style={{ fontSize: 9, opacity: 0.7, marginLeft: 4, fontWeight: "normal" }}>
-                            {isBuy ? "ยังไม่รับรู้" : "รับรู้แล้ว"}
-                          </span>
+                        <div className={hideValues ? "privacy-blurred" : ""}>
+                          <div>
+                            {lot.pnl >= 0 ? "+" : ""}{fmtUSD(lot.pnl)}
+                          </div>
+                          <div style={{ fontSize: 10, color: lot.pnl >= 0 ? "var(--gain)" : "var(--loss)", opacity: 0.8, fontWeight: "normal" }}>
+                            ({lot.pnl >= 0 ? "+" : ""}{fmtTHB(lot.pnl * rowRate)})
+                          </div>
+                          <div style={{ fontSize: 10, opacity: 0.85 }}>
+                            ({lot.pnl >= 0 ? "▲" : "▼"}{fmtPct(lot.pnlPct)})
+                            <span style={{ fontSize: 9, opacity: 0.7, marginLeft: 4, fontWeight: "normal" }}>
+                              {isBuy ? "ยังไม่รับรู้" : "รับรู้แล้ว"}
+                            </span>
+                          </div>
                         </div>
                       </td>
                     )}
@@ -164,30 +172,38 @@ export function AssetTransactionHistory({
             <tfoot>
               <tr style={{ borderTop: "2px solid var(--border)", background: "var(--primary-light)", position: "sticky", bottom: 0, zIndex: 1, boxShadow: "0 -2px 0 var(--border)" }}>
                 <td colSpan={isCashAsset ? 2 : 3} style={{ padding: "9px 12px", fontWeight: 800, color: "var(--primary)" }}>ถือครองปัจจุบัน</td>
-                <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 800, color: "var(--primary)" }}>{fmtQty(asset.qty)} {isCashAsset ? asset.symbol : ""}</td>
+                <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 800, color: "var(--primary)" }}>
+                  <div className={hideValues ? "privacy-blurred" : ""}>
+                    {fmtQty(asset.qty)} {isCashAsset ? asset.symbol : ""}
+                  </div>
+                </td>
                 <td style={{ padding: "9px 12px", textAlign: "right", fontSize: 11, color: "var(--text-muted)" }}>
                   {isCashAsset ? "—" : (
-                    <>
+                    <div className={hideValues ? "privacy-blurred" : ""}>
                       <div>avg {fmtUSD(avgCostUSD)}</div>
                       <div style={{ fontSize: 10, color: "var(--text-faint)" }}>
                         ({fmtTHB(avgCostUSD * exchangeRate)})
                       </div>
-                    </>
+                    </div>
                   )}
                 </td>
                 <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 800, color: "var(--primary)" }}>
-                  <div>{fmtUSD(totalCostUSD)}</div>
-                  <div style={{ fontSize: 10, color: "var(--text-faint)", fontWeight: "normal" }}>
-                    ({fmtTHB(totalCostUSD * exchangeRate)})
+                  <div className={hideValues ? "privacy-blurred" : ""}>
+                    <div>{fmtUSD(totalCostUSD)}</div>
+                    <div style={{ fontSize: 10, color: "var(--text-faint)", fontWeight: "normal" }}>
+                      ({fmtTHB(totalCostUSD * exchangeRate)})
+                    </div>
                   </div>
                 </td>
                 {!isCashAsset && (
                   <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 900, color: gainUp ? "var(--gain)" : "var(--loss)" }}>
-                    <div>{totalGainUSD >= 0 ? "+" : ""}{fmtUSD(totalGainUSD)}</div>
-                    <div style={{ fontSize: 10, color: totalGainUSD >= 0 ? "var(--gain)" : "var(--loss)", opacity: 0.8, fontWeight: "normal" }}>
-                      ({totalGainTHB >= 0 ? "+" : ""}{fmtTHB(totalGainTHB)})
+                    <div className={hideValues ? "privacy-blurred" : ""}>
+                      <div>{totalGainUSD >= 0 ? "+" : ""}{fmtUSD(totalGainUSD)}</div>
+                      <div style={{ fontSize: 10, color: totalGainUSD >= 0 ? "var(--gain)" : "var(--loss)", opacity: 0.8, fontWeight: "normal" }}>
+                        ({totalGainTHB >= 0 ? "+" : ""}{fmtTHB(totalGainTHB)})
+                      </div>
+                      <div style={{ fontSize: 10 }}>{fmtPct(totalGainPct)}</div>
                     </div>
-                    <div style={{ fontSize: 10 }}>{fmtPct(totalGainPct)}</div>
                   </td>
                 )}
                 <td style={{ padding: "9px 12px" }}></td>

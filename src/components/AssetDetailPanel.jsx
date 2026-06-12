@@ -14,9 +14,9 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, historica
     return registerModal(onClose);
   }, [onClose]);
 
-  const fmtUSD = useCallback((n) => rawFmtUSD(n, hideValues), [hideValues]);
-  const fmtTHB = useCallback((n) => rawFmtTHB(n, 2, hideValues), [hideValues]);
-  const fmtQty = useCallback((n) => rawFmtQty(n, hideValues), [hideValues]);
+  const fmtUSD = useCallback((n) => rawFmtUSD(n, false), []);
+  const fmtTHB = useCallback((n) => rawFmtTHB(n, 2, false), []);
+  const fmtQty = useCallback((n) => rawFmtQty(n, false), []);
 
   const [tf, setTf] = useState("1D");
   const [chartData, setChartData] = useState(null);
@@ -164,18 +164,18 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, historica
 
           <div style={{ display: "flex", alignItems: "center", gap: 16, marginRight: 8, flexShrink: 0 }}>
             {isCashAsset ? (
-              <div style={{ textAlign: "right" }}>
+              <div className={hideValues ? "privacy-blurred" : ""} style={{ textAlign: "right" }}>
                 <div style={{ fontSize: 20, fontWeight: 900, color: "var(--text-main)", lineHeight: 1.1 }}>{fmtQty(asset.qty)} {asset.symbol}</div>
                 <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 2 }}>≈ {fmtUSD(valueUSD)} <span style={{ fontSize: 11 }}>({fmtTHB(valueUSD * exchangeRate)})</span></div>
               </div>
             ) : (
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ textAlign: "right" }}>
+                <div className={hideValues ? "privacy-blurred" : ""} style={{ textAlign: "right" }}>
                   <div style={{ fontSize: 20, fontWeight: 900, color: "var(--text-main)", lineHeight: 1.1 }}>{fmtUSD(priceUSD)}</div>
                   <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 2 }}>{fmtTHB(priceUSD * exchangeRate)}</div>
                 </div>
                 <div style={{ textAlign: "right", background: isUp ? "#DCFCE7" : "#FEE2E2", padding: "4px 8px", borderRadius: 8 }}>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: isUp ? "var(--gain)" : "var(--loss)", display: "flex", alignItems: "center", gap: 2 }}>{isUp ? "▲" : "▼"} {fmtPct(changePct)}</div>
+                  <div className={hideValues ? "privacy-blurred" : ""} style={{ fontSize: 13, fontWeight: 800, color: isUp ? "var(--gain)" : "var(--loss)", display: "flex", alignItems: "center", gap: 2 }}>{isUp ? "▲" : "▼"} {fmtPct(changePct)}</div>
                 </div>
               </div>
             )}
@@ -187,28 +187,28 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, historica
         <div className="asset-detail-kpi-grid" style={{ gridTemplateColumns: isCashAsset ? "repeat(2, 1fr)" : "repeat(4, 1fr)" }}>
           <div className="asset-detail-kpi">
             <div className="asset-detail-kpi-label">จำนวนถือ</div>
-            <div className="asset-detail-kpi-val">{fmtQty(asset.qty)}</div>
+            <div className={`asset-detail-kpi-val ${hideValues ? "privacy-blurred" : ""}`}>{fmtQty(asset.qty)}</div>
           </div>
           {!isCashAsset && (
             <div className="asset-detail-kpi">
               <div className="asset-detail-kpi-label">ราคาทุนเฉลี่ย</div>
-              <div className="asset-detail-kpi-val">{fmtUSD(avgCostUSD)}</div>
-              <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 2 }}>({fmtTHB(avgCostUSD * exchangeRate)})</div>
+              <div className={`asset-detail-kpi-val ${hideValues ? "privacy-blurred" : ""}`}>{fmtUSD(avgCostUSD)}</div>
+              <div className={hideValues ? "privacy-blurred" : ""} style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 2 }}>({fmtTHB(avgCostUSD * exchangeRate)})</div>
             </div>
           )}
           <div className="asset-detail-kpi">
             <div className="asset-detail-kpi-label">มูลค่าปัจจุบัน</div>
-            <div className="asset-detail-kpi-val">{fmtUSD(valueUSD)}</div>
-            <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 2 }}>({fmtTHB(valueUSD * exchangeRate)})</div>
+            <div className={`asset-detail-kpi-val ${hideValues ? "privacy-blurred" : ""}`}>{fmtUSD(valueUSD)}</div>
+            <div className={hideValues ? "privacy-blurred" : ""} style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 2 }}>({fmtTHB(valueUSD * exchangeRate)})</div>
           </div>
           {!isCashAsset && (
             <div className={`asset-detail-kpi ${gainUp ? "gain-kpi" : "loss-kpi"}`}>
               <div className="asset-detail-kpi-label">กำไร/ขาดทุนรวม</div>
-              <div className="asset-detail-kpi-val" style={{ color: gainUp ? "var(--gain)" : "var(--loss)", fontWeight: 900 }}>
+              <div className={`asset-detail-kpi-val ${hideValues ? "privacy-blurred" : ""}`} style={{ color: gainUp ? "var(--gain)" : "var(--loss)", fontWeight: 900 }}>
                 {totalGainUSD >= 0 ? "+" : ""}{fmtUSD(totalGainUSD)}
                 <span style={{ fontSize: 11, marginLeft: 4 }}>({fmtPct(totalGainPct)})</span>
               </div>
-              <div style={{ fontSize: 11, color: totalGainUSD >= 0 ? "var(--gain)" : "var(--loss)", opacity: 0.8, marginTop: 2 }}>({totalGainTHB >= 0 ? "+" : ""}{fmtTHB(totalGainTHB)})</div>
+              <div className={hideValues ? "privacy-blurred" : ""} style={{ fontSize: 11, color: totalGainUSD >= 0 ? "var(--gain)" : "var(--loss)", opacity: 0.8, marginTop: 2 }}>({totalGainTHB >= 0 ? "+" : ""}{fmtTHB(totalGainTHB)})</div>
             </div>
           )}
         </div>
@@ -230,9 +230,9 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, historica
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", background: "#EEECFF", border: "1px solid #C3C7FA", borderRadius: 8, padding: "4px 8px", fontSize: 11 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                   <div style={{ width: 14, height: 2, background: "#5236FF", borderTop: "2px dashed #5236FF" }} />
-                  <span style={{ fontWeight: 700, color: "#5236FF" }}>ราคาทุนเฉลี่ย {fmtUSD(avgCostUSD)}</span>
+                  <span className={hideValues ? "privacy-blurred" : ""} style={{ fontWeight: 700, color: "#5236FF" }}>ราคาทุนเฉลี่ย {fmtUSD(avgCostUSD)}</span>
                 </div>
-                <span style={{ fontSize: 10, color: "var(--text-faint)", marginLeft: 19 }}>({fmtTHB(avgCostUSD * exchangeRate)})</span>
+                <span className={hideValues ? "privacy-blurred" : ""} style={{ fontSize: 10, color: "var(--text-faint)", marginLeft: 19 }}>({fmtTHB(avgCostUSD * exchangeRate)})</span>
               </div>
             )}
           </div>

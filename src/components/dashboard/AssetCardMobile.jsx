@@ -21,6 +21,7 @@ export default function AssetCardMobile({
   hasPrices,
   sparklines,
   fmt,
+  hideValues,
   hoveredSymbol,
   setHoveredSymbol,
   hoveredCategory,
@@ -65,7 +66,7 @@ export default function AssetCardMobile({
             <MarketBadge state={pData?.marketState} extChangePct={asset.extChangePct} />
           </div>
         </div>
-        <div className="mobile-card-right">
+        <div className={`mobile-card-right ${hideValues ? "privacy-blurred" : ""}`}>
           {hasPrices ? (
             isCashAsset ? (
               <span style={{ color: "var(--text-faint)", fontSize: 13 }}>—</span>
@@ -93,7 +94,7 @@ export default function AssetCardMobile({
       <div className="mobile-card-stats">
         <div className="mobile-stat">
           <span className="mobile-stat-label">มูลค่า</span>
-          <span className="mobile-stat-value">
+          <span className={`mobile-stat-value ${hideValues ? "privacy-blurred" : ""}`}>
             {hasPrices ? (
               isCashAsset ? (
                 `${fmt.qty(asset.qty)} ${asset.symbol} (≈ ${fmt.usd(asset.valueUSD)})`
@@ -114,7 +115,7 @@ export default function AssetCardMobile({
         </div>
         <div className="mobile-stat">
           <span className="mobile-stat-label">กำไร/ขาดทุน</span>
-          <span className="mobile-stat-value" style={{ textAlign: "right", color: isCashAsset ? "var(--text-faint)" : (asset.gainUSD >= 0 ? "var(--gain)" : "var(--loss)") }}>
+          <span className={`mobile-stat-value ${hideValues ? "privacy-blurred" : ""}`} style={{ textAlign: "right", color: isCashAsset ? "var(--text-faint)" : (asset.gainUSD >= 0 ? "var(--gain)" : "var(--loss)") }}>
             {isCashAsset ? "—" : (hasPrices && asset.costUSD > 0 ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
                 <div style={{ fontWeight: 700 }}>
@@ -134,7 +135,7 @@ export default function AssetCardMobile({
         </div>
         <div className="mobile-stat">
           <span className="mobile-stat-label">วันนี้</span>
-          <span className="mobile-stat-value" style={{ textAlign: "right", color: isCashAsset ? "var(--text-faint)" : (asset.todayPct >= 0 ? "var(--gain)" : "var(--loss)") }}>
+          <span className={`mobile-stat-value ${hideValues ? "privacy-blurred" : ""}`} style={{ textAlign: "right", color: isCashAsset ? "var(--text-faint)" : (asset.todayPct >= 0 ? "var(--gain)" : "var(--loss)") }}>
             {isCashAsset ? "—" : (hasPrices ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
                 <div style={{ fontWeight: 700 }}>

@@ -2432,3 +2432,11 @@ html, body {
     transform: translateY(0);
   }
 }
+
+.privacy-blurred {
+  filter: blur(6.5px);
+  user-select: none;
+  pointer-events: none;
+  transition: filter 0.25s ease-out;
+}
+
