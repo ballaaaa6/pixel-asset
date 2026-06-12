@@ -293,13 +293,14 @@ export function computeSingleAssetData(asset, prices, exchangeRate) {
   const regPrice = pData?.price ?? 0;
   const isPre = pData?.marketState === "PRE" || pData?.marketState === "PREPRE";
   const isPost = pData?.marketState === "POST" || pData?.marketState === "POSTPOST";
+  const isClosed = pData?.marketState === "CLOSED";
 
   let extPrice = null, extChangePct = null, extType = null;
   if (isPre && pData.prePrice != null && pData.prePrice > 0) {
     extPrice = pData.prePrice;
     extChangePct = regPrice > 0 ? ((pData.prePrice - regPrice) / regPrice) * 100 : 0;
     extType = "Pre";
-  } else if (isPost && pData.postPrice != null && pData.postPrice > 0) {
+  } else if ((isPost || isClosed) && pData.postPrice != null && pData.postPrice > 0) {
     extPrice = pData.postPrice;
     extChangePct = regPrice > 0 ? ((pData.postPrice - regPrice) / regPrice) * 100 : 0;
     extType = "After";
