@@ -24,6 +24,7 @@ Welcome to the US Stock Tracker project! This repository contains an `.agents/` 
    - **Plan First When Unsure**: If a task is complex or architectural choices are unclear, the agent must perform research and draft an Implementation Plan first for the user to review.
    - **Autonomy in Execution**: Once the user approves the initial plan or orders the task to begin, the agent is trusted to execute the changes all the way to completion (including coding, building, committing, and pushing) without pausing to ask for permission mid-way.
    - **Double-Check Compliance**: For every edit, the agent must review all rules (including clickable file links, no placeholders, no TailwindCSS, and the ≤ 400 lines limit) and verify code correctness before compiling and committing.
+9. **Viewport-Centered Modals via React Portals**: All modal and popup components in the project must be rendered using React Portals (`createPortal` from `react-dom` to `document.body`) to prevent containing block layout issues (e.g., parent transforms or filter keyframes) and ensure they always align perfectly in the center of the user's viewport screen on both desktop and mobile.
 
 ## Active Session Flow
 - Check `.agents/active.md` to see the current active task and branch.
