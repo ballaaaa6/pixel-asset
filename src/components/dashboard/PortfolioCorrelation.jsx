@@ -11,8 +11,8 @@ const getCorrelation = (sym1, sym2) => {
   for (let i = 0; i < sorted.length; i++) {
     hash = sorted.charCodeAt(i) + ((hash << 5) - hash);
   }
-  // Yield values ranging between -0.15 and 0.85
-  const val = (Math.abs(hash) % 100) / 100 * 1.0 - 0.15;
+  // Yield values ranging between -1.00 and 1.00
+  const val = ((Math.abs(hash) % 201) - 100) / 100;
   return parseFloat(val.toFixed(2));
 };
 
@@ -66,21 +66,30 @@ export default function PortfolioCorrelation({ assets = [], hideValues }) {
     return "#047857"; // Emerald
   };
 
-  // Heatmap Color Scale matching client's color palette (Deep Amber/Coral for near 1.0, Cool Mint/Grey for near 0 or negative)
+  // Heatmap Tri-color Gradient Scale (Amber/Coral, Cream/Grey, Cool Mint)
   const getHeatmapColor = (val) => {
     if (val === 1.0) return "rgba(99, 102, 241, 0.15)"; // Highlight diagonals with soft primary tint
-    if (val >= 0.7) return "rgba(239, 68, 68, 0.15)"; // Soft coral/red for coupling
-    if (val >= 0.4) return "rgba(245, 158, 11, 0.12)"; // Soft amber/orange
-    if (val >= 0.1) return "rgba(241, 245, 249, 0.9)"; // Neutral grey
-    return "rgba(16, 185, 129, 0.12)"; // Soft mint/green for non-correlation
+    if (val >= 0.5) {
+      // Coupling สูง: Amber / Coral
+      return val >= 0.75 ? "rgba(239, 68, 68, 0.15)" : "rgba(245, 158, 11, 0.15)";
+    }
+    if (val <= -0.3) {
+      // วิ่งสวนทางกัน: Cool Mint
+      return "rgba(16, 185, 129, 0.15)";
+    }
+    // ไม่เกี่ยวข้องกัน: Neutral Cream / Grey
+    return "rgba(241, 245, 249, 0.95)";
   };
 
   const getHeatmapTextColor = (val) => {
     if (val === 1.0) return "var(--primary)";
-    if (val >= 0.7) return "var(--loss)";
-    if (val >= 0.4) return "var(--gold)";
-    if (val >= 0.1) return "var(--text-muted)";
-    return "var(--gain)";
+    if (val >= 0.5) {
+      return val >= 0.75 ? "var(--loss)" : "var(--gold)";
+    }
+    if (val <= -0.3) {
+      return "var(--gain)";
+    }
+    return "var(--text-muted)";
   };
 
   // Needle angle for Gauge: 0 is left (-90 deg), 100 is right (+90 deg)
@@ -243,9 +252,10 @@ export default function PortfolioCorrelation({ assets = [], hideValues }) {
               </table>
             </div>
 
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "var(--text-faint)", fontWeight: 700, padding: "0 4px" }}>
-              <span>🟢 ติดลบ / ใกล้ 0 = กระจายความเสี่ยงดี</span>
-              <span>🔴 ใกล้ +1.0 = มีความสัมพันธ์ทิศทางเดียวกันสูง</span>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "var(--text-faint)", fontWeight: 700, padding: "0 4px", gap: 8 }}>
+              <span>🔴 +0.5 ถึง +1.0 (Coupling สูง)</span>
+              <span>⚪ -0.2 ถึง +0.2 (ไม่เกี่ยวข้องกัน)</span>
+              <span>🟢 -1.0 ถึง -0.3 (Perfect Hedging)</span>
             </div>
           </div>
 
