@@ -333,7 +333,7 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
         totalUSD={totalUSD}
         totalGainUSD={totalGainUSD}
         totalGainPct={totalGainPct}
-        assetsCount={assets.length}
+        assetsCount={sortedAssets.length}
         {...profileProps}
       />
 

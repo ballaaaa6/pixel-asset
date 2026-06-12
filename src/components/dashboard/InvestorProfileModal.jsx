@@ -88,7 +88,7 @@ export default function InvestorProfileModal({
                     {[
                       { label: "STYLE", val: traderStyle },
                       { label: "RISK TOLERANCE", val: riskLevel },
-                      { label: "TARGET PORTFOLIO", val: portfolioTarget ? `${portfolioTarget} THB` : "ไม่ได้ระบุ" },
+                      { label: "TARGET PORTFOLIO", val: portfolioTarget ? `${Number(String(portfolioTarget).replace(/,/g, "")).toLocaleString()} THB` : "ไม่ได้ระบุ" },
                       { label: "TARGET YIELD", val: targetYield ? `${targetYield} %/Yr` : "ไม่ได้ระบุ" }
                     ].map(({ label, val }) => (
                       <div key={label} style={{ display: "flex", flexDirection: "column", gap: 2 }}>

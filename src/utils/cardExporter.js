@@ -140,7 +140,12 @@ export function exportCardAsImage({
     ctx.clip();
 
     if (avatarImg) {
-      ctx.drawImage(avatarImg, avatarX - avatarR, avatarY - avatarR, avatarR * 2, avatarR * 2);
+      const w = avatarImg.width;
+      const h = avatarImg.height;
+      const size = Math.min(w, h);
+      const sx = (w - size) / 2;
+      const sy = (h - size) / 2;
+      ctx.drawImage(avatarImg, sx, sy, size, size, avatarX - avatarR, avatarY - avatarR, avatarR * 2, avatarR * 2);
     } else {
       ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
       ctx.fill();
@@ -191,9 +196,15 @@ export function exportCardAsImage({
       ctx.fillText(val || "ไม่ได้ระบุ", x, y + 18);
     };
 
+    const formatPortfolioTarget = (val) => {
+      if (!val) return "ไม่ได้ระบุ";
+      const num = Number(String(val).replace(/,/g, ""));
+      return isNaN(num) ? val : num.toLocaleString() + " THB";
+    };
+
     drawParam("STYLE", traderStyle, box1X + 20, boxY + 28);
     drawParam("RISK TOLERANCE", riskLevel, box1X + 20, boxY + 74);
-    drawParam("TARGET PORTFOLIO", portfolioTarget ? `${Number(portfolioTarget).toLocaleString()} THB` : "ไม่ได้ระบุ", box1X + 20, boxY + 120);
+    drawParam("TARGET PORTFOLIO", formatPortfolioTarget(portfolioTarget), box1X + 20, boxY + 120);
     drawParam("TARGET YIELD", targetYield ? `${targetYield} %/Yr` : "ไม่ได้ระบุ", box1X + 160, boxY + 28);
     drawParam("FAVORITE STOCK", favoriteStock ? `⭐ ${favoriteStock}` : "ไม่ได้ระบุ", box1X + 160, boxY + 74);
 
