@@ -116,7 +116,7 @@ export default function DashboardMainView({
           </GlowTiltCard>
 
           <GlowTiltCard className="card stagger-4" style={{ padding: 0 }}>
-            <EconomicSentimentWidget assets={assets} />
+            <EconomicSentimentWidget assets={sortedAssets} />
           </GlowTiltCard>
         </div>
 
