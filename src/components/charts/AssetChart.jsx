@@ -113,7 +113,7 @@ export function AssetChart({ candles, avgCost, lots, tf, isThai, exchangeRate, a
       {/* ── SVG chart canvas ── */}
       <AssetChartSVG
         W={W} H={H} PAD_L={PAD_L} PAD_R={PAD_R} PAD_T={PAD_T} PAD_B={PAD_B} iW={iW} iH={iH}
-        isUp={isUp} isCashAsset={isCashAsset}
+        isUp={isUp} isCashAsset={isCashAsset} isThai={isThai} asset={asset}
         linePath={linePath} costLinePath={costLinePath}
         fillValueArea={fillValueArea} fillCostArea={fillCostArea}
         clipAboveCostPath={clipAboveCostPath} clipBelowCostPath={clipBelowCostPath} clipAboveValuePath={clipAboveValuePath}

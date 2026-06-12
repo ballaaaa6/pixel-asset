@@ -77,3 +77,20 @@ export const getDynamicDateFormat = (dateIso, visibleDurationMs, hasMultipleYear
     return d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: hasMultipleYears ? "2-digit" : undefined });
   }
 };
+
+export const isExtendedHoursNY = (dateIso) => {
+  if (!dateIso) return false;
+  const d = new Date(dateIso);
+  try {
+    const nyString = d.toLocaleString("en-US", { timeZone: "America/New_York" });
+    const nyDate = new Date(nyString);
+    const hours = nyDate.getHours();
+    const minutes = nyDate.getMinutes();
+    const timeVal = hours * 100 + minutes;
+    const isRegular = timeVal >= 930 && timeVal < 1600;
+    return !isRegular;
+  } catch {
+    return false;
+  }
+};
+
