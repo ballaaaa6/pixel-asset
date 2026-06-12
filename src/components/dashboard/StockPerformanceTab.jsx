@@ -6,6 +6,35 @@ export default function StockPerformanceTab({ metrics = {}, currency = "USD" }) 
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+      {/* 0. Trailing Price Returns (1W, 1M, 3M, 1Y) */}
+      <div style={{ padding: 10, background: "rgba(0,0,0,0.015)", borderRadius: 12, border: "1px solid var(--border)" }}>
+        <span style={{ fontSize: 11, color: "var(--text-muted)", display: "block" }}>ผลตอบแทน 1 สัปดาห์ (1W)</span>
+        <span style={{ fontSize: 14, fontWeight: 900, color: m.priceReturn1W >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 2, display: "block" }}>
+          {m.priceReturn1W != null ? `${m.priceReturn1W >= 0 ? "+" : ""}${m.priceReturn1W.toFixed(2)}%` : "-"}
+        </span>
+      </div>
+
+      <div style={{ padding: 10, background: "rgba(0,0,0,0.015)", borderRadius: 12, border: "1px solid var(--border)" }}>
+        <span style={{ fontSize: 11, color: "var(--text-muted)", display: "block" }}>ผลตอบแทน 1 เดือน (1M)</span>
+        <span style={{ fontSize: 14, fontWeight: 900, color: m.priceReturn1M >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 2, display: "block" }}>
+          {m.priceReturn1M != null ? `${m.priceReturn1M >= 0 ? "+" : ""}${m.priceReturn1M.toFixed(2)}%` : "-"}
+        </span>
+      </div>
+
+      <div style={{ padding: 10, background: "rgba(0,0,0,0.015)", borderRadius: 12, border: "1px solid var(--border)" }}>
+        <span style={{ fontSize: 11, color: "var(--text-muted)", display: "block" }}>ผลตอบแทน 3 เดือน (3M)</span>
+        <span style={{ fontSize: 14, fontWeight: 900, color: m.priceReturn3M >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 2, display: "block" }}>
+          {m.priceReturn3M != null ? `${m.priceReturn3M >= 0 ? "+" : ""}${m.priceReturn3M.toFixed(2)}%` : "-"}
+        </span>
+      </div>
+
+      <div style={{ padding: 10, background: "rgba(0,0,0,0.015)", borderRadius: 12, border: "1px solid var(--border)" }}>
+        <span style={{ fontSize: 11, color: "var(--text-muted)", display: "block" }}>ผลตอบแทน 1 ปี (1Y)</span>
+        <span style={{ fontSize: 14, fontWeight: 900, color: m.priceReturn1Y >= 0 ? "var(--gain)" : "var(--loss)", marginTop: 2, display: "block" }}>
+          {m.priceReturn1Y != null ? `${m.priceReturn1Y >= 0 ? "+" : ""}${m.priceReturn1Y.toFixed(2)}%` : "-"}
+        </span>
+      </div>
+
       {/* 1. 52W High */}
       <div style={{ padding: 10, background: "rgba(0,0,0,0.015)", borderRadius: 12, border: "1px solid var(--border)" }}>
         <span style={{ fontSize: 11, color: "var(--text-muted)", display: "block" }}>ราคาสูงสุดใน 52 สัปดาห์</span>

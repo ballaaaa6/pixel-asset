@@ -12,21 +12,20 @@ export default function StockNewsTab({ news = [] }) {
     setTranslating(true);
     setTranslatedNews(null);
     try {
-      const [headRes, sumRes] = await Promise.all([
-        fetch(`/api/prices?translate=${encodeURIComponent(item.headline)}`),
-        fetch(`/api/prices?translate=${encodeURIComponent(item.summary || "")}`)
-      ]);
-      const headData = headRes.ok ? await headRes.json() : {};
-      const sumData = sumRes.ok ? await sumRes.json() : {};
+      const url = `/api/prices?translateNews=true&headline=${encodeURIComponent(item.headline)}&summary=${encodeURIComponent(item.summary || "")}`;
+      const res = await fetch(url);
+      const data = res.ok ? await res.json() : {};
       
       setTranslatedNews({
-        headline: headData.translatedText || item.headline,
-        summary: sumData.translatedText || item.summary || ""
+        headline: data.headline || item.headline,
+        summary: data.summary || item.summary || "",
+        takeaways: data.takeaways || []
       });
     } catch {
       setTranslatedNews({
         headline: item.headline,
-        summary: item.summary || ""
+        summary: item.summary || "",
+        takeaways: []
       });
     } finally {
       setTranslating(false);
@@ -117,6 +116,16 @@ export default function StockNewsTab({ news = [] }) {
                       {translatedNews.summary || "ไม่มีรายละเอียดข่าวย่อย"}
                     </p>
                   </div>
+                  {translatedNews.takeaways && translatedNews.takeaways.length > 0 && (
+                    <div style={{ marginTop: 10, padding: "12px 16px", background: "rgba(99, 102, 241, 0.04)", border: "1px solid rgba(99, 102, 241, 0.12)", borderRadius: 16, display: "flex", flexDirection: "column", gap: 6 }}>
+                      <span style={{ fontSize: 12.5, fontWeight: 900, color: "var(--primary)" }}>💡 สรุปประเด็นสำคัญ (AI Summary):</span>
+                      <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12, color: "var(--text-main)", lineHeight: 1.5 }}>
+                        {translatedNews.takeaways.map((takeaway, idx) => (
+                          <li key={idx} style={{ marginBottom: 4 }}>{takeaway}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               ) : null}
 

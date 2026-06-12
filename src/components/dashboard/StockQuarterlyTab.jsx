@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { createPortal } from "react-dom";
 import { X, AlertCircle } from "lucide-react";
 
-export default function StockQuarterlyTab({ earnings = [], calendar = [], currency = "USD" }) {
+export default function StockQuarterlyTab({ earnings = [], calendar = [], currency = "USD", metrics = {} }) {
   const [selectedEarning, setSelectedEarning] = useState(null);
 
   const getScreenerNextEstimate = () => {
@@ -21,6 +21,50 @@ export default function StockQuarterlyTab({ earnings = [], calendar = [], curren
     if (Math.abs(val) >= 1e6) return `${prefix}${(val / 1e6).toFixed(2)}M`;
     return `${prefix}${val.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
   };
+
+  const getGrowthStats = () => {
+    if (!selectedEarning) return null;
+    const idx = earnings.indexOf(selectedEarning);
+    let revGrowth = null;
+    let netGrowth = null;
+    let type = "YoY";
+
+    if (idx === 0) {
+      revGrowth = metrics?.metric?.revenueGrowthYoY;
+      netGrowth = metrics?.metric?.earningsGrowthYoY;
+    }
+
+    if ((revGrowth == null || netGrowth == null) && idx + 4 < earnings.length) {
+      const prevYoY = earnings[idx + 4];
+      if (prevYoY) {
+        if (revGrowth == null && selectedEarning.revenue != null && prevYoY.revenue) {
+          revGrowth = ((selectedEarning.revenue - prevYoY.revenue) / prevYoY.revenue) * 100;
+        }
+        if (netGrowth == null && selectedEarning.netIncome != null && prevYoY.netIncome) {
+          netGrowth = ((selectedEarning.netIncome - prevYoY.netIncome) / prevYoY.netIncome) * 100;
+        }
+        type = "YoY";
+      }
+    }
+
+    if ((revGrowth == null || netGrowth == null) && idx + 1 < earnings.length) {
+      const prevQoQ = earnings[idx + 1];
+      if (prevQoQ) {
+        if (revGrowth == null && selectedEarning.revenue != null && prevQoQ.revenue) {
+          revGrowth = ((selectedEarning.revenue - prevQoQ.revenue) / prevQoQ.revenue) * 100;
+          type = "QoQ";
+        }
+        if (netGrowth == null && selectedEarning.netIncome != null && prevQoQ.netIncome) {
+          netGrowth = ((selectedEarning.netIncome - prevQoQ.netIncome) / prevQoQ.netIncome) * 100;
+          type = "QoQ";
+        }
+      }
+    }
+
+    return { revGrowth, netGrowth, type };
+  };
+
+  const growth = getGrowthStats();
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -130,11 +174,25 @@ export default function StockQuarterlyTab({ earnings = [], calendar = [], curren
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px dashed var(--border)", paddingTop: 8 }}>
                     <span>รายได้รวมประเมินไตรมาส (Revenue):</span>
-                    <strong>{formatMoney(selectedEarning.revenue)}</strong>
+                    <strong style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      {formatMoney(selectedEarning.revenue)}
+                      {growth?.revGrowth != null && (
+                        <span style={{ fontSize: 10, fontWeight: 900, color: growth.revGrowth >= 0 ? "var(--gain)" : "var(--loss)" }}>
+                          ({growth.type}: {growth.revGrowth >= 0 ? "+" : ""}{growth.revGrowth.toFixed(1)}% {growth.revGrowth >= 0 ? "เข้าเป้า 🟢" : "ไม่เข้าเป้า 🔴"})
+                        </span>
+                      )}
+                    </strong>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <span>กำไรสุทธิไตรมาส (Net Income):</span>
-                    <strong>{formatMoney(selectedEarning.netIncome)}</strong>
+                    <strong style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      {formatMoney(selectedEarning.netIncome)}
+                      {growth?.netGrowth != null && (
+                        <span style={{ fontSize: 10, fontWeight: 900, color: growth.netGrowth >= 0 ? "var(--gain)" : "var(--loss)" }}>
+                          ({growth.type}: {growth.netGrowth >= 0 ? "+" : ""}{growth.netGrowth.toFixed(1)}% {growth.netGrowth >= 0 ? "เข้าเป้า 🟢" : "ไม่เข้าเป้า 🔴"})
+                        </span>
+                      )}
+                    </strong>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <span>อัตรากำไรสุทธิไตรมาส (Net Margin):</span>

@@ -106,6 +106,7 @@ export default function StockInfoTabs({
             earnings={earnings} 
             calendar={calendar} 
             currency={profile.currency || "USD"}
+            metrics={metrics}
           />
         )}
 

@@ -463,8 +463,14 @@ export async function onRequestGet(context) {
       let ceo = "";
       let yfSummary = null;
       try {
-        const yfUrl = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${symbol}?modules=assetProfile,defaultKeyStatistics,financialData,calendarEvents,earnings`;
-        const yfResp = await fetch(yfUrl, { headers: YF_HEADERS });
+        const yfAuth = await getYahooCookieAndCrumb(context);
+        const yfUrl = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${symbol}?modules=assetProfile,defaultKeyStatistics,financialData,calendarEvents,earnings,incomeStatementHistoryQuarterly${yfAuth.crumb ? `&crumb=${encodeURIComponent(yfAuth.crumb)}` : ""}`;
+        const yfResp = await fetch(yfUrl, { 
+          headers: { 
+            ...YF_HEADERS,
+            ...(yfAuth.cookie ? { "Cookie": yfAuth.cookie } : {})
+          } 
+        });
         if (yfResp.ok) {
           const yfData = await yfResp.json();
           yfSummary = yfData?.quoteSummary?.result?.[0];
@@ -472,7 +478,16 @@ export async function onRequestGet(context) {
             const profileData = yfSummary.assetProfile;
             if (profileData) {
               longBusinessSummary = profileData.longBusinessSummary || "";
-              const ceoOfficer = (profileData.companyOfficers || []).find(o => o.title?.toLowerCase().includes("ceo") || o.title?.toLowerCase().includes("chief executive"));
+              // Thai/Global friendly executive title search (MD, MDs, CEO, President, กรรมการผู้จัดการ)
+              const ceoOfficer = (profileData.companyOfficers || []).find(o => {
+                const title = (o.title || "").toLowerCase();
+                return title.includes("ceo") || 
+                       title.includes("chief executive") || 
+                       title.includes("managing director") || 
+                       title.includes("president") || 
+                       title.includes("md") ||
+                       title.includes("กรรมการผู้จัดการ");
+              });
               if (ceoOfficer) ceo = ceoOfficer.name;
             }
           }
@@ -487,12 +502,13 @@ export async function onRequestGet(context) {
       const fromDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
       const oneYearLater = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-      const [profileRes, metricsRes, newsRes, earningsRes, calendarRes] = await Promise.all([
+      const [profileRes, metricsRes, newsRes, earningsRes, calendarRes, historyRes] = await Promise.all([
         fetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${symbol}&token=${token}`),
         fetch(`https://finnhub.io/api/v1/stock/metric?symbol=${symbol}&metric=all&token=${token}`),
         fetch(`https://finnhub.io/api/v1/company-news?symbol=${symbol}&from=${fromDate}&to=${toDate}&token=${token}`),
         fetch(`https://finnhub.io/api/v1/stock/earnings?symbol=${symbol}&token=${token}`),
-        fetch(`https://finnhub.io/api/v1/calendar/earnings?symbol=${symbol}&from=${toDate}&to=${oneYearLater}&token=${token}`)
+        fetch(`https://finnhub.io/api/v1/calendar/earnings?symbol=${symbol}&from=${toDate}&to=${oneYearLater}&token=${token}`),
+        fetch(`https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1y&includePrePost=true`, { headers: YF_HEADERS }).catch(() => null)
       ]);
 
       let profile = profileRes.ok ? await profileRes.json() : {};
@@ -500,6 +516,10 @@ export async function onRequestGet(context) {
       let news = newsRes.ok ? await newsRes.json() : [];
       let earnings = earningsRes.ok ? await earningsRes.json() : [];
       let calendar = calendarRes.ok ? await calendarRes.json() : {};
+      let historyData = null;
+      if (historyRes && historyRes.ok) {
+        try { historyData = await historyRes.json(); } catch {}
+      }
 
       // If Finnhub profile is empty or missing name/exchange, merge from Yahoo Finance
       if (!profile || !profile.name) {
@@ -510,6 +530,7 @@ export async function onRequestGet(context) {
         profile.country = yfSummary?.assetProfile?.country || "-";
         profile.weburl = yfSummary?.assetProfile?.website || "";
         profile.shareOutstanding = (yfSummary?.defaultKeyStatistics?.sharesOutstanding?.raw) ? (yfSummary.defaultKeyStatistics.sharesOutstanding.raw / 1e6) : null;
+        profile.currency = yfSummary?.price?.currency || yfSummary?.summaryDetail?.currency || "USD";
       }
 
       // Always enrich metrics from Yahoo Finance if available (PE, PS, Forward PE, ROE, ROA, Debt/Equity, margins, yields)
@@ -561,7 +582,53 @@ export async function onRequestGet(context) {
         metrics.metric["50DayAverage"] = sumDetail.fiftyDayAverage?.raw || metrics.metric["50DayAverage"] || null;
         metrics.metric["200DayAverage"] = sumDetail.twoHundredDayAverage?.raw || metrics.metric["200DayAverage"] || null;
         metrics.metric.currentPrice = finData.currentPrice?.raw || priceData.regularMarketPrice?.raw || metrics.metric.currentPrice || null;
+
+        // YoY returns and growth rates to avoid blanks
+        metrics.metric.revenueGrowthYoY = finData.revenueGrowth?.raw != null ? finData.revenueGrowth.raw * 100 : null;
+        metrics.metric.earningsGrowthYoY = finData.earningsGrowth?.raw != null ? finData.earningsGrowth.raw * 100 : null;
+        metrics.metric.priceReturn1Y = keyStats.fiftyTwoWeekChange?.raw != null ? keyStats.fiftyTwoWeekChange.raw * 100 : null;
       }
+
+      // Calculate trailing price returns if history is available
+      let return1W = null;
+      let return1M = null;
+      let return3M = null;
+      let return1Y = null;
+
+      const chartResult = historyData?.chart?.result?.[0];
+      const indicators = chartResult?.indicators?.quote?.[0];
+      const closes = indicators?.close || [];
+      const validCloses = closes.filter(c => c != null && c > 0);
+
+      if (validCloses.length > 0) {
+        const currentClose = validCloses[validCloses.length - 1];
+        if (validCloses.length > 5) {
+          const price1W = validCloses[validCloses.length - 6];
+          return1W = ((currentClose - price1W) / price1W) * 100;
+        }
+        if (validCloses.length > 21) {
+          const price1M = validCloses[validCloses.length - 22];
+          return1M = ((currentClose - price1M) / price1M) * 100;
+        }
+        if (validCloses.length > 63) {
+          const price3M = validCloses[validCloses.length - 64];
+          return3M = ((currentClose - price3M) / price3M) * 100;
+        }
+        const price1Y = validCloses[0];
+        return1Y = ((currentClose - price1Y) / price1Y) * 100;
+      }
+
+      // Align Finnhub metric fields with the new keys to guarantee presence
+      metrics.metric.peTrailing = metrics.metric.peTrailing || metrics.metric.peBasicExclExtraTTM || metrics.metric.peExclExtraTTM || metrics.metric.peNormalized || null;
+      metrics.metric.pbCurrent = metrics.metric.pbCurrent || metrics.metric.pbQuarterly || metrics.metric.pbAnnual || null;
+      metrics.metric.psTrailing = metrics.metric.psTrailing || metrics.metric.psTTM || null;
+      metrics.metric.revenueGrowthYoY = metrics.metric.revenueGrowthYoY || metrics.metric.revenueGrowthQuarterlyYoy || null;
+      metrics.metric.earningsGrowthYoY = metrics.metric.earningsGrowthYoY || metrics.metric.epsGrowthQuarterlyYoy || null;
+      metrics.metric.priceReturn1Y = return1Y !== null ? return1Y : (metrics.metric.priceReturn1Y || metrics.metric["52WeekPriceReturnDaily"] || null);
+
+      metrics.metric.priceReturn1W = return1W !== null ? return1W : (metrics.metric["5DayPriceReturnDaily"] || null);
+      metrics.metric.priceReturn1M = return1M !== null ? return1M : null;
+      metrics.metric.priceReturn3M = return3M !== null ? return3M : (metrics.metric["13WeekPriceReturnDaily"] || null);
 
       // If Finnhub news is empty, fetch news from Yahoo Finance search
       if (!news || news.length === 0) {
@@ -587,10 +654,16 @@ export async function onRequestGet(context) {
         }
       }
 
+      // Map Yahoo Finance quarterly financials (revenue, net income) onto earnings
+      const yfIncomeHistory = yfSummary?.incomeStatementHistoryQuarterly?.incomeStatementHistory || [];
+      const parseDate = (dStr) => {
+        try { return new Date(dStr).getTime(); } catch { return 0; }
+      };
+
       // If Finnhub earnings is empty, merge from Yahoo Finance
       if (!earnings || earnings.length === 0) {
         const yfEarnings = yfSummary?.earnings?.earningsChart?.quarterly || [];
-        earnings = yfEarnings.map(e => {
+        earnings = yfEarnings.map((e, idx) => {
           const match = e.date?.match(/(\d)Q(\d{4})/);
           const quarter = match ? parseInt(match[1]) : 0;
           const year = match ? parseInt(match[2]) : 0;
@@ -598,41 +671,72 @@ export async function onRequestGet(context) {
           const estimate = e.estimate?.raw ?? e.estimate ?? null;
           const surprise = (actual != null && estimate != null) ? (actual - estimate) : null;
           const surprisePercent = (surprise != null && estimate !== 0 && estimate != null) ? (surprise / Math.abs(estimate)) * 100 : 0;
+          
+          let revenue = null;
+          let netIncome = null;
+          let periodStr = e.date;
+          
+          const yfInc = yfIncomeHistory[yfIncomeHistory.length - 1 - idx];
+          if (yfInc) {
+            revenue = yfInc.totalRevenue?.raw || null;
+            netIncome = yfInc.netIncome?.raw || null;
+            if (yfInc.endDate?.raw) {
+              periodStr = new Date(yfInc.endDate.raw * 1000).toISOString().slice(0, 10);
+            }
+          }
+          
           return {
             quarter,
             year,
-            period: e.date,
+            period: periodStr,
             actual,
             estimate,
             surprise,
-            surprisePercent
+            surprisePercent,
+            revenue,
+            netIncome
           };
         }).reverse(); // Latest first
-      }
+      } else {
+        // Otherwise, map yfIncomeHistory and financialsChart onto Finnhub earnings by close matching dates or quarter name
+        earnings = earnings.map(e => {
+          const eTime = parseDate(e.period);
+          let bestMatch = null;
+          let minDiff = Infinity;
+          yfIncomeHistory.forEach(item => {
+            const itemTime = (item.endDate?.raw) ? (item.endDate.raw * 1000) : 0;
+            const diff = Math.abs(eTime - itemTime);
+            if (diff < 15 * 24 * 60 * 60 * 1000 && diff < minDiff) {
+              minDiff = diff;
+              bestMatch = item;
+            }
+          });
 
-      // Map Yahoo Finance quarterly financials (revenue & net income) onto earnings
-      const yfFinancials = yfSummary?.earnings?.financialsChart?.quarterly || [];
-      const financialsMap = {};
-      yfFinancials.forEach(f => {
-        if (f.date) {
-          financialsMap[f.date] = {
-            revenue: f.revenue?.raw ?? f.revenue ?? null,
-            netIncome: f.earnings?.raw ?? f.earnings ?? null
+          let revenue = bestMatch?.totalRevenue?.raw || null;
+          let netIncome = bestMatch?.netIncome?.raw || null;
+
+          // Fallback to earnings financialsChart
+          if (revenue == null || netIncome == null) {
+            const quarterlyCharts = yfSummary?.earnings?.financialsChart?.quarterly || [];
+            const qStr = `${e.quarter}Q${e.year}`;
+            const chartMatch = quarterlyCharts.find(c => 
+              c.fiscalQuarter === qStr || 
+              c.date === qStr || 
+              (c.date && c.date.toLowerCase() === `${e.quarter}q${e.year}`.toLowerCase())
+            );
+            if (chartMatch) {
+              if (revenue == null) revenue = chartMatch.revenue?.raw || null;
+              if (netIncome == null) netIncome = chartMatch.earnings?.raw || null;
+            }
+          }
+
+          return {
+            ...e,
+            revenue,
+            netIncome
           };
-        }
-      });
-
-      earnings = earnings.map(e => {
-        // Match either "1Q2024" or standard quarter/year keys
-        const targetDateKey1 = `${e.quarter}Q${e.year}`;
-        const targetDateKey2 = e.period || "";
-        const extra = financialsMap[targetDateKey1] || financialsMap[targetDateKey2] || {};
-        return {
-          ...e,
-          revenue: extra.revenue || null,
-          netIncome: extra.netIncome || null
-        };
-      });
+        });
+      }
 
       // If Finnhub calendar is empty, merge from Yahoo Finance
       if (!calendar || !calendar.earningsCalendar || calendar.earningsCalendar.length === 0) {
@@ -678,7 +782,7 @@ export async function onRequestGet(context) {
         metrics,
         thaiSummary: thaiSummary || null,
         news: Array.isArray(news) ? news.slice(0, 8) : [],
-        earnings: Array.isArray(earnings) ? earnings.slice(0, 4) : [],
+        earnings: Array.isArray(earnings) ? earnings.slice(0, 8) : [],
         calendar: calendar?.earningsCalendar || []
       };
 
@@ -691,7 +795,62 @@ export async function onRequestGet(context) {
     }
   }
 
-  // ─── 6. On-Demand Text Translation (?translate=TEXT) ──────────────────
+  // ─── 6. On-Demand News Translation and Bullet Takeaway Summary (?translateNews=true) ──────
+  const translateNewsParam = url.searchParams.get("translateNews");
+  if (translateNewsParam && context.env.AI) {
+    try {
+      const headline = url.searchParams.get("headline") || "";
+      const summary = url.searchParams.get("summary") || "";
+      
+      const prompt = `You are a financial news translator and analyst. Translate the headline and summary to Thai, and provide 2-3 bulleted key takeaways in Thai.
+      Format your output strictly as a JSON object (no markdown, no quotes around the JSON, just raw JSON) with this structure:
+      {
+        "headline": "แปลหัวข้อข่าวภาษาไทย",
+        "summary": "แปลเนื้อหาข่าวย่อภาษาไทย",
+        "takeaways": ["ประเด็นสำคัญที่ 1", "ประเด็นสำคัญที่ 2"]
+      }
+
+      Headline: ${headline}
+      Summary: ${summary}`;
+
+      const aiRes = await context.env.AI.run("@cf/meta/llama-3-8b-instruct", {
+        messages: [
+          { role: "user", content: prompt }
+        ]
+      });
+
+      let result = {
+        headline: headline,
+        summary: summary,
+        takeaways: []
+      };
+
+      if (aiRes && aiRes.response) {
+        try {
+          let text = aiRes.response.trim();
+          if (text.includes("```")) {
+            text = text.split("```")[1];
+            if (text.startsWith("json")) {
+              text = text.substring(4);
+            }
+          }
+          const parsed = JSON.parse(text.trim());
+          result.headline = parsed.headline || headline;
+          result.summary = parsed.summary || summary;
+          result.takeaways = parsed.takeaways || [];
+        } catch {
+          result.headline = "แปล: " + headline;
+          result.summary = "แปล: " + summary;
+        }
+      }
+
+      return new Response(JSON.stringify(result), { status: 200, headers: corsHeaders });
+    } catch (err) {
+      return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });
+    }
+  }
+
+  // ─── 7. On-Demand Text Translation (?translate=TEXT) ──────────────────
   const translateParam = url.searchParams.get("translate");
   if (translateParam) {
     try {
@@ -752,4 +911,44 @@ function putCache(context, cacheKey, value, ttlSeconds) {
     });
     context.waitUntil(caches.default.put(new Request(cacheKey), response));
   } catch {}
+}
+
+async function getYahooCookieAndCrumb(context) {
+  const cacheKey = "https://cache.local/yahoo-auth";
+  const cached = await getCache(cacheKey);
+  if (cached) {
+    try {
+      const parsed = JSON.parse(cached);
+      if (parsed.cookie && parsed.crumb) {
+        return parsed;
+      }
+    } catch {}
+  }
+
+  const userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+  try {
+    const fcResponse = await fetch("https://fc.yahoo.com", {
+      headers: { "User-Agent": userAgent }
+    });
+    const cookie = fcResponse.headers.get("set-cookie");
+    if (!cookie) throw new Error("No cookie returned from fc.yahoo.com");
+
+    const crumbResponse = await fetch("https://query2.finance.yahoo.com/v1/test/getcrumb", {
+      headers: {
+        "User-Agent": userAgent,
+        "Cookie": cookie
+      }
+    });
+    if (!crumbResponse.ok) throw new Error("Failed to get crumb: " + crumbResponse.status);
+    const crumb = await crumbResponse.text();
+    if (!crumb) throw new Error("Empty crumb returned");
+
+    const authData = { cookie, crumb };
+    // Cache for 1 day
+    putCache(context, cacheKey, JSON.stringify(authData), 86400);
+    return authData;
+  } catch (err) {
+    console.error("Yahoo auth handshake failed:", err);
+    return { cookie: "", crumb: "" };
+  }
 }

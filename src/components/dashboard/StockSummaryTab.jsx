@@ -23,12 +23,14 @@ export default function StockSummaryTab({ profile = {}, thaiSummary = "", format
       </div>
 
       {/* AI Generated Thai Business Summary */}
-      <div style={{ background: "rgba(99, 102, 241, 0.04)", border: "1px solid rgba(99, 102, 241, 0.12)", borderRadius: 16, padding: "12px 16px", display: "flex", flexDirection: "column", gap: 4 }}>
-        <span style={{ fontSize: 13, fontWeight: 800, color: "var(--primary)" }}>💡 สรุปธุรกิจเข้าใจง่าย (ภาษาไทย):</span>
-        <p style={{ fontSize: 12.5, color: "var(--text-main)", margin: 0, lineHeight: 1.5, fontWeight: 500 }}>
-          {thaiSummary || "ระบบกำลังโหลดบทวิเคราะห์ภาษาไทย หรือไม่มีบทสรุปสำหรับสินทรัพย์ตัวนี้..."}
-        </p>
-      </div>
+      {thaiSummary && (
+        <div style={{ background: "rgba(99, 102, 241, 0.04)", border: "1px solid rgba(99, 102, 241, 0.12)", borderRadius: 16, padding: "12px 16px", display: "flex", flexDirection: "column", gap: 4 }}>
+          <span style={{ fontSize: 13, fontWeight: 800, color: "var(--primary)" }}>💡 สรุปธุรกิจเข้าใจง่าย (ภาษาไทย):</span>
+          <p style={{ fontSize: 12.5, color: "var(--text-main)", margin: 0, lineHeight: 1.5, fontWeight: 500 }}>
+            {thaiSummary}
+          </p>
+        </div>
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>

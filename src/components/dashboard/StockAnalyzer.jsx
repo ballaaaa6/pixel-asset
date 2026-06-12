@@ -201,6 +201,7 @@ export default function StockAnalyzer({ showToast }) {
               candles={candles} 
               symbol={selectedSymbol} 
               currentPrice={currentPrice} 
+              currency={details?.profile?.currency || "USD"}
             />
 
             {/* Fundamentals Info Tabs */}

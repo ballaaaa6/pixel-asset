@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 
-export default function TechnicalChart({ candles = [], symbol = "", currentPrice = 0 }) {
+export default function TechnicalChart({ candles = [], symbol = "", currentPrice = 0, currency = "USD" }) {
   const [hoveredIdx, setHoveredIdx] = useState(null);
+
+  const prefix = currency === "THB" ? "฿" : "$";
 
   if (!candles || candles.length < 5) {
     return (
@@ -121,9 +123,9 @@ export default function TechnicalChart({ candles = [], symbol = "", currentPrice
         />
         <rect 
           x={width - paddingRight + 5} 
-          y={y - 8} 
-          width={85} 
-          height={16} 
+          y={y - 9} 
+          width={100} 
+          height={18} 
           rx={4} 
           fill={color} 
           opacity="0.1" 
@@ -132,10 +134,10 @@ export default function TechnicalChart({ candles = [], symbol = "", currentPrice
           x={width - paddingRight + 8} 
           y={y + 4} 
           fill={color} 
-          fontSize="10" 
-          fontWeight="800"
+          fontSize="11.5" 
+          fontWeight="900"
         >
-          {label}: ${val.toFixed(2)}
+          {label}: {prefix}{val.toFixed(2)}
         </text>
       </g>
     );
