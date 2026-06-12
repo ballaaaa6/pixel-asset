@@ -45,18 +45,19 @@ export default function PortfolioSummary({
                 gap: "4px 8px",
                 alignItems: "center",
                 cursor: "pointer",
-                background: "rgba(255, 255, 255, 0.12)",
+                background: totalGainUSD >= 0 ? "rgba(110, 231, 183, 0.12)" : "rgba(252, 165, 165, 0.12)",
+                color: totalGainUSD >= 0 ? "#6EE7B7" : "#FCA5A5",
                 padding: "6px 12px",
                 borderRadius: "10px",
                 transition: "background 0.2s, transform 0.2s",
-                border: "1px solid rgba(255, 255, 255, 0.15)"
+                border: totalGainUSD >= 0 ? "1px solid rgba(110, 231, 183, 0.25)" : "1px solid rgba(252, 165, 165, 0.25)"
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = "rgba(255, 255, 255, 0.22)";
+                e.currentTarget.style.background = totalGainUSD >= 0 ? "rgba(110, 231, 183, 0.22)" : "rgba(252, 165, 165, 0.22)";
                 e.currentTarget.style.transform = "translateY(-1px)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = "rgba(255, 255, 255, 0.12)";
+                e.currentTarget.style.background = totalGainUSD >= 0 ? "rgba(110, 231, 183, 0.12)" : "rgba(252, 165, 165, 0.12)";
                 e.currentTarget.style.transform = "translateY(0)";
               }}
               title="คลิกเพื่อดูรายละเอียดกำไร/ขาดทุนรายสินทรัพย์">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { PieChart } from "lucide-react";
+import { PieChart, ArrowUp } from "lucide-react";
 import AssetModal from "./AssetModal";
 import AssetDetailPanel from "./AssetDetailPanel";
 
@@ -67,6 +67,19 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
   const [activeKpiDetail, setActiveKpiDetail] = useState(null);
   const [hoveredSymbol, setHoveredSymbol] = useState(null);
   const [hoveredCategory, setHoveredCategory] = useState(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 300);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   const currentSelectedAsset = useMemo(() => {
     if (!selectedAsset) return null;
@@ -345,6 +358,12 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
           onConfirm={() => { confirmConfig.resolve(true); setConfirmConfig(null); }}
           onCancel={() => { confirmConfig.resolve(false); setConfirmConfig(null); }}
         />
+      )}
+
+      {showScrollTop && (
+        <button onClick={scrollToTop} className="scroll-to-top-btn" title="เลื่อนขึ้นบนสุด">
+          <ArrowUp size={20} />
+        </button>
       )}
     </>
   );

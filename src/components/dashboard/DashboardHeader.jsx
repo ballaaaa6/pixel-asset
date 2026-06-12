@@ -82,39 +82,6 @@ export default function DashboardHeader({
           <span className="live-dot" title="Live" />
         </div>
         <div className="navbar-actions">
-          {/* Sync Status Badge */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              fontSize: 11,
-              fontWeight: 800,
-              padding: "4px 10px",
-              borderRadius: "8px",
-              background: isDirty ? "rgba(245, 158, 11, 0.1)" : "rgba(22, 163, 74, 0.15)",
-              color: isDirty ? "#D97706" : "#16A34A",
-              border: isDirty ? "1px solid rgba(245, 158, 11, 0.2)" : "1px solid rgba(22, 163, 74, 0.25)",
-              transition: "all 0.3s ease",
-              userSelect: "none",
-              height: "28px",
-              boxSizing: "border-box"
-            }}
-            title={isDirty ? "มีข้อมูลธุรกรรมที่บันทึกในเครื่องที่ยังไม่ได้ซิงค์ขึ้นระบบคลาวด์" : "ข้อมูลซิงค์กับคลาวด์เสร็จสมบูรณ์แล้ว"}
-          >
-            <span
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: "50%",
-                background: isDirty ? "#F59E0B" : "#22C55E",
-                display: "inline-block",
-                animation: isDirty ? "skeletonPulse 1.5s infinite ease-in-out" : "none"
-              }}
-            />
-            <span>{isDirty ? "ออฟไลน์" : "ซิงค์แล้ว"}</span>
-          </div>
-
           <div
             className="user-profile-btn"
             style={{
