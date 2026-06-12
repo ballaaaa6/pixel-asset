@@ -1,5 +1,72 @@
 import { THAI_STOCKS } from "./thaiStocks.js";
 
+const STATIC_THAI_PROFILES = {
+  "SCB.BK": {
+    name: "SCB X Public Company Limited (SCB)",
+    finnhubIndustry: "Financial Services",
+    country: "Thailand",
+    weburl: "https://www.scbx.com",
+    ceo: "Mr. Arthid Nanthawithaya",
+    longBusinessSummary: "SCB X Public Company Limited (SCBX) เป็นบริษัทโฮลดิ้งด้านเทคโนโลยีทางการเงินชั้นนำในประเทศไทย ดำเนินธุรกิจธนาคารพาณิชย์ (ธนาคารไทยพาณิชย์) ธุรกิจสินเชื่อเพื่อผู้บริโภค และธุรกิจแพลตฟอร์มเทคโนโลยีการเงินดิจิทัลระดับภูมิภาค"
+  },
+  "PTT.BK": {
+    name: "PTT Public Company Limited (PTT)",
+    finnhubIndustry: "Energy",
+    country: "Thailand",
+    weburl: "https://www.pttplc.com",
+    ceo: "Mr. Kongkrapan Intarajang",
+    longBusinessSummary: "บริษัท ปตท. จำกัด (มหาชน) ดำเนินธุรกิจพลังงานและปิโตรเคมีครบวงจรของประเทศไทย โดยครอบคลุมธุรกิจก๊าซธรรมชาติ การจัดหาและจัดจำหน่ายน้ำมันเชื้อเพลิง ปิโตรเคมีและการกลั่น ตลอดจนการลงทุนในพลังงานหมุนเวียนและเทคโนโลยีใหม่"
+  },
+  "KBANK.BK": {
+    name: "Kasikornbank Public Company Limited (KBANK)",
+    finnhubIndustry: "Financial Services",
+    country: "Thailand",
+    weburl: "https://www.kasikornbank.com",
+    ceo: "Ms. Kattiya Indaravijaya",
+    longBusinessSummary: "ธนาคารกสิกรไทย จำกัด (มหาชน) ผู้ให้บริการทางการเงินชั้นนำของประเทศไทย ให้บริการธนาคารพาณิชย์ ธนาคารดิจิทัล สินเชื่อเพื่อรายย่อยและภาคธุรกิจ ตลอดจนธุรกิจการจัดการกองทุนและบริการหลักทรัพย์ระดับสากล"
+  },
+  "CPALL.BK": {
+    name: "CP ALL Public Company Limited (CPALL)",
+    finnhubIndustry: "Retail",
+    country: "Thailand",
+    weburl: "https://www.cpall.co.th",
+    ceo: "Mr. Yuthasak Poomsurakul",
+    longBusinessSummary: "บริษัท ซีพี ออลล์ จำกัด (มหาชน) ผู้บริหารร้านอิ่มสะดวก 7-Eleven ในประเทศไทย และเป็นผู้ถือหุ้นใหญ่ในธุรกิจค้าส่งค้าปลีกสากล (Makro และ Lotus's) ดำเนินธุรกิจค้าปลีกสินค้าอุปโภคบริโภคและบริการชำระเงินดิจิทัลครบวงจร"
+  },
+  "AOT.BK": {
+    name: "Airports of Thailand Public Company Limited (AOT)",
+    finnhubIndustry: "Transportation",
+    country: "Thailand",
+    weburl: "https://www.airportthai.co.th",
+    ceo: "Mr. Kirati Kijmanawat",
+    longBusinessSummary: "บริษัท ท่าอากาศยานไทย จำกัด (มหาชน) เป็นผู้บริหารท่าอากาศยานนานาชาติหลัก 6 แห่งของประเทศไทย รวมถึงท่าอากาศยานสุวรรณภูมิและดอนเมือง ให้บริการและบริหารงานท่าอากาศยานและบริการขนส่งทางอากาศเชิงพาณิชย์"
+  },
+  "DELTA.BK": {
+    name: "Delta Electronics (Thailand) Public Company Limited (DELTA)",
+    finnhubIndustry: "Technology",
+    country: "Thailand",
+    weburl: "https://www.deltathailand.com",
+    ceo: "Mr. Victor Cheng",
+    longBusinessSummary: "บริษัท เดลต้า อีเลคโทรนิคส์ (ประเทศไทย) จำกัด (มหาชน) ผู้ผลิตชิ้นส่วนอิเล็กทรอนิกส์ พัดลมระบายความร้อน ระบบการจัดการพลังงาน และผลิตภัณฑ์การจัดการความร้อนชั้นนำระดับโลก รวมถึงโซลูชันสำหรับยานยนต์ไฟฟ้า (EV)"
+  },
+  "BDMS.BK": {
+    name: "Bangkok Dusit Medical Services Public Company Limited (BDMS)",
+    finnhubIndustry: "Healthcare",
+    country: "Thailand",
+    weburl: "https://www.bdms.co.th",
+    ceo: "Ms. Poramaporn Prasarttong-Osoth",
+    longBusinessSummary: "บริษัท กรุงเทพดุสิตเวชการ จำกัด (มหาชน) ผู้ดำเนินการเครือข่ายโรงพยาบาลเอกชนชั้นนำและใหญ่ที่สุดในประเทศไทย ดำเนินการโรงพยาบาลกรุงเทพ โรงพยาบาลสมิติเวช โรงพยาบาลพญาไท โรงพยาบาลเปาโล โรงพยาบาลบีเอ็นเอช และคลินิกการแพทย์ทั่วประเทศ"
+  },
+  "ADVANC.BK": {
+    name: "Advanced Info Service Public Company Limited (ADVANC)",
+    finnhubIndustry: "Telecommunications",
+    country: "Thailand",
+    weburl: "https://www.ais.th",
+    ceo: "Mr. Somchai Lertsutiwong",
+    longBusinessSummary: "บริษัท แอดวานซ์ อินโฟร์ เซอร์วิส จำกัด (มหาชน) หรือ เอไอเอส (AIS) ผู้ให้บริการเครือข่ายโทรศัพท์เคลื่อนที่และอินเทอร์เน็ตความเร็วสูง (AIS Fibre) อันดับหนึ่งของประเทศไทย ครอบคลุมบริการสื่อสารโทรคมนาคมดิจิทัลและคลาวด์เทคโนโลยี"
+  }
+};
+
 const YF_HEADERS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
   "Accept": "application/json",
@@ -502,27 +569,32 @@ export async function onRequestGet(context) {
       const fromDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
       const oneYearLater = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
+      const safeFetch = (url, options) => fetch(url, options).catch(err => {
+        console.error(`Fetch failed for ${url}:`, err);
+        return null;
+      });
+
       const [profileRes, metricsRes, newsRes, earningsRes, calendarRes, historyRes] = await Promise.all([
-        fetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${symbol}&token=${token}`),
-        fetch(`https://finnhub.io/api/v1/stock/metric?symbol=${symbol}&metric=all&token=${token}`),
-        fetch(`https://finnhub.io/api/v1/company-news?symbol=${symbol}&from=${fromDate}&to=${toDate}&token=${token}`),
-        fetch(`https://finnhub.io/api/v1/stock/earnings?symbol=${symbol}&token=${token}`),
-        fetch(`https://finnhub.io/api/v1/calendar/earnings?symbol=${symbol}&from=${toDate}&to=${oneYearLater}&token=${token}`),
-        fetch(`https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1y&includePrePost=true`, { headers: YF_HEADERS }).catch(() => null)
+        safeFetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${symbol}&token=${token}`),
+        safeFetch(`https://finnhub.io/api/v1/stock/metric?symbol=${symbol}&metric=all&token=${token}`),
+        safeFetch(`https://finnhub.io/api/v1/company-news?symbol=${symbol}&from=${fromDate}&to=${toDate}&token=${token}`),
+        safeFetch(`https://finnhub.io/api/v1/stock/earnings?symbol=${symbol}&token=${token}`),
+        safeFetch(`https://finnhub.io/api/v1/calendar/earnings?symbol=${symbol}&from=${toDate}&to=${oneYearLater}&token=${token}`),
+        safeFetch(`https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1y&includePrePost=true`, { headers: YF_HEADERS })
       ]);
 
-      let profile = profileRes.ok ? await profileRes.json() : {};
-      let metrics = metricsRes.ok ? await metricsRes.json() : {};
-      let news = newsRes.ok ? await newsRes.json() : [];
-      let earnings = earningsRes.ok ? await earningsRes.json() : [];
-      let calendar = calendarRes.ok ? await calendarRes.json() : {};
+      let profile = profileRes && profileRes.ok ? await profileRes.json() : {};
+      let metrics = metricsRes && metricsRes.ok ? await metricsRes.json() : {};
+      let news = newsRes && newsRes.ok ? await newsRes.json() : [];
+      let earnings = earningsRes && earningsRes.ok ? await earningsRes.json() : [];
+      let calendar = calendarRes && calendarRes.ok ? await calendarRes.json() : {};
       let historyData = null;
       if (historyRes && historyRes.ok) {
         try { historyData = await historyRes.json(); } catch {}
       }
 
       // If Finnhub profile is empty or missing name/exchange, merge from Yahoo Finance
-      if (!profile || !profile.name) {
+      if (!profile || !profile.name || profile.name === symbol) {
         profile = profile || {};
         profile.name = yfSummary?.quoteType?.longName || yfSummary?.quoteType?.shortName || symbol;
         profile.exchange = yfSummary?.price?.exchangeName || yfSummary?.quoteType?.exchange || "GLOBAL";
@@ -531,6 +603,38 @@ export async function onRequestGet(context) {
         profile.weburl = yfSummary?.assetProfile?.website || "";
         profile.shareOutstanding = (yfSummary?.defaultKeyStatistics?.sharesOutstanding?.raw) ? (yfSummary.defaultKeyStatistics.sharesOutstanding.raw / 1e6) : null;
         profile.currency = yfSummary?.price?.currency || yfSummary?.summaryDetail?.currency || "USD";
+      }
+
+      // Static Registry Fallback for Thai Stocks (especially if Yahoo blocks us)
+      const isThai = symbol.endsWith(".BK");
+      const staticProfile = STATIC_THAI_PROFILES[symbol];
+      
+      if (!profile.name || profile.name === symbol) {
+        if (staticProfile) {
+          profile.name = staticProfile.name;
+          profile.exchange = "SET";
+          profile.finnhubIndustry = staticProfile.finnhubIndustry;
+          profile.country = staticProfile.country;
+          profile.weburl = staticProfile.weburl;
+          profile.ceo = staticProfile.ceo;
+          longBusinessSummary = staticProfile.longBusinessSummary;
+        } else if (isThai) {
+          profile.name = symbol.replace(".BK", "");
+          profile.exchange = "SET";
+          profile.country = "Thailand";
+          profile.finnhubIndustry = profile.finnhubIndustry || "ไม่ระบุ";
+          profile.ceo = profile.ceo || "-";
+        }
+      }
+
+      if ((!profile.ceo || profile.ceo === "-") && staticProfile) {
+        profile.ceo = staticProfile.ceo;
+      }
+      if (!longBusinessSummary && staticProfile) {
+        longBusinessSummary = staticProfile.longBusinessSummary;
+      }
+      if (isThai && !longBusinessSummary) {
+        longBusinessSummary = `ข้อมูลรายละเอียดของบริษัท ${symbol.replace(".BK", "")} อยู่ระหว่างการอัปเดตระบบ หรือกรุณาติดต่อผู้พัฒนา`;
       }
 
       // Always enrich metrics from Yahoo Finance if available (PE, PS, Forward PE, ROE, ROA, Debt/Equity, margins, yields)
@@ -594,6 +698,11 @@ export async function onRequestGet(context) {
       let return1M = null;
       let return3M = null;
       let return1Y = null;
+      let chart52WHigh = null;
+      let chart52WLow = null;
+      let chart50DayAvg = null;
+      let chart200DayAvg = null;
+      let chartCurrentPrice = null;
 
       const chartResult = historyData?.chart?.result?.[0];
       const indicators = chartResult?.indicators?.quote?.[0];
@@ -601,22 +710,41 @@ export async function onRequestGet(context) {
       const validCloses = closes.filter(c => c != null && c > 0);
 
       if (validCloses.length > 0) {
-        const currentClose = validCloses[validCloses.length - 1];
+        chartCurrentPrice = validCloses[validCloses.length - 1];
+        chart52WHigh = Math.max(...validCloses);
+        chart52WLow = Math.min(...validCloses);
+
+        if (validCloses.length >= 50) {
+          const slice50 = validCloses.slice(-50);
+          chart50DayAvg = slice50.reduce((a, b) => a + b, 0) / 50;
+        }
+        if (validCloses.length >= 200) {
+          const slice200 = validCloses.slice(-200);
+          chart200DayAvg = slice200.reduce((a, b) => a + b, 0) / 200;
+        }
+
         if (validCloses.length > 5) {
           const price1W = validCloses[validCloses.length - 6];
-          return1W = ((currentClose - price1W) / price1W) * 100;
+          return1W = ((chartCurrentPrice - price1W) / price1W) * 100;
         }
         if (validCloses.length > 21) {
           const price1M = validCloses[validCloses.length - 22];
-          return1M = ((currentClose - price1M) / price1M) * 100;
+          return1M = ((chartCurrentPrice - price1M) / price1M) * 100;
         }
         if (validCloses.length > 63) {
           const price3M = validCloses[validCloses.length - 64];
-          return3M = ((currentClose - price3M) / price3M) * 100;
+          return3M = ((chartCurrentPrice - price3M) / price3M) * 100;
         }
         const price1Y = validCloses[0];
-        return1Y = ((currentClose - price1Y) / price1Y) * 100;
+        return1Y = ((chartCurrentPrice - price1Y) / price1Y) * 100;
       }
+
+      // Populate basic metrics from chart if missing (highly useful if quoteSummary fails)
+      metrics.metric.currentPrice = metrics.metric.currentPrice || chartCurrentPrice || null;
+      metrics.metric["52WeekHigh"] = metrics.metric["52WeekHigh"] || chart52WHigh || null;
+      metrics.metric["52WeekLow"] = metrics.metric["52WeekLow"] || chart52WLow || null;
+      metrics.metric["50DayAverage"] = metrics.metric["50DayAverage"] || chart50DayAvg || null;
+      metrics.metric["200DayAverage"] = metrics.metric["200DayAverage"] || chart200DayAvg || null;
 
       // Align Finnhub metric fields with the new keys to guarantee presence
       metrics.metric.peTrailing = metrics.metric.peTrailing || metrics.metric.peBasicExclExtraTTM || metrics.metric.peExclExtraTTM || metrics.metric.peNormalized || null;
