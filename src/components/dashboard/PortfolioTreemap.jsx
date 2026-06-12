@@ -4,29 +4,29 @@ import { fmtUSD, fmtPct } from "../../utils/formatters";
 
 const CATEGORY_STYLES = {
   stock: {
-    bg: "linear-gradient(135deg, rgba(82, 54, 255, 0.12) 0%, rgba(82, 54, 255, 0.28) 100%)",
-    border: "rgba(82, 54, 255, 0.55)",
-    text: "#9A9BFF"
+    bg: "linear-gradient(135deg, #4F46E5 0%, #3730A3 100%)",
+    border: "#6366F1",
+    text: "#E0E7FF"
   },
   crypto: {
-    bg: "linear-gradient(135deg, rgba(0, 185, 138, 0.12) 0%, rgba(0, 185, 138, 0.28) 100%)",
-    border: "rgba(0, 185, 138, 0.55)",
-    text: "#34D399"
+    bg: "linear-gradient(135deg, #059669 0%, #065F46 100%)",
+    border: "#10B981",
+    text: "#D1FAE5"
   },
   gold: {
-    bg: "linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(245, 158, 11, 0.28) 100%)",
-    border: "rgba(245, 158, 11, 0.55)",
-    text: "#FBBF24"
+    bg: "linear-gradient(135deg, #D97706 0%, #92400E 100%)",
+    border: "#F59E0B",
+    text: "#FEF3C7"
   },
   fiat: {
-    bg: "linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(139, 92, 246, 0.28) 100%)",
-    border: "rgba(139, 92, 246, 0.55)",
-    text: "#C084FC"
+    bg: "linear-gradient(135deg, #7C3AED 0%, #5B21B6 100%)",
+    border: "#8B5CF6",
+    text: "#F5F3FF"
   },
   default: {
-    bg: "linear-gradient(135deg, rgba(100, 116, 139, 0.12) 0%, rgba(100, 116, 139, 0.28) 100%)",
-    border: "rgba(100, 116, 139, 0.55)",
-    text: "#94A3B8"
+    bg: "linear-gradient(135deg, #475569 0%, #334155 100%)",
+    border: "#64748B",
+    text: "#F1F5F9"
   }
 };
 
@@ -114,7 +114,7 @@ export default function PortfolioTreemap({
   }
 
   return (
-    <div className="treemap-container" style={{ position: "relative", width: "100%", height: 260, borderRadius: 12, overflow: "hidden", background: "rgba(0,0,0,0.15)", border: "1px solid var(--border)" }}>
+    <div className="treemap-container" style={{ position: "relative", width: "100%", height: 260, borderRadius: 12, overflow: "hidden", background: "#0F172A", border: "1px solid var(--border)" }}>
       {treemapItems.map((item) => {
         const style = CATEGORY_STYLES[item.category] || CATEGORY_STYLES.default;
         const pct = (item.valueUSD / totalVal) * 100;
@@ -171,7 +171,7 @@ export default function PortfolioTreemap({
               }}
             >
               {showSymbolOnly && (
-                <div style={{ fontWeight: 900, fontSize: showFullText ? 14 : 11, color: style.text, textShadow: "0 1px 2px rgba(0,0,0,0.3)", whiteSpace: "nowrap" }}>
+                <div style={{ fontWeight: 900, fontSize: showFullText ? 14 : 11, color: style.text, textShadow: "0 1px 2px rgba(0,0,0,0.35)", whiteSpace: "nowrap" }}>
                   {item.symbol}
                 </div>
               )}
@@ -180,7 +180,7 @@ export default function PortfolioTreemap({
                   <div className={hideValues ? "privacy-blurred" : ""} style={{ fontSize: 12, fontWeight: 700, color: "#FFFFFF", marginTop: 2, whiteSpace: "nowrap" }}>
                     {fmtUSD(item.valueUSD, false)}
                   </div>
-                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.7)", marginTop: 1, whiteSpace: "nowrap" }}>
+                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.85)", marginTop: 1, whiteSpace: "nowrap" }}>
                     {fmtPct(pct)}
                   </div>
                 </>
