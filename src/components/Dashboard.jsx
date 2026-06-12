@@ -13,6 +13,7 @@ import Sidebar from "./dashboard/Sidebar";
 import DashboardHeader from "./dashboard/DashboardHeader";
 import DashboardMainView from "./dashboard/DashboardMainView";
 import DividendTracker from "./dashboard/DividendTracker";
+import PortfolioCorrelation from "./dashboard/PortfolioCorrelation";
 import PnLDetailsModal from "./dashboard/PnLDetailsModal";
 import KPIDetailsModal from "./dashboard/KPIDetailsModal";
 import ProfileModal from "./dashboard/ProfileModal";
@@ -260,6 +261,12 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
                 dividendLoading={dividendLoading}
                 fetchDividendEvents={fetchDividendEvents}
                 setSelectedAsset={setSelectedAsset}
+              />
+            ) : activeTab === "correlation" ? (
+              <PortfolioCorrelation
+                assets={assets}
+                prices={prices}
+                hideValues={hideValues}
               />
             ) : null}
           </div>
