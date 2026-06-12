@@ -1,17 +1,16 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { DollarSign, Percent, Calendar, Loader2 } from "lucide-react";
 import { fmtUSD, fmtTHB, fmtPct } from "../../utils/formatters";
-import DividendChart from "./DividendChart";
-import DividendMilestones from "./DividendMilestones";
+import DividendSafetyScanner from "./DividendSafetyScanner";
+import DividendDiversification from "./DividendDiversification";
+import DividendGrowthTrend from "./DividendGrowthTrend";
+import DividendCalendarMatrix from "./DividendCalendarMatrix";
 import { calculateDividendProjections } from "../../utils/dividendHelpers";
 import { 
-  MonthDetailModal, 
   YieldComparisonModal, 
   IncomeShareModal,
   UpcomingPayoutModal 
 } from "./DividendDetailModals";
-
-const THAI_MONTHS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 
 export default function DividendTracker({
   assets,
@@ -24,10 +23,7 @@ export default function DividendTracker({
   fetchDividendEvents,
   setSelectedAsset
 }) {
-  const [hoveredBar, setHoveredBar] = useState(null);
-  
   // Interactive Modal States
-  const [selectedMonthIdx, setSelectedMonthIdx] = useState(null);
   const [showYieldModal, setShowYieldModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [selectedUpcomingPayout, setSelectedUpcomingPayout] = useState(null);
@@ -41,8 +37,8 @@ export default function DividendTracker({
 
   // Offload calculations to dividendHelpers
   const calculations = useMemo(() => {
-    return calculateDividendProjections(assets, prices, dividendData);
-  }, [assets, prices, dividendData]);
+    return calculateDividendProjections(assets, prices, dividendData, exchangeRate);
+  }, [assets, prices, dividendData, exchangeRate]);
 
   if (dividendLoading) {
     return (
@@ -52,9 +48,6 @@ export default function DividendTracker({
       </div>
     );
   }
-
-  // Find max monthly payout for bar chart scaling
-  const maxMonthlyPayout = Math.max(...calculations.next12Months.map(m => m.value), 10);
 
   const getDaysDiff = (targetDate) => {
     const diffTime = targetDate - new Date();
@@ -130,34 +123,46 @@ export default function DividendTracker({
         </div>
       </div>
 
-      {/* 2. Chart and Calendar Grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1.2fr", gap: 20, flexWrap: "wrap" }} className="dashboard-grid">
-        {/* Monthly Projection Chart */}
-        <div className="card" style={{ padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <h3 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-main)", display: "flex", alignItems: "center", gap: 8 }}>
-              📊 ประมาณการกระแสเงินสดรายเดือน (12 เดือนข้างหน้า)
-            </h3>
-            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>คลิกแท่งกราฟเพื่อดูรายชื่อหุ้น</span>
-          </div>
+      {/* 2. Three Interactive Analytics Blocks (Safety, Diversification, Growth) */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 }} className="dashboard-grid">
+        <DividendSafetyScanner 
+          safetyScore={calculations.safetyScore}
+          flaggedCount={calculations.flaggedCount}
+          computedAssets={calculations.computedAssets}
+          hideValues={hideValues}
+        />
+        
+        <DividendDiversification 
+          sectorBreakdown={calculations.sectorBreakdown}
+          typeBreakdown={calculations.typeBreakdown}
+          computedAssets={calculations.computedAssets}
+          totalAnnualIncomeUSD={calculations.totalAnnualIncomeUSD}
+        />
 
-          <DividendChart
-            next12Months={calculations.next12Months}
-            maxMonthlyPayout={maxMonthlyPayout}
-            hideValues={hideValues}
-            hoveredBar={hoveredBar}
-            setHoveredBar={setHoveredBar}
-            onBarClick={(idx) => setSelectedMonthIdx(idx)}
-          />
-        </div>
+        <DividendGrowthTrend 
+          yocLeaderboard={calculations.yocLeaderboard}
+          computedAssets={calculations.computedAssets}
+          averageYield={calculations.averageYield}
+          hideValues={hideValues}
+        />
+      </div>
+
+      {/* 3. Rolling Calendar Grid & Upcoming Ex-Dates Calendar */}
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 1.2fr", gap: 20 }} className="dashboard-grid">
+        {/* Calendar Matrix */}
+        <DividendCalendarMatrix 
+          next12Months={calculations.next12Months}
+          hideValues={hideValues}
+          exchangeRate={exchangeRate}
+        />
 
         {/* Upcoming Ex-Dates Calendar */}
         <div className="card" style={{ padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-main)", display: "flex", alignItems: "center", gap: 8 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-main)", display: "flex", alignItems: "center", gap: 8, margin: 0 }}>
             📅 ปฏิทินปันผลเร็วๆ นี้
           </h3>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, overflowY: "auto", flex: 1 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, overflowY: "auto", flex: 1, maxHeight: 420 }}>
             {calculations.upcomingPayments.length === 0 ? (
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--text-faint)", fontSize: 12, padding: "20px 0" }}>
                 ไม่มีเงินปันผลที่กำลังจะจ่ายเร็วๆ นี้
@@ -192,18 +197,9 @@ export default function DividendTracker({
         </div>
       </div>
 
-      {/* 3. Milestones & DRIP Simulator */}
-      <DividendMilestones
-        totalAnnualIncomeUSD={calculations.totalAnnualIncomeUSD}
-        totalStockValueUSD={calculations.totalStockValueUSD}
-        averageYield={calculations.averageYield}
-        exchangeRate={exchangeRate}
-        hideValues={hideValues}
-      />
-
       {/* 4. Detailed Yield Table */}
       <div className="card" style={{ padding: 24 }}>
-        <h3 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-main)", marginBottom: 16 }}>
+        <h3 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-main)", marginBottom: 16, marginTop: 0 }}>
           💼 สรุปอัตราปันผลรายสินทรัพย์
         </h3>
         
@@ -255,17 +251,6 @@ export default function DividendTracker({
       </div>
 
       {/* ── MODALS ── */}
-      {selectedMonthIdx !== null && (
-        <MonthDetailModal
-          isOpen={selectedMonthIdx !== null}
-          onClose={() => setSelectedMonthIdx(null)}
-          monthName={THAI_MONTHS[calculations.next12Months[selectedMonthIdx]?.month]}
-          monthPayments={calculations.next12Months[selectedMonthIdx]?.payments}
-          hideValues={hideValues}
-          exchangeRate={exchangeRate}
-        />
-      )}
-
       {showYieldModal && (
         <YieldComparisonModal
           isOpen={showYieldModal}
