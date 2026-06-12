@@ -296,6 +296,34 @@ export async function onRequestGet(context) {
               }
             }
 
+            // Fetch Beta from Finnhub with Cache API
+            let beta = null;
+            if (symbol !== "THB=X" && !symbol.includes("=") && !symbol.includes("-")) {
+              const betaCacheKey = `https://cache.local/beta/${symbol}`;
+              try {
+                const cachedBeta = await getCache(betaCacheKey);
+                if (cachedBeta !== null) {
+                  beta = cachedBeta === "null" ? null : parseFloat(cachedBeta);
+                } else {
+                  const fnToken = "d8e3e4hr01qm5ffvbi4gd8e3e4hr01qm5ffvbi50";
+                  const fnUrl = `https://finnhub.io/api/v1/stock/metric?symbol=${encodeURIComponent(symbol)}&metric=all&token=${fnToken}`;
+                  const fnResp = await fetch(fnUrl);
+                  if (fnResp.ok) {
+                    const fnData = await fnResp.json();
+                    const fetchedBeta = fnData?.metric?.beta;
+                    if (fetchedBeta != null) {
+                      beta = parseFloat(fetchedBeta);
+                      putCache(context, betaCacheKey, String(beta), 604800); // 7 days cache
+                    } else {
+                      putCache(context, betaCacheKey, "null", 86400); // 1 day cache for null
+                    }
+                  }
+                }
+              } catch (e) {
+                console.error("Finnhub Beta error:", e);
+              }
+            }
+
             const dividends = result.events?.dividends;
             const entry = {
               symbol,
@@ -313,7 +341,8 @@ export async function onRequestGet(context) {
               postChangePercent: postPrice && price
                 ? ((postPrice - price) / price) * 100
                 : null,
-              dividends: dividends || null
+              dividends: dividends || null,
+              beta
             };
 
             if (entry.price > 0) {

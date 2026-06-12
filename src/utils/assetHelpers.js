@@ -342,6 +342,7 @@ export function computeSingleAssetData(asset, prices, exchangeRate) {
     price, priceUSD, valueUSD, valueTHB, costUSD, gainUSD, gainPct, todayChg, todayPct,
     extPrice, extChangePct, extType,
     regPrice, regPriceUSD, regValueUSD, regValueTHB, regGainUSD, regGainPct, regTodayChg, regTodayPct,
-    extPriceUSD, extValueUSD, extValueTHB, extGainUSD, extGainPct, extTodayPct
+    extPriceUSD, extValueUSD, extValueTHB, extGainUSD, extGainPct, extTodayPct,
+    beta: pData?.beta || null
   };
 }

@@ -27,7 +27,7 @@ export default function PortfolioAdviceList({ assets = [], avgCorrelation = 0, d
       let weightedBetaSum = 0;
       allHoldings.forEach(a => {
         const sector = getSector(a.symbol);
-        const beta = getSectorBeta(sector);
+        const beta = (a.beta != null && a.beta > 0) ? a.beta : getSectorBeta(sector);
         const weight = (a.valueUSD || 0) / totalUSD;
         weightedBetaSum += beta * weight;
       });
