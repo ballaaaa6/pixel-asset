@@ -83,7 +83,7 @@ export function AssetChartSVG({
       {/* Market session shading for US stocks intraday periods */}
       {(() => {
         const isIntraday = visibleDurationMs > 0 && visibleDurationMs <= 8 * 24 * 60 * 60 * 1000;
-        const isUSStock = !isCashAsset && !isThai && asset?.category === "stock";
+        const isUSStock = !isCashAsset && asset?.category === "stock" && !asset?.symbol?.includes(".");
         if (!isIntraday || !isUSStock) return null;
 
         return activePts.map((pt, i) => {
