@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { TrendingDown, Flame, Rocket, AlertTriangle, CheckCircle, Info } from "lucide-react";
+import { TrendingDown, Flame, Rocket } from "lucide-react";
 import { getSector } from "../../utils/sectorHelpers";
 import { fmtUSD, fmtTHB } from "../../utils/formatters";
 
@@ -21,7 +21,7 @@ export default function PortfolioStressTest({ assets = [], exchangeRate = 35.0, 
       id: "recession",
       name: "วิกฤตเศรษฐกิจถดถอย",
       englishName: "Global Recession & Bear Market",
-      icon: <TrendingDown className="text-red-500" size={24} style={{ color: "#EF4444" }} />,
+      icon: <TrendingDown size={28} style={{ color: "#EF4444" }} />,
       description: "ตลาดหุ้นทั่วโลกปรับตัวลงรุนแรง สินทรัพย์เสี่ยงร่วงหนัก ในขณะที่เงินสดและหุ้นกลุ่มปลอดภัย (Defensive) จะเป็นตัวช่วยพยุงพอร์ตของคุณไว้",
       color: "#EF4444",
       impacts: {
@@ -42,7 +42,7 @@ export default function PortfolioStressTest({ assets = [], exchangeRate = 35.0, 
       id: "inflation",
       name: "วิกฤตเงินเฟ้อและดอกเบี้ยขาขึ้น",
       englishName: "Stagflation & Rate Hikes",
-      icon: <Flame className="text-amber-500" size={24} style={{ color: "#F59E0B" }} />,
+      icon: <Flame size={28} style={{ color: "#F59E0B" }} />,
       description: "ราคาสินค้าแพงขึ้นนำไปสู่การขึ้นดอกเบี้ยนโยบาย ส่งแรงกดดันสูงต่อหุ้นกลุ่มเติบโตและอสังหาริมทรัพย์ ขณะที่กลุ่มธนาคารและพลังงานได้ประโยชน์",
       color: "#F59E0B",
       impacts: {
@@ -63,7 +63,7 @@ export default function PortfolioStressTest({ assets = [], exchangeRate = 35.0, 
       id: "techboom",
       name: "ยุครุ่งเรืองของเทคโนโลยี",
       englishName: "Tech & AI Expansion",
-      icon: <Rocket className="text-emerald-500" size={24} style={{ color: "#10B981" }} />,
+      icon: <Rocket size={28} style={{ color: "#10B981" }} />,
       description: "กระแสเทคโนโลยีและ AI ผลักดันให้เกิดการเติบโตอย่างมหาศาล เม็ดเงินลงทุนหลั่งไหลเข้าสู่บริษัทนวัตกรรมขนาดใหญ่",
       color: "#10B981",
       impacts: {
@@ -115,7 +115,7 @@ export default function PortfolioStressTest({ assets = [], exchangeRate = 35.0, 
   if (totalPortfolioValue === 0) {
     return (
       <div className="card" style={{ padding: 24, background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 24, textAlign: "center" }}>
-        <p style={{ color: "var(--text-muted)", fontSize: 13 }}>กรุณาเพิ่มสินทรัพย์ลงในพอร์ตโฟลิโอของคุณเพื่อเปิดใช้งานระบบจำลองวิกฤต</p>
+        <p style={{ color: "var(--text-muted)", fontSize: 14 }}>กรุณาเพิ่มสินทรัพย์ลงในพอร์ตโฟลิโอของคุณเพื่อเปิดใช้งานระบบจำลองวิกฤต</p>
       </div>
     );
   }
@@ -133,10 +133,10 @@ export default function PortfolioStressTest({ assets = [], exchangeRate = 35.0, 
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
         <div>
-          <h3 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-main)", margin: 0 }}>
+          <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-main)", margin: 0 }}>
             ⚡ เครื่องจำลองวิกฤตและการทดสอบความแข็งแกร่ง
           </h3>
-          <p style={{ fontSize: 11, color: "var(--text-muted)", margin: "4px 0 0 0" }}>
+          <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "4px 0 0 0" }}>
             วิเคราะห์ความทนทานต่อสถานการณ์จำลองระดับโลกรูปแบบต่างๆ
           </p>
         </div>
@@ -156,7 +156,7 @@ export default function PortfolioStressTest({ assets = [], exchangeRate = 35.0, 
                 onClick={() => setSeverity(mode)}
                 style={{
                   padding: "6px 14px",
-                  fontSize: 11,
+                  fontSize: 13,
                   fontWeight: 800,
                   border: "none",
                   borderRadius: 8,
@@ -192,18 +192,18 @@ export default function PortfolioStressTest({ assets = [], exchangeRate = 35.0, 
                 display: "flex", 
                 flexDirection: "column", 
                 justifyContent: "space-between",
-                minHeight: 240
+                minHeight: 250
               }}
             >
               <div>
                 <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
                   {res.icon}
                   <div>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text-main)" }}>{res.name}</div>
-                    <div style={{ fontSize: 9, color: "var(--text-muted)" }}>{res.englishName}</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text-main)" }}>{res.name}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{res.englishName}</div>
                   </div>
                 </div>
-                <p style={{ fontSize: 10, color: "var(--text-muted)", lineHeight: 1.4, margin: "0 0 16px 0" }}>
+                <p style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.4, margin: "0 0 16px 0" }}>
                   {res.description}
                 </p>
               </div>
@@ -211,8 +211,8 @@ export default function PortfolioStressTest({ assets = [], exchangeRate = 35.0, 
               <div>
                 {/* Progress bar / Gauge bar for the specific scenario */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-                  <span style={{ fontSize: 10, fontWeight: 800, color: "var(--text-muted)" }}>คาดการณ์ผลกระทบ:</span>
-                  <span style={{ fontSize: 16, fontWeight: 900, color: barColor }}>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)" }}>คาดการณ์ผลกระทบ:</span>
+                  <span style={{ fontSize: 18, fontWeight: 900, color: barColor }}>
                     {isNegative ? "-" : "+"}{absPct}%
                   </span>
                 </div>
@@ -230,13 +230,13 @@ export default function PortfolioStressTest({ assets = [], exchangeRate = 35.0, 
                   />
                 </div>
 
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
                   <span style={{ color: "var(--text-faint)" }}>มูลค่าความเสียหาย:</span>
                   <span style={{ fontWeight: 800, color: "var(--text-main)" }} className={hideValues ? "privacy-blurred" : ""}>
                     {isNegative ? "-" : "+"}{fmtUSD(Math.abs(res.amountUSD))}
                   </span>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "var(--text-faint)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-faint)" }}>
                   <span>(แปลงเป็นเงินบาท):</span>
                   <span className={hideValues ? "privacy-blurred" : ""}>
                     {isNegative ? "-" : "+"}{fmtTHB(Math.abs(res.amountTHB))}

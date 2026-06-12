@@ -49,8 +49,8 @@ export default function PortfolioHealthMetrics({ assets = [], avgCorrelation = 0
         boxSizing: "border-box"
       }}
     >
-      <span style={{ fontSize: 14, fontWeight: 800, color: "var(--text-main)", marginBottom: 20, display: "flex", alignItems: "center", gap: 6 }}>
-        <Activity size={18} style={{ color: "var(--primary)" }} /> สรุปสุขภาพพอร์ตและระดับความเสี่ยง
+      <span style={{ fontSize: 16, fontWeight: 800, color: "var(--text-main)", marginBottom: 20, display: "flex", alignItems: "center", gap: 6 }}>
+        <Activity size={20} style={{ color: "var(--primary)" }} /> สรุปสุขภาพพอร์ตและระดับความเสี่ยง
       </span>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr", gap: 24 }} className="dashboard-grid">
@@ -74,14 +74,14 @@ export default function PortfolioHealthMetrics({ assets = [], avgCorrelation = 0
               />
             </svg>
             <div style={{ position: "absolute", display: "flex", flexDirection: "column", alignItems: "center" }}>
-              <span style={{ fontSize: 24, fontWeight: 900, color: "var(--text-main)", lineHeight: 1 }}>{healthScore}%</span>
-              <span style={{ fontSize: 9, fontWeight: 800, color: "var(--text-muted)", marginTop: 2 }}>HEALTH</span>
+              <span style={{ fontSize: 28, fontWeight: 900, color: "var(--text-main)", lineHeight: 1 }}>{healthScore}%</span>
+              <span style={{ fontSize: 11, fontWeight: 800, color: "var(--text-muted)", marginTop: 2 }}>HEALTH</span>
             </div>
           </div>
-          <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)", marginTop: 12, textAlign: "center" }}>
+          <span style={{ fontSize: 15, fontWeight: 800, color: "var(--text-main)", marginTop: 12, textAlign: "center" }}>
             คะแนนสุขภาพพอร์ตโฟลิโอ
           </span>
-          <span style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 4, textAlign: "center", lineHeight: 1.4 }}>
+          <span style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4, textAlign: "center", lineHeight: 1.4 }}>
             คำนวณจากค่าความสัมพันธ์เฉลี่ยและการจัดกลุ่มอุตสาหกรรม
           </span>
         </div>
@@ -91,10 +91,10 @@ export default function PortfolioHealthMetrics({ assets = [], avgCorrelation = 0
           {/* Portfolio Beta */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 11, fontWeight: 800, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 4 }}>
-                Portfolio Beta <Shield size={12} />
+              <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 4 }}>
+                Portfolio Beta <Shield size={14} />
               </span>
-              <span style={{ fontSize: 14, fontWeight: 900, color: risk.color }}>{portfolioBeta}</span>
+              <span style={{ fontSize: 16, fontWeight: 900, color: risk.color }}>{portfolioBeta}</span>
             </div>
             <div style={{ width: "100%", height: 6, background: "rgba(0,0,0,0.03)", borderRadius: 3, overflow: "hidden", position: "relative" }}>
               {/* Beta range visualization: 0.0 to 2.0. Center is 1.0 (50%). */}
@@ -119,7 +119,7 @@ export default function PortfolioHealthMetrics({ assets = [], avgCorrelation = 0
                 }} 
               />
             </div>
-            <span style={{ fontSize: 10, fontWeight: 800, color: "var(--text-muted)", display: "block" }}>
+            <span style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)", display: "block" }}>
               ระดับ: <span style={{ color: risk.color }}>{risk.text}</span>
             </span>
           </div>
@@ -127,8 +127,8 @@ export default function PortfolioHealthMetrics({ assets = [], avgCorrelation = 0
           {/* Diversification Score */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 11, fontWeight: 800, color: "var(--text-muted)" }}>คะแนนการกระจายความเสี่ยง</span>
-              <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)" }}>{diversificationScore}%</span>
+              <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-muted)" }}>คะแนนการกระจายความเสี่ยง</span>
+              <span style={{ fontSize: 15, fontWeight: 800, color: "var(--text-main)" }}>{diversificationScore}%</span>
             </div>
             <div style={{ width: "100%", height: 6, background: "rgba(0,0,0,0.03)", borderRadius: 3, overflow: "hidden" }}>
               <div 
@@ -141,7 +141,7 @@ export default function PortfolioHealthMetrics({ assets = [], avgCorrelation = 0
                 }} 
               />
             </div>
-            <span style={{ fontSize: 9, color: "var(--text-muted)", lineHeight: 1.3 }}>
+            <span style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.3 }}>
               ค่าสหสัมพันธ์เฉลี่ย: <strong style={{ color: "var(--text-main)" }}>{avgCorrelation}</strong> (ค่ายิ่งต่ำ ยิ่งกระจายความเสี่ยงดี)
             </span>
           </div>

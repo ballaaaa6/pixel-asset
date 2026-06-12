@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, HelpCircle } from "lucide-react";
+import { X } from "lucide-react";
 import { registerModal } from "../../utils/modalStack";
 
 export default function FearGreedGauge() {
@@ -57,7 +57,7 @@ export default function FearGreedGauge() {
       onClick={() => setShowGreedModal(true)} 
       title="คลิกเพื่อวิเคราะห์กลยุทธ์อารมณ์ตลาด"
     >
-      <span style={{ fontSize: 14, fontWeight: 800, color: "var(--text-main)", marginBottom: 16, display: "flex", alignItems: "center", gap: 6 }}>
+      <span style={{ fontSize: 16, fontWeight: 800, color: "var(--text-main)", marginBottom: 16, display: "flex", alignItems: "center", gap: 6 }}>
         🔥 Fear & Greed Index
       </span>
       
@@ -121,10 +121,10 @@ export default function FearGreedGauge() {
           alignItems: "center",
           justifyContent: "center"
         }}>
-          <span style={{ fontSize: 32, fontWeight: 900, color: getFearGreedColor(fearGreedValue), lineHeight: 1 }}>
+          <span style={{ fontSize: 36, fontWeight: 900, color: getFearGreedColor(fearGreedValue), lineHeight: 1 }}>
             {fearGreedValue}
           </span>
-          <span style={{ fontSize: 11, fontWeight: 800, color: "var(--text-main)", marginTop: 4 }}>
+          <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)", marginTop: 4 }}>
             {getFearGreedLabel(fearGreedValue)}
           </span>
         </div>
@@ -139,7 +139,7 @@ export default function FearGreedGauge() {
           <div style={{ flex: 1, background: "#10B981" }} title="61-80 Greed" />
           <div style={{ flex: 1, background: "#047857" }} title="81-100 Extreme Greed" />
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", width: "100%", marginTop: 6, fontSize: 9, color: "var(--text-muted)", fontWeight: 800 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", width: "100%", marginTop: 6, fontSize: 11, color: "var(--text-muted)", fontWeight: 800 }}>
           <span>0 (กลัวจัด)</span>
           <span>50 (ปกติ)</span>
           <span>100 (โลภจัด)</span>
@@ -147,7 +147,7 @@ export default function FearGreedGauge() {
       </div>
       
       <div style={{ textAlign: "center", marginTop: 12, background: "rgba(0,0,0,0.01)", padding: "8px 12px", borderRadius: 12, border: "1px solid var(--border)", width: "100%", boxSizing: "border-box" }}>
-        <span style={{ fontSize: 11, color: "var(--text-muted)", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+        <span style={{ fontSize: 13, color: "var(--text-muted)", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
           ตลาดกำลังมีความมั่นใจ ควรรักษาวินัยการลงทุน 🔍
         </span>
       </div>
@@ -157,20 +157,20 @@ export default function FearGreedGauge() {
         <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowGreedModal(false); }}>
           <div className="modal-content" style={{ maxWidth: 500 }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <span className="modal-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>🔍 ดัชนีอารมณ์ตลาด (Fear & Greed Index)</span>
-              <button className="btn-close" onClick={() => setShowGreedModal(false)}><X size={16} /></button>
+              <span className="modal-title" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 18 }}>🔍 ดัชนีอารมณ์ตลาด (Fear & Greed Index)</span>
+              <button className="btn-close" onClick={() => setShowGreedModal(false)}><X size={18} /></button>
             </div>
             <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div style={{ textAlign: "center", padding: "10px 0" }}>
-                <span style={{ fontSize: 48, fontWeight: 900, color: getFearGreedColor(fearGreedValue), display: "block" }}>{fearGreedValue}</span>
-                <span style={{ fontSize: 16, fontWeight: 800, color: "var(--text-main)", display: "block", marginTop: 4 }}>สถานะปัจจุบัน: {getFearGreedLabel(fearGreedValue)}</span>
+                <span style={{ fontSize: 54, fontWeight: 900, color: getFearGreedColor(fearGreedValue), display: "block" }}>{fearGreedValue}</span>
+                <span style={{ fontSize: 18, fontWeight: 800, color: "var(--text-main)", display: "block", marginTop: 4 }}>สถานะปัจจุบัน: {getFearGreedLabel(fearGreedValue)}</span>
               </div>
-              <div style={{ background: "rgba(99, 102, 241, 0.04)", borderRadius: 12, padding: 14, border: "1px solid rgba(99, 102, 241, 0.12)", fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
+              <div style={{ background: "rgba(99, 102, 241, 0.04)", borderRadius: 12, padding: 14, border: "1px solid rgba(99, 102, 241, 0.12)", fontSize: 14, color: "var(--text-muted)", lineHeight: 1.5 }}>
                 <strong>ดัชนีความกลัวและความโลภ (Fear & Greed Index)</strong> วัดอารมณ์และจิตวิทยาตลาดโดยอาศัยตัวแปร เช่น ความผันผวนของราคา (VIX), ปริมาณความต้องการซื้อ/ขาย, และ Momentum ของราคาหุ้นทั่วโลก สภาวะ **Greed (68 คะแนน)** สะท้อนว่าความต้องการซื้อมีมากกว่าปกติ และนักลงทุนมีความมั่นใจสูง ซึ่งบางครั้งอาจส่งผลให้ราคาสินทรัพย์ขยับขึ้นสูงเกินมูลค่าพื้นฐานที่แท้จริง
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)" }}>แนวทางการปฏิบัติทางการเงินเวลานี้:</span>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 11, color: "var(--text-muted)", lineHeight: 1.4 }}>
+                <span style={{ fontSize: 15, fontWeight: 800, color: "var(--text-main)" }}>แนวทางการปฏิบัติทางการเงินเวลานี้:</span>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13, color: "var(--text-muted)", lineHeight: 1.4 }}>
                   <div>• ⚖️ <strong>รักษาวินัยการลงทุน:</strong> หลีกเลี่ยงการรีบซื้อไล่ตามราคาของหุ้นที่วิ่งขึ้นมาสูงมากเกินไป (FOMO)</div>
                   <div>• 📈 <strong>แบ่งทำกำไร (Take Profit):</strong> อาจพิจารณาขายทำกำไรบางส่วนในหุ้นที่มีมูลค่าแพงเพื่อสะสมเงินสด</div>
                   <div>• 🔍 <strong>สะสมเงินสด:</strong> เตรียมพร้อมโอกาสซื้อเมื่อตลาดเกิดความกลัวและย่อตัวในอนาคต</div>

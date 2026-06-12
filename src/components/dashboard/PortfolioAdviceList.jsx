@@ -1,5 +1,5 @@
 import React from "react";
-import { Lightbulb, CheckCircle, AlertTriangle, ArrowRight } from "lucide-react";
+import { Lightbulb, CheckCircle, AlertTriangle } from "lucide-react";
 import { getSector, getSectorBeta } from "../../utils/sectorHelpers";
 
 export default function PortfolioAdviceList({ assets = [], avgCorrelation = 0, diversificationScore = 75 }) {
@@ -64,7 +64,7 @@ export default function PortfolioAdviceList({ assets = [], avgCorrelation = 0, d
       }
     });
 
-    // 4. Portfolio Beta Warnings
+    // 5. Portfolio Beta Warnings
     if (portfolioBeta > 1.25) {
       advices.push({
         type: "danger",
@@ -79,7 +79,7 @@ export default function PortfolioAdviceList({ assets = [], avgCorrelation = 0, d
       });
     }
 
-    // 5. Diversification Score Warning
+    // 6. Diversification Score Warning
     if (diversificationScore < 55) {
       advices.push({
         type: "warning",
@@ -88,7 +88,7 @@ export default function PortfolioAdviceList({ assets = [], avgCorrelation = 0, d
       });
     }
 
-    // 6. Good Health Praise
+    // 7. Good Health Praise
     if (advices.length === 0 && diversificationScore >= 70 && portfolioBeta >= 0.8 && portfolioBeta <= 1.2) {
       advices.push({
         type: "success",
@@ -109,28 +109,28 @@ export default function PortfolioAdviceList({ assets = [], avgCorrelation = 0, d
         boxShadow: "0 4px 20px rgba(0,0,0,0.01)" 
       }}
     >
-      <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)", marginBottom: 16, display: "flex", alignItems: "center", gap: 6 }}>
-        <Lightbulb size={16} style={{ color: "var(--primary)" }} /> คำแนะนำการจัดพอร์ตและ Rebalancing รายวัน
+      <span style={{ fontSize: 16, fontWeight: 800, color: "var(--text-main)", marginBottom: 16, display: "flex", alignItems: "center", gap: 6 }}>
+        <Lightbulb size={20} style={{ color: "var(--primary)" }} /> คำแนะนำการจัดพอร์ตและ Rebalancing รายวัน
       </span>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {advices.map((advice, idx) => {
           let bg = "rgba(0,0,0,0.01)";
           let border = "var(--border)";
-          let icon = <Lightbulb size={18} style={{ color: "var(--primary)" }} />;
+          let icon = <Lightbulb size={20} style={{ color: "var(--primary)" }} />;
 
           if (advice.type === "warning") {
             bg = "rgba(245, 158, 11, 0.02)";
             border = "rgba(245, 158, 11, 0.12)";
-            icon = <AlertTriangle size={18} style={{ color: "var(--text-muted)" }} />;
+            icon = <AlertTriangle size={20} style={{ color: "var(--text-muted)" }} />;
           } else if (advice.type === "danger") {
             bg = "rgba(239, 68, 68, 0.02)";
             border = "rgba(239, 68, 68, 0.12)";
-            icon = <AlertTriangle size={18} style={{ color: "var(--loss)" }} />;
+            icon = <AlertTriangle size={20} style={{ color: "var(--loss)" }} />;
           } else if (advice.type === "success") {
             bg = "rgba(16, 185, 129, 0.02)";
             border = "rgba(16, 185, 129, 0.12)";
-            icon = <CheckCircle size={18} style={{ color: "var(--gain)" }} />;
+            icon = <CheckCircle size={20} style={{ color: "var(--gain)" }} />;
           }
 
           return (
@@ -148,10 +148,10 @@ export default function PortfolioAdviceList({ assets = [], avgCorrelation = 0, d
             >
               <div style={{ marginTop: 2, flexShrink: 0 }}>{icon}</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <span style={{ fontSize: 12, fontWeight: 900, color: "var(--text-main)" }}>
+                <span style={{ fontSize: 14, fontWeight: 900, color: "var(--text-main)" }}>
                   {advice.title}
                 </span>
-                <span style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.5 }}>
+                <span style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.5 }}>
                   {advice.text}
                 </span>
               </div>
