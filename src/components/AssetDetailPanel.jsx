@@ -80,8 +80,8 @@ export default function AssetDetailPanel({ asset, price, exchangeRate, historica
 
   let changeUSD = 0, changePct = 0;
   if (isCashAsset) {
-    if (asset.symbol !== "USD" && pData.price > 0 && pData.previousClose > 0) {
-      const prevPriceUSD = ["EUR", "GBP", "AUD", "NZD"].includes(asset.symbol) ? pData.previousClose : 1.0 / pData.previousClose;
+    if (asset.symbol !== "USD" && pData.price > 0 && pData.prevClose > 0) {
+      const prevPriceUSD = ["EUR", "GBP", "AUD", "NZD"].includes(asset.symbol) ? pData.prevClose : 1.0 / pData.prevClose;
       changeUSD = (priceUSD - prevPriceUSD) * asset.qty;
       changePct = prevPriceUSD > 0 ? ((priceUSD - prevPriceUSD) / prevPriceUSD) * 100 : 0;
     }

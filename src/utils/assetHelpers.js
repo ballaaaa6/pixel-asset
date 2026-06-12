@@ -274,7 +274,7 @@ export function computeSingleAssetData(asset, prices, exchangeRate) {
       const ticker = getCurrencyTicker(asset.symbol);
       const pData = prices[ticker];
       if (pData) {
-        const prevPriceVal = pData.previousClose || pData.price;
+        const prevPriceVal = pData.prevClose || pData.price;
         if (prevPriceVal > 0) {
           const prevPriceUSD = ["EUR", "GBP", "AUD", "NZD"].includes(asset.symbol) ? prevPriceVal : 1.0 / prevPriceVal;
           todayChg = (priceUSD - prevPriceUSD) * asset.qty;
@@ -316,7 +316,7 @@ export function computeSingleAssetData(asset, prices, exchangeRate) {
   const gainPct = costUSD > 0 ? (gainUSD / costUSD) * 100 : 0;
 
   const activePrice = price;
-  const prevClose = pData?.previousClose ?? activePrice;
+  const prevClose = pData?.prevClose ?? activePrice;
   const todayChg = ((activePrice - prevClose) * asset.qty);
   const todayPct = (prevClose > 0 ? ((activePrice - prevClose) / prevClose) * 100 : 0);
 
