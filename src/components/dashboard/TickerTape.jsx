@@ -39,18 +39,18 @@ export default function TickerTape({ prices }) {
 
     // Extended price: prePrice during PRE, postPrice during POST or CLOSED
     let extPrice = null;
-    let extChangePct = null;
 
     if (isPre && pData.prePrice != null && pData.prePrice > 0) {
       extPrice = pData.prePrice;
-      extChangePct = regPrice > 0 ? ((pData.prePrice - regPrice) / regPrice) * 100 : 0;
     } else if ((isPost || isClosed) && pData.postPrice != null && pData.postPrice > 0) {
       extPrice = pData.postPrice;
-      extChangePct = regPrice > 0 ? ((pData.postPrice - regPrice) / regPrice) * 100 : 0;
     }
 
     const price = extPrice ?? regPrice;
-    const pctChange = extPrice != null ? extChangePct : (pData.changePercent ?? 0);
+    
+    // Calculate net percentage change relative to the previous close (prevClose)
+    const prevClose = pData.prevClose ?? regPrice;
+    const pctChange = prevClose > 0 ? ((price - prevClose) / prevClose) * 100 : 0;
     const isUp = pctChange >= 0;
 
     let priceStr = "";
