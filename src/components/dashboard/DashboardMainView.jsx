@@ -36,6 +36,7 @@ export default function DashboardMainView({
   setHoveredCategory,
   setSelectedAsset,
   selectedAsset,
+  prices,
   priceFlash,
   refreshing,
   fetchPrices,

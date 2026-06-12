@@ -229,6 +229,7 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
                 setSelectedAsset={setSelectedAsset}
                 selectedAsset={selectedAsset}
                 priceFlash={priceFlash}
+                prices={prices}
                 refreshing={refreshing}
                 fetchPrices={fetchPrices}
                 setHideValues={setHideValues}
