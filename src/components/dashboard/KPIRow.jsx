@@ -55,43 +55,35 @@ export default function KPIRow({
       <GlowTiltCard className={`kpi-card clickable ${todayUp ? "gain-card" : "loss-card"}`} onClick={() => onCardClick?.("today")}>
         <div className="kpi-label">📅 วันนี้</div>
         <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 4 }}>
-          <div className={`kpi-value ${hideValues ? "privacy-blurred" : ""}`} style={{ color: todayUp ? "var(--gain)" : "var(--loss)", margin: 0, whiteSpace: "nowrap" }}>
-            {todayChange !== 0 ? (todayUp ? "+" : "-") : ""}
-            <AnimatedCounter value={todayChange !== 0 ? Math.abs(todayChange) : 0} formatFn={(v) => v === 0 ? "—" : fmt.usd(v)} />
+          <div className={`kpi-value ${hideValues ? "privacy-blurred" : ""}`} style={{ color: todayChange > 0 ? "var(--gain)" : todayChange < 0 ? "var(--loss)" : "var(--text-muted)", margin: 0, whiteSpace: "nowrap" }}>
+            {todayChange > 0 ? "+" : todayChange < 0 ? "-" : ""}
+            <AnimatedCounter value={Math.abs(todayChange || 0)} formatFn={fmt.usd} />
           </div>
-          {todayChange !== 0 && (
-            <span className={`kpi-badge ${todayUp ? "up" : "down"} ${hideValues ? "privacy-blurred" : ""}`} style={{ margin: 0, whiteSpace: "nowrap" }}>
-              {todayUp ? "▲" : "▼"} {fmt.pct(todayChangePct)}
-            </span>
-          )}
+          <span className={`kpi-badge ${todayChange > 0 ? "up" : todayChange < 0 ? "down" : "up"} ${hideValues ? "privacy-blurred" : ""}`} style={{ margin: 0, whiteSpace: "nowrap" }}>
+            {todayChange > 0 ? "▲" : todayChange < 0 ? "▼" : "▲"} {fmt.pct(todayChangePct || 0)}
+          </span>
         </div>
-        {todayChange !== 0 && (
-          <div className={`kpi-sub ${hideValues ? "privacy-blurred" : ""}`} style={{ marginTop: 2 }}>
-            {todayUp ? "+" : "-"}
-            <AnimatedCounter value={Math.abs(todayChangeTHB)} formatFn={(v) => fmt.thb(v, 2)} />
-          </div>
-        )}
+        <div className={`kpi-sub ${hideValues ? "privacy-blurred" : ""}`} style={{ marginTop: 2 }}>
+          {todayChange > 0 ? "+" : todayChange < 0 ? "-" : ""}
+          <AnimatedCounter value={Math.abs(todayChangeTHB || 0)} formatFn={(v) => fmt.thb(v, 2)} />
+        </div>
       </GlowTiltCard>
 
       <GlowTiltCard className={`kpi-card clickable ${totalUp ? "gain-card" : "loss-card"}`} onClick={() => onCardClick?.("pnl")}>
         <div className="kpi-label">📊 กำไร/ขาดทุนรวม</div>
         <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 4 }}>
-          <div className={`kpi-value ${hideValues ? "privacy-blurred" : ""}`} style={{ color: totalUp ? "var(--gain)" : "var(--loss)", margin: 0, whiteSpace: "nowrap" }}>
-            {totalGain !== 0 ? (totalUp ? "+" : "-") : ""}
-            <AnimatedCounter value={totalGain !== 0 ? Math.abs(totalGain) : 0} formatFn={(v) => v === 0 ? "—" : fmt.usd(v)} />
+          <div className={`kpi-value ${hideValues ? "privacy-blurred" : ""}`} style={{ color: totalGain > 0 ? "var(--gain)" : totalGain < 0 ? "var(--loss)" : "var(--text-muted)", margin: 0, whiteSpace: "nowrap" }}>
+            {totalGain > 0 ? "+" : totalGain < 0 ? "-" : ""}
+            <AnimatedCounter value={Math.abs(totalGain || 0)} formatFn={fmt.usd} />
           </div>
-          {totalGain !== 0 && (
-            <span className={`kpi-badge ${totalUp ? "up" : "down"} ${hideValues ? "privacy-blurred" : ""}`} style={{ margin: 0, whiteSpace: "nowrap" }}>
-              {totalUp ? "▲" : "▼"} {fmt.pct(totalGainPct)}
-            </span>
-          )}
+          <span className={`kpi-badge ${totalGain > 0 ? "up" : totalGain < 0 ? "down" : "up"} ${hideValues ? "privacy-blurred" : ""}`} style={{ margin: 0, whiteSpace: "nowrap" }}>
+            {totalGain > 0 ? "▲" : totalGain < 0 ? "▼" : "▲"} {fmt.pct(totalGainPct || 0)}
+          </span>
         </div>
-        {totalGain !== 0 && (
-          <div className={`kpi-sub ${hideValues ? "privacy-blurred" : ""}`} style={{ marginTop: 2 }}>
-            {totalUp ? "+" : "-"}
-            <AnimatedCounter value={Math.abs(totalGainTHB)} formatFn={(v) => fmt.thb(v, 2)} />
-          </div>
-        )}
+        <div className={`kpi-sub ${hideValues ? "privacy-blurred" : ""}`} style={{ marginTop: 2 }}>
+          {totalGain > 0 ? "+" : totalGain < 0 ? "-" : ""}
+          <AnimatedCounter value={Math.abs(totalGainTHB || 0)} formatFn={(v) => fmt.thb(v, 2)} />
+        </div>
       </GlowTiltCard>
 
       <GlowTiltCard className="kpi-card gold-card clickable" onClick={() => onCardClick?.("best")}>
