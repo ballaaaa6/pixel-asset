@@ -68,9 +68,9 @@ export default function EconomicSentimentWidget({ assets = [] }) {
       }}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontSize: 16, fontWeight: 800, color: "var(--text-main)", display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ fontSize: 15, fontWeight: 800, color: "var(--text-main)", display: "flex", alignItems: "center", gap: 8 }}>
           <Activity size={18} style={{ color: "var(--primary)" }} />
-          ข้อมูลความเสี่ยง & อารมณ์ตลาด
+          ความเสี่ยง & อารมณ์ตลาด
         </span>
         <span 
           style={{ 
