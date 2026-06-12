@@ -60,7 +60,7 @@ export default function FearGreedGauge() {
         🔥 Fear & Greed Index
       </span>
       
-      <div style={{ width: 220, height: 115, position: "relative", display: "flex", justifyContent: "center", alignItems: "flex-start" }}>
+      <div style={{ width: 220, height: 125, position: "relative", display: "flex", justifyContent: "center", alignItems: "flex-start" }}>
         <svg width="220" height="115" viewBox="0 0 220 115" style={{ overflow: "visible" }}>
           <defs>
             <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -101,7 +101,7 @@ export default function FearGreedGauge() {
         {/* Centered value score (clean, readable, no overlap) */}
         <div style={{ 
           position: "absolute", 
-          bottom: 15, 
+          bottom: 0, 
           display: "flex", 
           flexDirection: "column", 
           alignItems: "center",

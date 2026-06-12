@@ -6,6 +6,7 @@ import DonutChart from "./DonutChart";
 import PortfolioChart from "../charts/PortfolioChart";
 import AssetTable from "./AssetTable";
 import GlowTiltCard from "../common/GlowTiltCard";
+import EconomicSentimentWidget from "./EconomicSentimentWidget";
 
 export default function DashboardMainView({
   hasPrices,
@@ -112,6 +113,10 @@ export default function DashboardMainView({
               hideValues={hideValues}
               setSelectedAsset={setSelectedAsset}
             />
+          </GlowTiltCard>
+
+          <GlowTiltCard className="card stagger-4" style={{ padding: 0 }}>
+            <EconomicSentimentWidget assets={assets} />
           </GlowTiltCard>
         </div>
 
