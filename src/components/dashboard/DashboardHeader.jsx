@@ -1,5 +1,5 @@
 import React from "react";
-import { Settings, Pencil } from "lucide-react";
+import { Settings, Pencil, Menu } from "lucide-react";
 
 export default function DashboardHeader({
   portfolioName,
@@ -13,12 +13,22 @@ export default function DashboardHeader({
   profilePic,
   setProfileModalOpen,
   setInvestorModalOpen,
-  isDirty
+  isDirty,
+  setSidebarOpen
 }) {
   return (
     <nav className="navbar">
       <div className="navbar-container">
-        <div className="navbar-brand">
+        <div className="navbar-brand" style={{ gap: 8 }}>
+          <button
+            type="button"
+            className="hamburger-btn"
+            onClick={() => setSidebarOpen(prev => !prev)}
+            title="เปิดเมนู"
+            style={{ marginRight: 4 }}
+          >
+            <Menu size={18} />
+          </button>
           <span style={{ fontSize: 24 }} aria-hidden="true">🚀</span>
           {isEditingName ? (
             <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>

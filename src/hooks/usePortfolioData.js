@@ -7,6 +7,8 @@ import { usePortfolioPrices } from "./usePortfolioPrices";
 
 export function usePortfolioData({ user, showToast, onSessionExpired, askConfirm }) {
   const [assets, setAssets] = useState([]);
+  const [dividendData, setDividendData] = useState({});
+  const [dividendLoading, setDividendLoading] = useState(false);
   const [portfolioHistory, setPortfolioHistory] = useState([]);
   const [chartCategory, setChartCategory] = useState("all");
 
@@ -127,6 +129,39 @@ export function usePortfolioData({ user, showToast, onSessionExpired, askConfirm
       setLoading(false);
     }
   };
+
+  const fetchDividendEvents = useCallback(async (customAssets = assets) => {
+    if (!customAssets.length) return;
+    setDividendLoading(true);
+    try {
+      const symbols = customAssets
+        .filter(a => a.category === "stock" || a.type === "stock" || !a.category)
+        .map(a => a.symbol)
+        .filter(Boolean);
+
+      if (!symbols.length) {
+        setDividendData({});
+        return;
+      }
+
+      const url = `/api/prices?symbols=${encodeURIComponent(symbols.join(","))}&dividends=true`;
+      const res = await fetch(url);
+      if (res && res.ok) {
+        const data = await res.json();
+        const divMap = {};
+        Object.keys(data.quotes || {}).forEach(sym => {
+          if (data.quotes[sym]?.dividends) {
+            divMap[sym] = data.quotes[sym].dividends;
+          }
+        });
+        setDividendData(divMap);
+      }
+    } catch (err) {
+      console.error("fetchDividendEvents failed:", err);
+    } finally {
+      setDividendLoading(false);
+    }
+  }, [assets]);
 
   // Compute portfolio history timeline
   useEffect(() => {
@@ -335,6 +370,9 @@ export function usePortfolioData({ user, showToast, onSessionExpired, askConfirm
     fetchPortfolio,
     savePortfolio,
     isDirty,
+    dividendData,
+    dividendLoading,
+    fetchDividendEvents,
     ...valuation
   };
 }

@@ -12,6 +12,8 @@ export async function onRequestGet(context) {
   const q = url.searchParams.get("q");
   const symbolsParam = url.searchParams.get("symbols");
   const sparklineParam = url.searchParams.get("sparkline");
+  const dividendsParam = url.searchParams.get("dividends");
+  const isDividends = dividendsParam === "true";
 
   const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -177,7 +179,9 @@ export async function onRequestGet(context) {
       const noCache = url.searchParams.get("nocache") === "true";
       if (!noCache) {
         const cachePromises = symbolsList.map(async (symbol) => {
-          const cacheKey = `https://cache.local/price/${symbol}`;
+          const cacheKey = isDividends 
+            ? `https://cache.local/price-div/${symbol}` 
+            : `https://cache.local/price/${symbol}`;
           try {
             const cached = await getCache(cacheKey);
             if (cached) {
@@ -195,7 +199,10 @@ export async function onRequestGet(context) {
       if (missingSymbols.length > 0) {
         const priceFetches = missingSymbols.map(async (symbol) => {
           try {
-            const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=5m&range=1d&includePrePost=true`;
+            const range = isDividends ? "1y" : "1d";
+            const interval = isDividends ? "1d" : "5m";
+            const events = isDividends ? "&events=div" : "";
+            const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}&includePrePost=true${events}`;
             const resp = await fetch(chartUrl, { headers: YF_HEADERS });
             if (!resp.ok) return null;
 
@@ -289,6 +296,7 @@ export async function onRequestGet(context) {
               }
             }
 
+            const dividends = result.events?.dividends;
             const entry = {
               symbol,
               price,
@@ -304,12 +312,16 @@ export async function onRequestGet(context) {
               postPrice,
               postChangePercent: postPrice && price
                 ? ((postPrice - price) / price) * 100
-                : null
+                : null,
+              dividends: dividends || null
             };
 
             if (entry.price > 0) {
-              const cacheKey = `https://cache.local/price/${symbol}`;
-              putCache(context, cacheKey, JSON.stringify(entry), 30);
+              const cacheKey = isDividends 
+                ? `https://cache.local/price-div/${symbol}` 
+                : `https://cache.local/price/${symbol}`;
+              const cacheTTL = isDividends ? 43200 : 30;
+              putCache(context, cacheKey, JSON.stringify(entry), cacheTTL);
             }
 
             return entry;

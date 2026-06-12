@@ -1,31 +1,31 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { PieChart, ArrowUp } from "lucide-react";
+import { ArrowUp } from "lucide-react";
 import AssetModal from "./AssetModal";
 import AssetDetailPanel from "./AssetDetailPanel";
 
 import { usePortfolioData } from "../hooks/usePortfolioData";
 import { useProfile } from "../hooks/useProfile";
-import { getCurrencyTicker, getDisplaySymbol } from "../utils/assetHelpers";
+import { getCurrencyTicker } from "../utils/assetHelpers";
 import { isTransactionDuplicate } from "../utils/portfolioTransactionHelpers";
 import CustomConfirmModal from "./common/CustomConfirmModal";
-import GlowTiltCard from "./common/GlowTiltCard";
 
+import Sidebar from "./dashboard/Sidebar";
 import DashboardHeader from "./dashboard/DashboardHeader";
-import KPIRow from "./dashboard/KPIRow";
-import PortfolioSummary from "./dashboard/PortfolioSummary";
-import DonutChart from "./dashboard/DonutChart";
-import AssetTable from "./dashboard/AssetTable";
+import DashboardMainView from "./dashboard/DashboardMainView";
+import DividendTracker from "./dashboard/DividendTracker";
 import PnLDetailsModal from "./dashboard/PnLDetailsModal";
 import KPIDetailsModal from "./dashboard/KPIDetailsModal";
 import ProfileModal from "./dashboard/ProfileModal";
 import InvestorProfileModal from "./dashboard/InvestorProfileModal";
-import PortfolioChart from "./charts/PortfolioChart";
-import CostValueBar from "./dashboard/CostValueBar";
 import TickerTape from "./dashboard/TickerTape";
 
 export default function Dashboard({ user, onLogout, showToast, onSessionExpired }) {
   const [confirmConfig, setConfirmConfig] = useState(null);
   const askConfirm = (message, title = "ยืนยันการทำรายการ") => new Promise(r => setConfirmConfig({ title, message, resolve: r }));
+
+  const [activeTab, setActiveTab] = useState("dashboard");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [hideValues, setHideValues] = useState(() => {
     return localStorage.getItem("hide_portfolio_values") === "true";
@@ -167,129 +167,93 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
 
   return (
     <>
-      <div className="fade-in">
-        <TickerTape assets={sortedAssets} prices={prices} />
-
-        <DashboardHeader
-          portfolioName={portfolioName}
-          isEditingName={isEditingName}
-          setIsEditingName={setIsEditingName}
-          tempName={tempName}
-          setTempName={setTempName}
-          handleSaveName={handleSaveName}
-          nickname={nickname}
-          user={user}
-          profilePic={profilePic}
-          setProfileModalOpen={setProfileModalOpen}
-          setInvestorModalOpen={setInvestorModalOpen}
-          isDirty={isDirty}
+      <div className="app-layout-wrapper">
+        <Sidebar
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          sidebarCollapsed={sidebarCollapsed}
+          setSidebarCollapsed={setSidebarCollapsed}
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+          handleLogout={handleLogoutConfirm}
         />
 
-        <div className="app-container">
-          <KPIRow
-            totalUSD={hasPrices ? totalUSD : null}
-            totalTHB={hasPrices ? totalUSD * exchangeRate : null}
-            totalCostUSD={totalCostUSD}
-            todayChange={hasPrices ? todayChangeUSD : 0}
-            todayChangeTHB={hasPrices ? todayChangeUSD * exchangeRate : 0}
-            todayChangePct={hasPrices ? todayChangePct : 0}
-            totalGain={hasPrices ? totalGainUSD : 0}
-            totalGainTHB={hasPrices ? totalGainTHB : 0}
-            totalGainPct={hasPrices ? totalGainPct : 0}
-            bestAsset={hasPrices ? bestAsset : null}
-            loading={!hasPrices && assets.length > 0}
-            hideValues={hideValues}
-            onCardClick={setActiveKpiDetail}
+        <div className="main-content-wrapper">
+          <TickerTape assets={sortedAssets} prices={prices} />
+
+          <DashboardHeader
+            portfolioName={portfolioName}
+            isEditingName={isEditingName}
+            setIsEditingName={setIsEditingName}
+            tempName={tempName}
+            setTempName={setTempName}
+            handleSaveName={handleSaveName}
+            nickname={nickname}
+            user={user}
+            profilePic={profilePic}
+            setProfileModalOpen={setProfileModalOpen}
+            setInvestorModalOpen={setInvestorModalOpen}
+            isDirty={isDirty}
+            setSidebarOpen={setSidebarOpen}
           />
 
-          {hasPrices && (
-            <CostValueBar
-              totalUSD={totalUSD}
-              totalCostUSD={totalCostUSD}
-              totalGainUSD={totalGainUSD}
-              totalGainPct={totalGainPct}
-              exchangeRate={exchangeRate}
-              hideValues={hideValues}
-              onCardClick={setActiveKpiDetail}
-            />
-          )}
-
-          <div className="dashboard-grid">
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <PortfolioSummary
+          <div className="main-content-scrollable">
+            {activeTab === "dashboard" ? (
+              <DashboardMainView
                 hasPrices={hasPrices}
                 totalUSD={totalUSD}
                 exchangeRate={exchangeRate}
                 totalCostUSD={totalCostUSD}
-                totalGainUSD={totalGainUSD}
-                totalGainPct={totalGainPct}
-                totalGainTHB={totalGainTHB}
-                assets={assets}
-                totalRealizedUSD={totalRealizedUSD}
-                totalUnrealizedUSD={totalUnrealizedUSD}
-                initialCapitalUSD={initialCapitalUSD}
                 todayChangeUSD={todayChangeUSD}
-                setShowPnLDetailsModal={setShowPnLDetailsModal}
-                hideValues={hideValues}
-              />
-
-              <GlowTiltCard className="card stagger-3">
-                <DonutChart
-                  segments={hasPrices && donutSegments.length > 0 ? donutSegments : []}
-                  activeAssets={sortedAssets}
-                  hasAssets={sortedAssets.length > 0}
-                  hoveredSymbol={hoveredSymbol}
-                  setHoveredSymbol={setHoveredSymbol}
-                  hoveredCategory={hoveredCategory}
-                  setHoveredCategory={setHoveredCategory}
-                  hideValues={hideValues}
-                  setSelectedAsset={setSelectedAsset}
-                />
-              </GlowTiltCard>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <GlowTiltCard className="card stagger-2" style={{ padding: "16px 14px 10px" }}>
-                <PortfolioChart
-                  history={portfolioHistory}
-                  range={chartRange}
-                  onRangeChange={handleRangeChange}
-                  assets={filteredAssets}
-                  exchangeRate={exchangeRate}
-                  prices={prices}
-                  hideValues={hideValues}
-                  chartCategory={chartCategory}
-                  setChartCategory={setChartCategory}
-                />
-              </GlowTiltCard>
-
-              <AssetTable
-                sortedAssets={sortedAssets}
-                prices={prices}
-                priceFlash={priceFlash}
+                todayChangePct={todayChangePct}
+                totalGainUSD={totalGainUSD}
+                totalGainTHB={totalGainTHB}
+                totalGainPct={totalGainPct}
                 bestAsset={bestAsset}
-                totalUSD={totalUSD}
-                exchangeRate={exchangeRate}
+                assets={assets}
+                sortedAssets={sortedAssets}
+                donutSegments={donutSegments}
+                filteredAssets={filteredAssets}
+                portfolioHistory={portfolioHistory}
+                chartRange={chartRange}
+                handleRangeChange={handleRangeChange}
+                chartCategory={chartCategory}
+                setChartCategory={setChartCategory}
+                hideValues={hideValues}
+                setActiveKpiDetail={setActiveKpiDetail}
+                setShowPnLDetailsModal={setShowPnLDetailsModal}
+                hoveredSymbol={hoveredSymbol}
+                setHoveredSymbol={setHoveredSymbol}
+                hoveredCategory={hoveredCategory}
+                setHoveredCategory={setHoveredCategory}
                 setSelectedAsset={setSelectedAsset}
                 selectedAsset={selectedAsset}
+                priceFlash={priceFlash}
                 refreshing={refreshing}
                 fetchPrices={fetchPrices}
-                assets={assets}
                 setHideValues={setHideValues}
-                hideValues={hideValues}
                 setEditingAsset={setEditingAsset}
                 setModalOpen={setModalOpen}
                 sortConfig={sortConfig}
                 handleSort={handleSort}
                 handleDeleteAsset={handleDeleteAsset}
-                hasPrices={hasPrices}
                 sparklines={sparklines}
-                hoveredSymbol={hoveredSymbol}
-                setHoveredSymbol={setHoveredSymbol}
-                hoveredCategory={hoveredCategory}
-                setHoveredCategory={setHoveredCategory}
+                totalRealizedUSD={totalRealizedUSD}
+                totalUnrealizedUSD={totalUnrealizedUSD}
+                initialCapitalUSD={initialCapitalUSD}
               />
-            </div>
+            ) : activeTab === "dividends" ? (
+              <DividendTracker
+                assets={assets}
+                prices={prices}
+                exchangeRate={exchangeRate}
+                hideValues={hideValues}
+                showToast={showToast}
+                dividendData={dividendData}
+                dividendLoading={dividendLoading}
+                fetchDividendEvents={fetchDividendEvents}
+              />
+            ) : null}
           </div>
         </div>
       </div>
