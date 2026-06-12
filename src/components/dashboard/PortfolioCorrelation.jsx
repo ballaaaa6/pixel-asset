@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, HelpCircle, Compass, ChevronDown, ChevronUp, Grid } from "lucide-react";
+import { X, HelpCircle, Grid, ChevronDown, ChevronUp } from "lucide-react";
 import { registerModal } from "../../utils/modalStack";
 import { getCorrelation } from "../../utils/sectorHelpers";
 import FearGreedGauge from "./FearGreedGauge";
 import PortfolioHealthMetrics from "./PortfolioHealthMetrics";
-import PortfolioAllocationList from "./PortfolioAllocationList";
 import PortfolioAdviceList from "./PortfolioAdviceList";
+import PortfolioStressTest from "./PortfolioStressTest";
 
-export default function PortfolioCorrelation({ assets = [], hideValues }) {
+export default function PortfolioCorrelation({ assets = [], exchangeRate = 35.0, hideValues }) {
   const [selectedCell, setSelectedCell] = useState(null);
   const [showMatrix, setShowMatrix] = useState(false);
 
@@ -47,9 +47,9 @@ export default function PortfolioCorrelation({ assets = [], hideValues }) {
       <div style={{ background: "rgba(99, 102, 241, 0.04)", border: "1px solid rgba(99, 102, 241, 0.12)", borderRadius: 16, padding: "14px 18px", display: "flex", gap: 12, alignItems: "flex-start" }}>
         <HelpCircle size={22} style={{ color: "var(--primary)", flexShrink: 0, marginTop: 2 }} />
         <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-          <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)" }}>วิเคราะห์ความเสี่ยงและสุขภาพพอร์ตโฟลิโอแบบองค์รวม</span>
+          <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)" }}>วิเคราะห์การกระจายความเสี่ยงและสุขภาพพอร์ตโฟลิโอ</span>
           <span style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.5 }}>
-            การประเมินความเสี่ยงพอร์ตด้วยดัชนีอารมณ์ตลาด (Fear & Greed Index), ความหลากหลายของกลุ่มอุตสาหกรรม (Sectors), การคุมสัดส่วนหุ้นรายตัวไม่ให้กระจุกตัวสูงเกินไป, และสหสัมพันธ์ (Correlation) ของราคาสินทรัพย์ เพื่อปรับสมดุลความผันผวนของน้ำหนักโดยรวมอย่างมีประสิทธิภาพ
+            การประเมินความเสี่ยงพอร์ตด้วยดัชนีอารมณ์ตลาด (Fear & Greed Index), สหสัมพันธ์ (Correlation) และจำลองวิเคราะห์ผลกระทบเมื่อตลาดเกิดความตึงเครียด เพื่อช่วยให้นักลงทุนปรับสมดุลความผันผวนและป้องกันความเสี่ยงของพอร์ตได้อย่างมีประสิทธิภาพ
           </span>
         </div>
       </div>
@@ -64,10 +64,11 @@ export default function PortfolioCorrelation({ assets = [], hideValues }) {
         />
       </div>
 
-      {/* Allocation Breakdown (Sectors & Top Asset Concentration) */}
-      <PortfolioAllocationList 
-        assets={assets} 
-        hideValues={hideValues} 
+      {/* Portfolio Stress Test & Crisis Simulator */}
+      <PortfolioStressTest 
+        assets={assets}
+        exchangeRate={exchangeRate}
+        hideValues={hideValues}
       />
 
       {/* Actionable Advice & Rebalancing Recommendations */}
@@ -77,7 +78,7 @@ export default function PortfolioCorrelation({ assets = [], hideValues }) {
         diversificationScore={diversificationScore} 
       />
 
-      {/* Full Correlation Matrix Accordion (For advanced users, moved to prevent clutter) */}
+      {/* Full Correlation Matrix Accordion */}
       <div 
         className="card" 
         style={{ 
@@ -139,9 +140,9 @@ export default function PortfolioCorrelation({ assets = [], hideValues }) {
                           <td 
                             key={cIdx} 
                             style={{ 
-                              padding: "12px 8px", 
+                              padding: "10px 6px", 
                               textAlign: "center", 
-                              borderRadius: 8, 
+                              borderRadius: 6, 
                               background: isDiagonal 
                                 ? "rgba(99, 102, 241, 0.08)" 
                                 : coeff >= 0.4 
@@ -175,11 +176,8 @@ export default function PortfolioCorrelation({ assets = [], hideValues }) {
                 </tbody>
               </table>
             </div>
-
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "var(--text-faint)", fontWeight: 700, padding: "0 2px", flexWrap: "wrap", gap: 8 }}>
-              <span>🔴 +0.4 ถึง +1.0 (ราคาขยับตามกันสูง เสี่ยงร่วงคู่)</span>
-              <span>⚪ -0.2 ถึง +0.2 (ไม่เกี่ยวข้องกัน ช่วยผ่อนคลายแรงเหวี่ยง)</span>
-              <span>🟢 -1.0 ถึง -0.2 (ราคาขยับสวนทางกัน ช่วยป้องกันความเสี่ยง)</span>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "var(--text-faint)", fontWeight: 700, padding: "0 2px" }}>
+              <span>🔴 +0.4 ถึง +1.0 (เสี่ยงร่วงคู่)</span><span>⚪ -0.2 ถึง +0.2 (ไม่เกี่ยวกัน)</span><span>🟢 -1.0 ถึง -0.2 (ช่วยพยุงพอร์ต)</span>
             </div>
           </div>
         )}
@@ -206,24 +204,20 @@ export default function PortfolioCorrelation({ assets = [], hideValues }) {
                 <div style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
                   <strong>บทวิเคราะห์เชิงลึก:</strong>
                   {selectedCell.row === selectedCell.col ? (
-                    <div style={{ marginTop: 4 }}>• สินทรัพย์เดียวกันมีค่าความสัมพันธ์เป็น 1.0 (สมบูรณ์แบบ) เเคลื่อนที่ขนานกับตัวเองเสมอ</div>
-                  ) : selectedCell.value >= 0.4 ? (
-                    <div style={{ marginTop: 4 }}>• หุ้นทั้งสองมีค่าความสัมพันธ์สูง มักจะอยู่ในกลุ่มเทคโนโลยีเหมือนกันหรือทับซ้อนในซัพพลายเชนเดียวกัน การถือครองร่วมกันอาจส่งผลให้พอร์ตเผชิญความผันผวนรุนแรงเมื่อเซกเตอร์มีการปรับราคาลง</div>
-                  ) : selectedCell.value >= -0.2 ? (
-                    <div style={{ marginTop: 4 }}>• ไม่มีความสัมพันธ์ชัดเจน หรือขยับในทิศทางต่างคนต่างไป ถือว่าช่วยลดระดับความเสี่ยงของพอร์ตได้อย่างดี เนื่องจากความปั่นป่วนของตัวหนึ่งจะไม่ดึงอีกตัวให้ทรุดตาม</div>
+                    <div style={{ marginTop: 4 }}>• สินทรัพย์เดียวกันมีค่าความสัมพันธ์เป็น 1.0 (สมบูรณ์แบบ) เคลื่อนที่ล้อตามตัวเองเสมอ</div>
+                  ) : selectedCell.value >= 0.5 ? (
+                    <div style={{ marginTop: 4 }}>• หุ้นทั้งสองมีสหสัมพันธ์สูงมาก มักจะอยู่ในห่วงโซ่อุปทานหรืออุตสาหกรรมเดียวกัน การถือครองร่วมกันทำให้ราคาขยับขึ้นคู่เมื่อตลาดเป็นขาขึ้น แต่ก็เพิ่มความเปราะบางอย่างมากในการปรับฐานกลุ่ม</div>
+                  ) : selectedCell.value >= 0.2 ? (
+                    <div style={{ marginTop: 4 }}>• ความสัมพันธ์ปานกลาง หุ้นขยับในทิศทางคล้ายคลึงกัน แต่อาจมีโครงสร้างตลาดเฉพาะตัวที่แยกจากกันบางส่วน มีความเสี่ยงเชื่อมโยงกันเล็กน้อย</div>
                   ) : (
-                    <div style={{ marginTop: 4 }}>• หุ้นสองตัวเคลื่อนไหวขัดแย้งกันอย่างเด่นชัด เมื่อตัวหนึ่งขึ้น อีกตัวมักย่อ ถือเป็นคู่หูที่ช่วยป้องกันความเสี่ยง (Hedging) ชั้นดี ช่วยพยุงผลตอบแทนเฉลี่ยของพอร์ตไม่ให้ลดลงพรวดพราด</div>
+                    <div style={{ marginTop: 4 }}>• ความสัมพันธ์ต่ำมากหรือมีค่าติดลบ หุ้นสองตัวนี้ขยับแยกจากกัน หรือบางกรณีขยับสวนทางกัน ถือเป็นการกระจายความเสี่ยงเพื่อลดความเสี่ยงรวมของพอร์ตที่มีประสิทธิภาพสูง</div>
                   )}
                 </div>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <span style={{ fontSize: 12, fontWeight: 800, color: "var(--text-main)" }}>คำแนะนำสําหรับนักลงทุน:</span>
+                <span style={{ fontSize: 12, fontWeight: 800, color: "var(--text-main)" }}>คำแนะนำสำหรับนักลงทุน:</span>
                 <span style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.4 }}>
-                  {selectedCell.row === selectedCell.col 
-                    ? "ไม่มีข้อเสนอแนะสำหรับการเปรียบเทียบสินทรัพย์ตัวเดียวกัน" 
-                    : selectedCell.value >= 0.4 
-                      ? "⚠️ ไม่แนะนำให้ซื้อเฉลี่ยหรือเพิ่มน้ำหนักแบบอัดแน่นพร้อมกันในหุ้นทั้งสองตัวนี้ เพื่อไม่ให้พอร์ตเผชิญความเสี่ยงแบบรับแรงกระแทกสองเท่าพร้อมกัน" 
-                      : "✓ สินทรัพย์คู่นี้มีความสมดุลและกระจายความเสี่ยงเหมาะสมดีเยี่ยม เหมาะสำหรับการสะสมระยะยาวเพื่อรักษาสมดุลความผันผวน"}
+                  {selectedCell.row === selectedCell.col ? "ไม่มีข้อแนะนำเพิ่มเติมสำหรับความสัมพันธ์กับตัวเอง" : selectedCell.value >= 0.4 ? "⚠️ แนะนำให้พิจารณาการ Hedge หรือลดน้ำหนักการซื้อเฉลี่ยพร้อมกันในหุ้นทั้งสองตัวนี้ เพื่อไม่ให้พอร์ตของคุณเผชิญแรงกระแทกสองเท่าเมื่อกลุ่มอุตสาหกรรมนี้ปรับฐาน" : "✓ ความเสี่ยงและประโยชน์ของคู่นี้มีความสมดุล เหมาะสมสำหรับการถือครองระยะยาวเพื่อช่วยพยุงลดแรงแกว่งของผลตอบแทนพอร์ต"}
                 </span>
               </div>
             </div>

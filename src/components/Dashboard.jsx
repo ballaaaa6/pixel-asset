@@ -264,8 +264,8 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
               />
             ) : activeTab === "correlation" ? (
               <PortfolioCorrelation
-                assets={assets}
-                prices={prices}
+                assets={sortedAssets}
+                exchangeRate={exchangeRate}
                 hideValues={hideValues}
               />
             ) : null}

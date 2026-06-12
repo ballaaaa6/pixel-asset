@@ -1,5 +1,5 @@
 import React from "react";
-import { Shield, Activity, Info } from "lucide-react";
+import { Shield, Activity } from "lucide-react";
 import { getSector, getSectorBeta } from "../../utils/sectorHelpers";
 
 export default function PortfolioHealthMetrics({ assets = [], avgCorrelation = 0, diversificationScore = 75 }) {
@@ -50,7 +50,7 @@ export default function PortfolioHealthMetrics({ assets = [], avgCorrelation = 0
       }}
     >
       <span style={{ fontSize: 14, fontWeight: 800, color: "var(--text-main)", marginBottom: 20, display: "flex", alignItems: "center", gap: 6 }}>
-        <Activity size={18} style={{ color: "var(--primary)" }} /> วิเคราะห์สุขภาพและความเสี่ยงพอร์ต
+        <Activity size={18} style={{ color: "var(--primary)" }} /> สรุปสุขภาพพอร์ตและระดับความเสี่ยง
       </span>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr", gap: 24 }} className="dashboard-grid">
@@ -64,7 +64,7 @@ export default function PortfolioHealthMetrics({ assets = [], avgCorrelation = 0
                 cy="50" 
                 r="42" 
                 fill="none" 
-                stroke={healthScore >= 80 ? "var(--gain)" : healthScore >= 50 ? "var(--primary)" : "var(--loss)"} 
+                stroke={healthScore >= 80 ? "var(--gain)" : healthScore >= 55 ? "var(--primary)" : "var(--loss)"} 
                 strokeWidth="6" 
                 strokeDasharray={`${2 * Math.PI * 42}`} 
                 strokeDashoffset={`${2 * Math.PI * 42 * (1 - healthScore / 100)}`} 
@@ -74,7 +74,7 @@ export default function PortfolioHealthMetrics({ assets = [], avgCorrelation = 0
               />
             </svg>
             <div style={{ position: "absolute", display: "flex", flexDirection: "column", alignItems: "center" }}>
-              <span style={{ fontSize: 24, fontWeight: 900, color: "var(--text-main)", lineHeight: 1 }}>{healthScore}</span>
+              <span style={{ fontSize: 24, fontWeight: 900, color: "var(--text-main)", lineHeight: 1 }}>{healthScore}%</span>
               <span style={{ fontSize: 9, fontWeight: 800, color: "var(--text-muted)", marginTop: 2 }}>HEALTH</span>
             </div>
           </div>
