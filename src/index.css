@@ -2105,7 +2105,7 @@ html, body {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
-  height: 32px;
+  height: 40px;
   display: flex;
   align-items: center;
   position: sticky;
@@ -2114,7 +2114,7 @@ html, body {
   user-select: none;
 }
 .navbar {
-  top: 32px !important;
+  top: 40px !important;
 }
 .ticker-track {
   display: inline-flex;
@@ -2130,8 +2130,8 @@ html, body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin: 0 24px;
-  font-size: 11px;
+  margin: 0 30px;
+  font-size: 14px;
   font-weight: 800;
   font-family: 'Outfit', sans-serif;
 }
