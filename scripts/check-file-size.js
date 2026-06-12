@@ -10,7 +10,7 @@ import { readdirSync, statSync, readFileSync } from "fs";
 import { join, extname, relative } from "path";
 
 const MAX_LINES = parseInt(process.argv[2] || "400", 10);
-const ROOT = join(process.cwd(), "src");
+const ROOTS = [join(process.cwd(), "src"), join(process.cwd(), "functions")];
 
 // Directories to skip
 const SKIP_DIRS = new Set(["node_modules", "dist", ".git"]);
@@ -23,23 +23,27 @@ const ALLOWLIST = new Set(["index.css"]);
  */
 function collectFiles(dir) {
   const results = [];
-  for (const entry of readdirSync(dir)) {
-    if (SKIP_DIRS.has(entry)) continue;
-    const full = join(dir, entry);
-    const stat = statSync(full);
-    if (stat.isDirectory()) {
-      results.push(...collectFiles(full));
-    } else {
-      const ext = extname(entry);
-      if ((ext === ".jsx" || ext === ".js") && !ALLOWLIST.has(entry)) {
-        results.push(full);
+  try {
+    for (const entry of readdirSync(dir)) {
+      if (SKIP_DIRS.has(entry)) continue;
+      const full = join(dir, entry);
+      const stat = statSync(full);
+      if (stat.isDirectory()) {
+        results.push(...collectFiles(full));
+      } else {
+        const ext = extname(entry);
+        if ((ext === ".jsx" || ext === ".js") && !ALLOWLIST.has(entry)) {
+          results.push(full);
+        }
       }
     }
+  } catch (err) {
+    console.error(`Error scanning directory ${dir}:`, err.message);
   }
   return results;
 }
 
-const files = collectFiles(ROOT);
+const files = ROOTS.flatMap(root => collectFiles(root));
 const violations = [];
 
 for (const file of files) {

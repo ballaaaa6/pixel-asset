@@ -13,6 +13,7 @@ Every time code is modified, a new feature is added, or any logic is successfull
 ## 2. Technical Framework & Conventions
 
 - **Tech Stack**: React (v18) + Vite + Cloudflare Pages Functions & KV.
+- **File Size Limit**: Keep all source files (.js and .jsx) in both `src/` and `functions/` strictly under 400 lines. Enforced via pre-build script. Split large files and prefix backend helper files with an underscore (e.g., `_pricesHelpers.js`) to bypass routing.
 - **Styling**: Vanilla CSS only. Do not use Tailwind CSS, styled-components, or utility classes from other frameworks unless explicitly requested by the user. Modify and scale class declarations directly in `src/index.css`.
 - **No Placeholder Assets**: Avoid writing placeholder graphics or stock images. For demo views or placeholder cards, request image generation or render SVG shapes directly.
 - **Maintain Comments**: Preserve existing codebase documentation, comments, and docstrings unless they conflict with the requested changes.

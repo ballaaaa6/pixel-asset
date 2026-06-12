@@ -8,6 +8,13 @@
 │       │   ├── change-password.js
 │       │   ├── login.js
 │       │   └── register.js
+│       ├── _pricesBase.js
+│       ├── _pricesDetails.js
+│       ├── _pricesLive.js
+│       ├── _pricesMetrics.js
+│       ├── _pricesSearch.js
+│       ├── _scanModel.js
+│       ├── _scanValidators.js
 │       ├── ocr.js
 │       ├── portfolio.js
 │       ├── prices.js

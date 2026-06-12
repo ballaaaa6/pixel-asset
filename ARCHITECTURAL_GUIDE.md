@@ -27,11 +27,18 @@ d:/antigravity/us stock tracker/
 │       │   ├── login.js             # POST /api/auth/login
 │       │   ├── register.js          # POST /api/auth/register
 │       │   └── change-password.js   # POST /api/auth/change-password
+│       ├── _pricesBase.js           # Price caching, cookie crumb and base helpers
+│       ├── _pricesDetails.js        # Company detail parsing and news translation helpers
+│       ├── _pricesLive.js           # Live prices and history helper logic
+│       ├── _pricesMetrics.js        # Metrics calculation and model formatting logic
+│       ├── _pricesSearch.js         # Autocomplete query and sparkline helpers
+│       ├── _scanModel.js            # Workers AI scanner model and portfolio lot merger
+│       ├── _scanValidators.js       # Receipt prompt heuristics and data validator
 │       ├── ocr.js                   # POST /api/ocr — Gemini Vision slip scan
 │       ├── portfolio.js             # GET/POST /api/portfolio — CRUD portfolio lots
-│       ├── prices.js                # GET /api/prices — Yahoo Finance price fetch (1124 lines ⚠️)
+│       ├── prices.js                # GET /api/prices — Main price API entry point (80 lines ✅)
 │       ├── profile.js               # GET/POST /api/profile — user profile sync
-│       ├── scan.js                  # POST /api/scan — full Tesseract OCR pipeline (797 lines ⚠️)
+│       ├── scan.js                  # POST /api/scan — Main OCR scan API entry point (115 lines ✅)
 │       └── thaiStocks.js            # GET /api/thaiStocks — list of Thai stock names/symbols
 │
 ├── src/
@@ -242,3 +249,12 @@ Commit types: `feat`, `fix`, `refactor`, `docs`, `chore`
 | `src/utils/assetHelpers.js` | 322 | ✅ |
 | `src/utils/formatters.js` | 83 | ✅ |
 | `src/utils/ocrParser.js` | 166 | ✅ |
+| `functions/api/prices.js` | 80 | ✅ |
+| `functions/api/scan.js` | 115 | ✅ |
+| `functions/api/_pricesBase.js` | 210 | ✅ |
+| `functions/api/_pricesDetails.js` | 280 | ✅ |
+| `functions/api/_pricesLive.js` | 200 | ✅ |
+| `functions/api/_pricesMetrics.js` | 160 | ✅ |
+| `functions/api/_pricesSearch.js` | 120 | ✅ |
+| `functions/api/_scanModel.js` | 240 | ✅ |
+| `functions/api/_scanValidators.js` | 370 | ✅ |
