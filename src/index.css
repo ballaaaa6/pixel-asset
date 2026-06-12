@@ -1224,7 +1224,7 @@ html, body {
 /* ═══════════════════════════════════════════════════════════════
    ASSET TABLE (Desktop)
 ═══════════════════════════════════════════════════════════════ */
-.table-wrapper { width: 100%; overflow-x: hidden; }
+.table-wrapper { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
 .asset-table { width: 100%; border-collapse: collapse; text-align: left; }
 

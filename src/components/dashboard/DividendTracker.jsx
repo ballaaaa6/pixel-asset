@@ -4,7 +4,6 @@ import { fmtUSD, fmtTHB, fmtPct } from "../../utils/formatters";
 import DividendSafetyScanner from "./DividendSafetyScanner";
 import DividendDiversification from "./DividendDiversification";
 import DividendGrowthTrend from "./DividendGrowthTrend";
-import DividendCalendarMatrix from "./DividendCalendarMatrix";
 import { calculateDividendProjections } from "../../utils/dividendHelpers";
 import { 
   YieldComparisonModal, 
@@ -123,7 +122,7 @@ export default function DividendTracker({
         </div>
       </div>
 
-      {/* 2. Three Interactive Analytics Blocks (Safety, Diversification, Growth) */}
+      {/* 2. Four Interactive Analytics Blocks (Safety, Diversification, Growth, and Upcoming Ex-Dates) */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 }} className="dashboard-grid">
         <DividendSafetyScanner 
           safetyScore={calculations.safetyScore}
@@ -145,49 +144,47 @@ export default function DividendTracker({
           averageYield={calculations.averageYield}
           hideValues={hideValues}
         />
-      </div>
 
-      {/* 3. Rolling Calendar Grid & Upcoming Ex-Dates Calendar */}
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1.2fr", gap: 20 }} className="dashboard-grid">
-        {/* Calendar Matrix */}
-        <DividendCalendarMatrix 
-          next12Months={calculations.next12Months}
-          hideValues={hideValues}
-          exchangeRate={exchangeRate}
-        />
-
-        {/* Upcoming Ex-Dates Calendar */}
-        <div className="card" style={{ padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
+        {/* Upcoming Ex-Dates Calendar Block */}
+        <div 
+          className="card" 
+          style={{ 
+            padding: 24, 
+            display: "flex", 
+            flexDirection: "column", 
+            gap: 16,
+            background: "var(--bg-card)",
+            border: "1px solid var(--border)",
+            borderRadius: 16
+          }}
+        >
           <h3 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-main)", display: "flex", alignItems: "center", gap: 8, margin: 0 }}>
             📅 ปฏิทินปันผลเร็วๆ นี้
           </h3>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, overflowY: "auto", flex: 1, maxHeight: 420 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, overflowY: "auto", flex: 1, maxHeight: 110 }}>
             {calculations.upcomingPayments.length === 0 ? (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--text-faint)", fontSize: 12, padding: "20px 0" }}>
-                ไม่มีเงินปันผลที่กำลังจะจ่ายเร็วๆ นี้
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--text-faint)", fontSize: 11, padding: "10px 0" }}>
+                ไม่มีเงินปันผลเร็วๆ นี้
               </div>
             ) : (
-              calculations.upcomingPayments.map((pay, i) => (
+              calculations.upcomingPayments.slice(0, 3).map((pay, i) => (
                 <div 
                   key={i} 
-                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(0,0,0,0.02)", borderRadius: 10, border: "1px solid var(--border)", cursor: "pointer", transition: "all 0.2s" }}
+                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: "rgba(0,0,0,0.02)", borderRadius: 10, border: "1px solid var(--border)", cursor: "pointer", transition: "all 0.2s" }}
                   onClick={() => setSelectedUpcomingPayout(pay)}
                   className="ripple-btn"
                   title="คลิกเพื่อดูรายละเอียดปันผลถัดไป"
                 >
-                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                    <span style={{ fontWeight: 800, fontSize: 13, color: "var(--text-main)" }}>{pay.symbol}</span>
-                    <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                    <span style={{ fontWeight: 800, fontSize: 12, color: "var(--text-main)" }}>{pay.symbol}</span>
+                    <span style={{ fontSize: 10, color: "var(--text-muted)" }}>
                       XD {pay.estExDate.toLocaleDateString("th-TH", { day: "numeric", month: "short" })}
                     </span>
                   </div>
-                  <div style={{ textAlign: "right", display: "flex", flexDirection: "column", gap: 2 }}>
-                    <span className={hideValues ? "privacy-blurred" : ""} style={{ fontWeight: 700, fontSize: 13, color: "var(--gain)" }}>
+                  <div style={{ textAlign: "right", display: "flex", flexDirection: "column", gap: 1 }}>
+                    <span className={hideValues ? "privacy-blurred" : ""} style={{ fontWeight: 700, fontSize: 12, color: "var(--gain)" }}>
                       +{fmtUSD(pay.estPayoutUSD)}
-                    </span>
-                    <span style={{ fontSize: 10, color: "var(--text-faint)" }}>
-                      {getDaysDiff(pay.estExDate) > 0 ? `อีก ${getDaysDiff(pay.estExDate)} วัน` : "XD แล้ว"}
                     </span>
                   </div>
                 </div>

@@ -92,7 +92,7 @@ export default function DividendGrowthTrend({ yocLeaderboard, computedAssets, av
                 </div>
               </div>
 
-              <div className="table-wrapper" style={{ maxHeight: 350, overflowY: "auto" }}>
+              <div className="table-wrapper" style={{ maxHeight: 350, overflowY: "auto", overflowX: "auto" }}>
                 <table className="asset-table" style={{ width: "100%", fontSize: 12 }}>
                   <thead>
                     <tr>
