@@ -97,12 +97,29 @@ export default function TechnicalChart({ candles = [], symbol = "", currentPrice
   });
 
   const handleMouseMove = (e) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const mouseXInSvg = ((e.clientX - rect.left) / rect.width) * width;
-    const ratio = (mouseXInSvg - paddingLeft) / chartWidth;
-    let idx = Math.round(ratio * (candles.length - 1));
-    idx = Math.max(0, Math.min(candles.length - 1, idx));
-    setHoveredIdx(idx);
+    const svg = e.currentTarget.querySelector("svg");
+    if (!svg) return;
+
+    const point = svg.createSVGPoint();
+    point.x = e.clientX;
+    point.y = e.clientY;
+
+    try {
+      const svgPoint = point.matrixTransform(svg.getScreenCTM().inverse());
+      const mouseXInSvg = svgPoint.x;
+      const ratio = (mouseXInSvg - paddingLeft) / chartWidth;
+      let idx = Math.round(ratio * (candles.length - 1));
+      idx = Math.max(0, Math.min(candles.length - 1, idx));
+      setHoveredIdx(idx);
+    } catch (err) {
+      // Fallback if matrix transformation fails
+      const rect = e.currentTarget.getBoundingClientRect();
+      const mouseXInSvg = ((e.clientX - rect.left) / rect.width) * width;
+      const ratio = (mouseXInSvg - paddingLeft) / chartWidth;
+      let idx = Math.round(ratio * (candles.length - 1));
+      idx = Math.max(0, Math.min(candles.length - 1, idx));
+      setHoveredIdx(idx);
+    }
   };
 
   const activeCandle = hoveredIdx !== null ? candles[hoveredIdx] : candles[candles.length - 1];
