@@ -7,7 +7,8 @@ export default function DividendChart({
   maxMonthlyPayout,
   hideValues,
   hoveredBar,
-  setHoveredBar
+  setHoveredBar,
+  onBarClick
 }) {
   return (
     <div style={{ position: "relative", width: "100%", height: 180, marginTop: 10 }}>
@@ -47,6 +48,7 @@ export default function DividendChart({
               key={idx}
               onMouseEnter={() => setHoveredBar(idx)}
               onMouseLeave={() => setHoveredBar(null)}
+              onClick={() => onBarClick?.(idx)}
               style={{ cursor: "pointer" }}
             >
               <rect

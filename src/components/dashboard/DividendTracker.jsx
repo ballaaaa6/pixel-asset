@@ -2,6 +2,14 @@ import React, { useEffect, useMemo, useState } from "react";
 import { DollarSign, Percent, Calendar, Loader2 } from "lucide-react";
 import { fmtUSD, fmtTHB, fmtPct } from "../../utils/formatters";
 import DividendChart from "./DividendChart";
+import DividendMilestones from "./DividendMilestones";
+import { calculateDividendProjections } from "../../utils/dividendHelpers";
+import { 
+  MonthDetailModal, 
+  YieldComparisonModal, 
+  IncomeShareModal,
+  UpcomingPayoutModal 
+} from "./DividendDetailModals";
 
 const THAI_MONTHS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 
@@ -13,9 +21,16 @@ export default function DividendTracker({
   showToast,
   dividendData,
   dividendLoading,
-  fetchDividendEvents
+  fetchDividendEvents,
+  setSelectedAsset
 }) {
   const [hoveredBar, setHoveredBar] = useState(null);
+  
+  // Interactive Modal States
+  const [selectedMonthIdx, setSelectedMonthIdx] = useState(null);
+  const [showYieldModal, setShowYieldModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [selectedUpcomingPayout, setSelectedUpcomingPayout] = useState(null);
 
   // Trigger dividend fetch on mount
   useEffect(() => {
@@ -24,148 +39,9 @@ export default function DividendTracker({
     }
   }, [assets.length]);
 
-  // Main calculations memo
+  // Offload calculations to dividendHelpers
   const calculations = useMemo(() => {
-    const stockAssets = assets.filter(
-      a => a.qty > 0 && a.category !== "fiat" && a.type !== "fiat"
-    );
-
-    let totalAnnualIncomeUSD = 0;
-    let totalStockValueUSD = 0;
-    const computedAssets = [];
-    const upcomingPayments = [];
-
-    // Monthly buckets for the next 12 months starting from current month
-    const currentDate = new Date();
-    const currentMonthIndex = currentDate.getMonth(); // 0 - 11
-    const currentYear = currentDate.getFullYear();
-
-    const next12Months = [];
-    for (let i = 0; i < 12; i++) {
-      const m = (currentMonthIndex + i) % 12;
-      const y = currentYear + Math.floor((currentMonthIndex + i) / 12);
-      next12Months.push({ month: m, year: y, value: 0 });
-    }
-
-    stockAssets.forEach(asset => {
-      const pData = prices[asset.symbol];
-      const priceUSD = pData?.price || 0;
-      const valueUSD = priceUSD * asset.qty;
-      totalStockValueUSD += valueUSD;
-
-      const events = dividendData?.[asset.symbol];
-      if (!events) {
-        computedAssets.push({
-          ...asset,
-          priceUSD,
-          valueUSD,
-          annualRate: 0,
-          annualIncomeUSD: 0,
-          yieldPct: 0,
-          frequency: "N/A"
-        });
-        return;
-      }
-
-      // Convert events map to array and sort by date descending
-      const eventList = Object.values(events).sort((a, b) => b.date - a.date);
-      if (eventList.length === 0) return;
-
-      const nowSec = Math.floor(Date.now() / 1000);
-      const oneYearAgoSec = nowSec - 365 * 24 * 60 * 60;
-      
-      // Filter dividends paid in the last 1 year
-      const lastYearDividends = eventList.filter(e => e.date >= oneYearAgoSec);
-      
-      let annualRate = 0;
-      let frequencyCount = lastYearDividends.length;
-      
-      if (frequencyCount > 0) {
-        annualRate = lastYearDividends.reduce((sum, e) => sum + (e.amount || 0), 0);
-      } else {
-        // Fallback: use last dividend amount and guess frequency
-        const lastDiv = eventList[0];
-        annualRate = (lastDiv?.amount || 0) * 4; // default to quarterly
-        frequencyCount = 4;
-      }
-
-      const frequencyText = 
-        frequencyCount >= 12 ? "รายเดือน" :
-        frequencyCount >= 4 ? "รายไตรมาส" :
-        frequencyCount >= 2 ? "ครึ่งปี" :
-        frequencyCount === 1 ? "รายปี" : "ไม่แน่นอน";
-
-      const annualIncomeUSD = annualRate * asset.qty;
-      const yieldPct = priceUSD > 0 ? (annualRate / priceUSD) * 100 : 0;
-
-      totalAnnualIncomeUSD += annualIncomeUSD;
-
-      computedAssets.push({
-        ...asset,
-        priceUSD,
-        valueUSD,
-        annualRate,
-        annualIncomeUSD,
-        yieldPct,
-        frequency: frequencyText
-      });
-
-      // Project payouts for the next 12 months based on historical months
-      const historicalMonths = new Set();
-      lastYearDividends.forEach(e => {
-        const d = new Date(e.date * 1000);
-        historicalMonths.add(d.getMonth());
-      });
-
-      // If no dividends in past year, fallback to last dividend's month
-      if (historicalMonths.size === 0 && eventList.length > 0) {
-        const d = new Date(eventList[0].date * 1000);
-        historicalMonths.add(d.getMonth());
-      }
-
-      const lastAmount = eventList[0]?.amount || 0;
-      const payoutPerCycle = lastAmount * asset.qty;
-
-      next12Months.forEach(target => {
-        if (historicalMonths.has(target.month)) {
-          target.value += payoutPerCycle;
-        }
-      });
-
-      // Project next upcoming payment
-      if (eventList.length > 0 && frequencyCount > 0) {
-        const lastEvent = eventList[0];
-        const cycleDays = 365 / (frequencyCount || 4);
-        
-        let estExDateSec = lastEvent.date;
-        while (estExDateSec <= nowSec) {
-          estExDateSec += cycleDays * 24 * 60 * 60;
-        }
-
-        upcomingPayments.push({
-          symbol: asset.symbol,
-          name: asset.name || asset.symbol,
-          estExDate: new Date(estExDateSec * 1000),
-          amountPerShare: lastAmount,
-          estPayoutUSD: payoutPerCycle
-        });
-      }
-    });
-
-    // Sort upcoming payments by date ascending
-    upcomingPayments.sort((a, b) => a.estExDate - b.estExDate);
-
-    const averageYield = totalStockValueUSD > 0 ? (totalAnnualIncomeUSD / totalStockValueUSD) * 100 : 0;
-    const avgMonthlyIncomeUSD = totalAnnualIncomeUSD / 12;
-
-    return {
-      computedAssets,
-      upcomingPayments: upcomingPayments.slice(0, 5), // top 5
-      next12Months,
-      totalAnnualIncomeUSD,
-      averageYield,
-      avgMonthlyIncomeUSD
-    };
+    return calculateDividendProjections(assets, prices, dividendData);
   }, [assets, prices, dividendData]);
 
   if (dividendLoading) {
@@ -180,16 +56,28 @@ export default function DividendTracker({
   // Find max monthly payout for bar chart scaling
   const maxMonthlyPayout = Math.max(...calculations.next12Months.map(m => m.value), 10);
 
+  const getDaysDiff = (targetDate) => {
+    const diffTime = targetDate - new Date();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  };
+
   return (
     <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      
       {/* 1. Summary Cards */}
       <div className="kpi-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 }}>
-        <div className="kpi-card" style={{ display: "flex", alignItems: "center", gap: 16, padding: "20px 24px" }}>
+        {/* Card 1: Annual Income */}
+        <div 
+          className="kpi-card clickable" 
+          style={{ display: "flex", alignItems: "center", gap: 16, padding: "20px 24px", cursor: "pointer" }}
+          onClick={() => setShowShareModal(true)}
+          title="คลิกเพื่อดูสัดส่วนรายได้ปันผล"
+        >
           <div style={{ width: 44, height: 44, borderRadius: "50%", background: "var(--primary-light)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--primary)" }}>
             <DollarSign size={20} />
           </div>
           <div>
-            <div className="kpi-label">ประมาณการปันผลต่อปี</div>
+            <div className="kpi-label" style={{ display: "flex", alignItems: "center", gap: 4 }}>ประมาณการปันผลต่อปี 🔍</div>
             <div className={`kpi-value ${hideValues ? "privacy-blurred" : ""}`} style={{ fontSize: 22, fontWeight: 800 }}>
               {fmtUSD(calculations.totalAnnualIncomeUSD)}
             </div>
@@ -199,12 +87,18 @@ export default function DividendTracker({
           </div>
         </div>
 
-        <div className="kpi-card" style={{ display: "flex", alignItems: "center", gap: 16, padding: "20px 24px" }}>
+        {/* Card 2: Average Portfolio Yield */}
+        <div 
+          className="kpi-card clickable" 
+          style={{ display: "flex", alignItems: "center", gap: 16, padding: "20px 24px", cursor: "pointer" }}
+          onClick={() => setShowYieldModal(true)}
+          title="คลิกเพื่อวิเคราะห์ Yield on Cost"
+        >
           <div style={{ width: 44, height: 44, borderRadius: "50%", background: "rgba(0,185,138,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--gain)" }}>
             <Percent size={20} />
           </div>
           <div>
-            <div className="kpi-label">อัตราปันผลเฉลี่ยของพอร์ต</div>
+            <div className="kpi-label" style={{ display: "flex", alignItems: "center", gap: 4 }}>อัตราปันผลเฉลี่ยของพอร์ต 🔍</div>
             <div className="kpi-value" style={{ fontSize: 22, fontWeight: 800 }}>
               {fmtPct(calculations.averageYield)}
             </div>
@@ -214,12 +108,18 @@ export default function DividendTracker({
           </div>
         </div>
 
-        <div className="kpi-card" style={{ display: "flex", alignItems: "center", gap: 16, padding: "20px 24px" }}>
+        {/* Card 3: Average Monthly Income */}
+        <div 
+          className="kpi-card clickable" 
+          style={{ display: "flex", alignItems: "center", gap: 16, padding: "20px 24px", cursor: "pointer" }}
+          onClick={() => setShowShareModal(true)}
+          title="คลิกเพื่อดูสัดส่วนรายได้ปันผล"
+        >
           <div style={{ width: 44, height: 44, borderRadius: "50%", background: "rgba(245,158,11,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--gold)" }}>
             <Calendar size={20} />
           </div>
           <div>
-            <div className="kpi-label">เฉลี่ยต่อเดือน</div>
+            <div className="kpi-label" style={{ display: "flex", alignItems: "center", gap: 4 }}>เฉลี่ยต่อเดือน 🔍</div>
             <div className={`kpi-value ${hideValues ? "privacy-blurred" : ""}`} style={{ fontSize: 22, fontWeight: 800 }}>
               {fmtUSD(calculations.avgMonthlyIncomeUSD)}
             </div>
@@ -238,7 +138,7 @@ export default function DividendTracker({
             <h3 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-main)", display: "flex", alignItems: "center", gap: 8 }}>
               📊 ประมาณการกระแสเงินสดรายเดือน (12 เดือนข้างหน้า)
             </h3>
-            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>คลิกเพื่อดูรายละเอียด</span>
+            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>คลิกแท่งกราฟเพื่อดูรายชื่อหุ้น</span>
           </div>
 
           <DividendChart
@@ -247,6 +147,7 @@ export default function DividendTracker({
             hideValues={hideValues}
             hoveredBar={hoveredBar}
             setHoveredBar={setHoveredBar}
+            onBarClick={(idx) => setSelectedMonthIdx(idx)}
           />
         </div>
 
@@ -263,19 +164,25 @@ export default function DividendTracker({
               </div>
             ) : (
               calculations.upcomingPayments.map((pay, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(0,0,0,0.02)", borderRadius: 10, border: "1px solid var(--border)" }}>
+                <div 
+                  key={i} 
+                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "rgba(0,0,0,0.02)", borderRadius: 10, border: "1px solid var(--border)", cursor: "pointer", transition: "all 0.2s" }}
+                  onClick={() => setSelectedUpcomingPayout(pay)}
+                  className="ripple-btn"
+                  title="คลิกเพื่อดูรายละเอียดปันผลถัดไป"
+                >
                   <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                     <span style={{ fontWeight: 800, fontSize: 13, color: "var(--text-main)" }}>{pay.symbol}</span>
                     <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                      ประมาณ {pay.estExDate.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" })}
+                      XD {pay.estExDate.toLocaleDateString("th-TH", { day: "numeric", month: "short" })}
                     </span>
                   </div>
                   <div style={{ textAlign: "right", display: "flex", flexDirection: "column", gap: 2 }}>
                     <span className={hideValues ? "privacy-blurred" : ""} style={{ fontWeight: 700, fontSize: 13, color: "var(--gain)" }}>
                       +{fmtUSD(pay.estPayoutUSD)}
                     </span>
-                    <span style={{ fontSize: 10, color: "var(--text-muted)" }}>
-                      {fmtUSD(pay.amountPerShare)}/หุ้น
+                    <span style={{ fontSize: 10, color: "var(--text-faint)" }}>
+                      {getDaysDiff(pay.estExDate) > 0 ? `อีก ${getDaysDiff(pay.estExDate)} วัน` : "XD แล้ว"}
                     </span>
                   </div>
                 </div>
@@ -285,7 +192,16 @@ export default function DividendTracker({
         </div>
       </div>
 
-      {/* 3. Detailed Yield Table */}
+      {/* 3. Milestones & DRIP Simulator */}
+      <DividendMilestones
+        totalAnnualIncomeUSD={calculations.totalAnnualIncomeUSD}
+        totalStockValueUSD={calculations.totalStockValueUSD}
+        averageYield={calculations.averageYield}
+        exchangeRate={exchangeRate}
+        hideValues={hideValues}
+      />
+
+      {/* 4. Detailed Yield Table */}
       <div className="card" style={{ padding: 24 }}>
         <h3 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-main)", marginBottom: 16 }}>
           💼 สรุปอัตราปันผลรายสินทรัพย์
@@ -301,7 +217,7 @@ export default function DividendTracker({
               <thead>
                 <tr>
                   <th>สินทรัพย์</th>
-                  <th style={{ textAlign: "right" }}>ราคา</th>
+                  <th style={{ textAlign: "right" }}>ราคาปัจจุบัน</th>
                   <th style={{ textAlign: "right" }}>จำนวนที่ถือ</th>
                   <th style={{ textAlign: "right" }}>อัตราปันผล/หุ้น</th>
                   <th style={{ textAlign: "right" }}>อัตราผลตอบแทน (Yield)</th>
@@ -311,8 +227,13 @@ export default function DividendTracker({
               </thead>
               <tbody>
                 {calculations.computedAssets.map((asset, i) => (
-                  <tr key={i}>
-                    <td style={{ fontWeight: 800 }}>{asset.symbol}</td>
+                  <tr 
+                    key={i} 
+                    style={{ cursor: "pointer" }} 
+                    onClick={() => setSelectedAsset(asset)}
+                    title="คลิกเพื่อดูรายละเอียดประวัติสินทรัพย์"
+                  >
+                    <td style={{ fontWeight: 800, color: "var(--primary)" }}>{asset.symbol}</td>
                     <td style={{ textAlign: "right" }}>{fmtUSD(asset.priceUSD)}</td>
                     <td style={{ textAlign: "right" }}>{asset.qty.toLocaleString()}</td>
                     <td style={{ textAlign: "right" }}>{fmtUSD(asset.annualRate)}</td>
@@ -332,6 +253,50 @@ export default function DividendTracker({
           </div>
         )}
       </div>
+
+      {/* ── MODALS ── */}
+      {selectedMonthIdx !== null && (
+        <MonthDetailModal
+          isOpen={selectedMonthIdx !== null}
+          onClose={() => setSelectedMonthIdx(null)}
+          monthName={THAI_MONTHS[calculations.next12Months[selectedMonthIdx]?.month]}
+          monthPayments={calculations.next12Months[selectedMonthIdx]?.payments}
+          hideValues={hideValues}
+          exchangeRate={exchangeRate}
+        />
+      )}
+
+      {showYieldModal && (
+        <YieldComparisonModal
+          isOpen={showYieldModal}
+          onClose={() => setShowYieldModal(false)}
+          computedAssets={calculations.computedAssets}
+          hideValues={hideValues}
+          exchangeRate={exchangeRate}
+        />
+      )}
+
+      {showShareModal && (
+        <IncomeShareModal
+          isOpen={showShareModal}
+          onClose={() => setShowShareModal(false)}
+          computedAssets={calculations.computedAssets}
+          hideValues={hideValues}
+          totalAnnualIncomeUSD={calculations.totalAnnualIncomeUSD}
+        />
+      )}
+
+      {selectedUpcomingPayout !== null && (
+        <UpcomingPayoutModal
+          isOpen={selectedUpcomingPayout !== null}
+          onClose={() => setSelectedUpcomingPayout(null)}
+          selectedUpcomingPayout={selectedUpcomingPayout}
+          hideValues={hideValues}
+          exchangeRate={exchangeRate}
+          assets={assets}
+          setSelectedAsset={setSelectedAsset}
+        />
+      )}
     </div>
   );
 }

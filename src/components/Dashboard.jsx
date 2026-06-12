@@ -259,6 +259,7 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
                 dividendData={dividendData}
                 dividendLoading={dividendLoading}
                 fetchDividendEvents={fetchDividendEvents}
+                setSelectedAsset={setSelectedAsset}
               />
             ) : null}
           </div>
