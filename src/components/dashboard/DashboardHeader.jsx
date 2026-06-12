@@ -12,6 +12,7 @@ export default function DashboardHeader({
   user,
   profilePic,
   setProfileModalOpen,
+  setInvestorModalOpen,
   isDirty
 }) {
   return (
@@ -127,8 +128,8 @@ export default function DashboardHeader({
               userSelect: "none",
               transition: "var(--transition)"
             }}
-            onClick={() => setProfileModalOpen(true)}
-            title="โปรไฟล์และตั้งค่า"
+            onClick={() => setInvestorModalOpen(true)}
+            title="โปรไฟล์นักลงทุน"
           >
             {profilePic ? (
               <img

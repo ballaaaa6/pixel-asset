@@ -18,6 +18,7 @@ import AssetTable from "./dashboard/AssetTable";
 import PnLDetailsModal from "./dashboard/PnLDetailsModal";
 import KPIDetailsModal from "./dashboard/KPIDetailsModal";
 import ProfileModal from "./dashboard/ProfileModal";
+import InvestorProfileModal from "./dashboard/InvestorProfileModal";
 import PortfolioChart from "./charts/PortfolioChart";
 import CostValueBar from "./dashboard/CostValueBar";
 import TickerTape from "./dashboard/TickerTape";
@@ -50,13 +51,13 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
       : assets.filter(a => (a.category || a.type || "stock") === chartCategory);
   }, [assets, chartCategory]);
 
+  const profileProps = useProfile({ user, showToast, onSessionExpired });
   const {
-    portfolioName, setPortfolioName, isEditingName, setIsEditingName, tempName, setTempName, profileModalOpen,
-    setProfileModalOpen, profilePic, setProfilePic, avatarPreviewOpen, setAvatarPreviewOpen, avatarHovered,
-    setAvatarHovered, presetModalOpen, setPresetModalOpen, nickname, setNickname, newNickname, setNewNickname,
-    oldPassword, setOldPassword, newPassword, setNewPassword, handleSaveName, handleAvatarUpload, handleSaveProfile,
-    handleChangePassword, syncProfileToServer
-  } = useProfile({ user, showToast, onSessionExpired });
+    portfolioName, setPortfolioName, isEditingName, setIsEditingName, tempName, setTempName,
+    profileModalOpen, setProfileModalOpen, investorModalOpen, setInvestorModalOpen,
+    profilePic, setProfilePic, nickname, setNickname, newNickname, setNewNickname,
+    handleSaveName, syncProfileToServer
+  } = profileProps;
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState(null);
@@ -167,6 +168,7 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
           user={user}
           profilePic={profilePic}
           setProfileModalOpen={setProfileModalOpen}
+          setInvestorModalOpen={setInvestorModalOpen}
           isDirty={isDirty}
         />
 
@@ -309,20 +311,20 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
         />
       )}
 
-      <ProfileModal
-        isOpen={profileModalOpen} onClose={() => setProfileModalOpen(false)}
-        profilePic={profilePic} setProfilePic={setProfilePic} nickname={nickname}
-        newNickname={newNickname} setNewNickname={setNewNickname}
-        oldPassword={oldPassword} setOldPassword={setOldPassword}
-        newPassword={newPassword} setNewPassword={setNewPassword}
-        avatarHovered={avatarHovered} setAvatarHovered={setAvatarHovered}
-        avatarPreviewOpen={avatarPreviewOpen} setAvatarPreviewOpen={setAvatarPreviewOpen}
-        presetModalOpen={presetModalOpen} setPresetModalOpen={setPresetModalOpen}
-        handleAvatarUpload={handleAvatarUpload} handleSaveProfile={handleSaveProfile}
-        handleChangePassword={handleChangePassword} handleExport={handleExport}
-        handleImport={handleImport} handleClearPortfolio={handleClearPortfolio}
-        handleClearAllData={handleClearAllData} onLogout={handleLogoutConfirm}
+      <InvestorProfileModal
+        isOpen={investorModalOpen}
+        onClose={() => setInvestorModalOpen(false)}
         askConfirm={askConfirm}
+        {...profileProps}
+      />
+
+      <ProfileModal
+        isOpen={profileModalOpen}
+        onClose={() => setProfileModalOpen(false)}
+        handleClearPortfolio={handleClearPortfolio}
+        handleClearAllData={handleClearAllData}
+        onLogout={handleLogoutConfirm}
+        {...profileProps}
       />
 
       {modalOpen && (
