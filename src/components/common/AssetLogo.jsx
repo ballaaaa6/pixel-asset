@@ -34,14 +34,15 @@ export default function AssetLogo({ symbol, category, style }) {
       return [`https://images.financialmodelingprep.com/symbol/GLD.png`];
     }
 
-    // Stock: try Financial Modeling Prep, then logo.dev, then TradingView, then Google favicon
+    // Stock: try Financial Modeling Prep (with full symbol e.g. PTT.BK), then with split symbol, then logo.dev, then Google favicon
+    const fullSym = symbol ? symbol.toUpperCase() : "";
     return [
+      `https://images.financialmodelingprep.com/symbol/${fullSym}.png`,
       `https://images.financialmodelingprep.com/symbol/${sym}.png`,
       `https://img.logo.dev/ticker/${sym}?token=pk_R4dEIaKTRG-i8tSiILBNZA&size=128&format=png`,
-      `https://s3-symbol-logo.tradingview.com/stock/${sym.toLowerCase()}.svg`,
       `https://www.google.com/s2/favicons?sz=128&domain=${sym.toLowerCase()}.com`
     ];
-  }, [sym, category]);
+  }, [sym, symbol, category]);
 
   // Reset when symbol changes
   useEffect(() => { setSrcIndex(0); }, [sym, category]);

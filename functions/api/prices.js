@@ -1,3 +1,5 @@
+import { THAI_STOCKS } from "./thaiStocks.js";
+
 const YF_HEADERS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
   "Accept": "application/json",
@@ -25,18 +27,54 @@ export async function onRequestGet(context) {
       const cached = await getCache(cacheKey);
       if (cached) return new Response(cached, { status: 200, headers: corsHeaders });
 
-      const searchUrl = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=10&newsCount=0`;
-      const resp = await fetch(searchUrl, { headers: YF_HEADERS });
-      if (!resp.ok) {
-        return new Response(JSON.stringify({ error: "ค้นหาไม่สำเร็จ" }), { status: resp.status, headers: corsHeaders });
+      const queryStr = q.trim().toLowerCase();
+      const hasThai = /[\u0e00-\u0e7f]/.test(queryStr);
+
+      let localMatches = [];
+      if (queryStr) {
+        localMatches = THAI_STOCKS.filter(stock => 
+          stock.symbol.toLowerCase().includes(queryStr) || 
+          stock.name.toLowerCase().includes(queryStr)
+        ).map(item => ({
+          symbol: item.symbol,
+          name: item.name,
+          type: item.type,
+          exchange: item.exchange
+        }));
       }
-      const data = await resp.json();
-      const results = (data.quotes || []).map(item => ({
-        symbol: item.symbol,
-        name: item.longname || item.shortname || item.dispName || item.symbol,
-        type: item.quoteType || item.typeDisp || "UNKNOWN",
-        exchange: item.exchDisp || item.exchange || "GLOBAL"
-      }));
+
+      let results = [];
+
+      if (hasThai) {
+        // If it contains Thai characters, do NOT query Yahoo Finance (which returns 400 Bad Request)
+        results = localMatches;
+      } else {
+        // Otherwise, fetch from Yahoo Finance and merge with local matches
+        const searchUrl = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=10&newsCount=0`;
+        const resp = await fetch(searchUrl, { headers: YF_HEADERS });
+        if (resp.ok) {
+          const data = await resp.json();
+          const yfResults = (data.quotes || []).map(item => ({
+            symbol: item.symbol,
+            name: item.longname || item.shortname || item.dispName || item.symbol,
+            type: item.quoteType || item.typeDisp || "UNKNOWN",
+            exchange: item.exchDisp || item.exchange || "GLOBAL"
+          }));
+          
+          // Merge local matches and YF results, ensuring unique symbols
+          const seen = new Set();
+          results = [...localMatches, ...yfResults].filter(item => {
+            const symKey = item.symbol.toUpperCase();
+            if (seen.has(symKey)) return false;
+            seen.add(symKey);
+            return true;
+          });
+        } else {
+          // If YF fails, return local matches at least
+          results = localMatches;
+        }
+      }
+
       const jsonStr = JSON.stringify(results);
       putCache(context, cacheKey, jsonStr, 3600);
       return new Response(jsonStr, { status: 200, headers: corsHeaders });

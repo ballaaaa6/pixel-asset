@@ -136,7 +136,7 @@ export function PortfolioChart({ history, range, onRangeChange, assets, exchange
           costLinePath={chartData.costLinePath} linePath={chartData.linePath}
           isUp={chartData.isUp} color={chartData.color}
           hovered={hovered} visibleDurationMs={chartData.visibleDurationMs} hasMultipleYears={chartData.hasMultipleYears}
-          fmt={fmt} hideValues={hideValues}
+          fmt={fmt} hideValues={hideValues} chartCategory={chartCategory}
         />
 
         {/* Tooltips / diff panel */}

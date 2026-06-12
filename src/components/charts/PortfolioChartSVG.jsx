@@ -9,7 +9,7 @@ export function PortfolioChartSVG({
   fillValueArea, fillCostArea, clipAboveCostPath, clipBelowCostPath, clipAboveValuePath,
   costLinePath, linePath, isUp, color,
   hovered, visibleDurationMs, hasMultipleYears,
-  fmt, hideValues
+  fmt, hideValues, chartCategory
 }) {
 
 
@@ -51,7 +51,7 @@ export function PortfolioChartSVG({
 
       {/* Market session shading for intraday periods */}
       {(() => {
-        const isIntraday = visibleDurationMs > 0 && visibleDurationMs <= 8 * 24 * 60 * 60 * 1000;
+        const isIntraday = visibleDurationMs > 0 && visibleDurationMs <= 8 * 24 * 60 * 60 * 1000 && chartCategory === "stock";
         if (!isIntraday) return null;
 
         return pts.map((pt, i) => {
