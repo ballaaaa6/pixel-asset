@@ -1,0 +1,152 @@
+import React, { useState } from "react";
+import { createPortal } from "react-dom";
+import { X, AlertCircle } from "lucide-react";
+
+export default function StockQuarterlyTab({ earnings = [], calendar = [] }) {
+  const [selectedEarning, setSelectedEarning] = useState(null);
+
+  const getScreenerNextEstimate = () => {
+    if (!calendar || calendar.length === 0) return null;
+    const sorted = [...calendar].sort((a, b) => new Date(a.date) - new Date(b.date));
+    return sorted[0];
+  };
+
+  const nextEstimate = getScreenerNextEstimate();
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-muted)" }}>ประวัติการรายงานกำไร (คลิกเพื่อดูรายละเอียดเชิงลึก)</span>
+        {nextEstimate && (
+          <span style={{ fontSize: 11.5, fontWeight: 800, color: "var(--primary)", background: "rgba(99,102,241,0.06)", padding: "2px 8px", borderRadius: 8 }}>
+            คาดการณ์ครั้งถัดไป: {nextEstimate.date} (EPS: {nextEstimate.epsEstimate?.toFixed(2) ?? "-"})
+          </span>
+        )}
+      </div>
+      
+      {(!earnings || earnings.length === 0) ? (
+        <div style={{ padding: 20, textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>ไม่มีข้อมูลรายงานกำไรสุทธิไตรมาสล่าสุด</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {earnings.map((e, idx) => {
+            const surpriseColor = e.surprise >= 0 ? "var(--gain)" : "var(--loss)";
+            return (
+              <div 
+                key={idx} 
+                onClick={() => setSelectedEarning(e)}
+                style={{ 
+                  display: "flex", 
+                  alignItems: "center", 
+                  justifyContent: "space-between", 
+                  padding: "10px 14px", 
+                  background: "rgba(0,0,0,0.015)", 
+                  borderRadius: 12,
+                  border: "1px solid var(--border)",
+                  cursor: "pointer",
+                  transition: "background 0.2s"
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = "rgba(0,0,0,0.03)"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "rgba(0,0,0,0.015)"}
+              >
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)" }}>ไตรมาส {e.quarter} / ปี {e.year}</span>
+                  <span style={{ fontSize: 11, color: "var(--text-muted)" }}>วันที่รายงาน: {e.period}</span>
+                </div>
+                <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
+                  <div style={{ textAlign: "right" }}>
+                    <span style={{ fontSize: 11, color: "var(--text-muted)", display: "block" }}>คาดการณ์ / จริง</span>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)" }}>
+                      {e.estimate?.toFixed(2) ?? "-"} / <strong style={{ color: "var(--primary)" }}>{e.actual?.toFixed(2) ?? "-"}</strong>
+                    </span>
+                  </div>
+                  <div style={{ textAlign: "right", minWidth: 70 }}>
+                    <span style={{ fontSize: 11, color: "var(--text-muted)", display: "block" }}>Surprise</span>
+                    <span style={{ fontSize: 13, fontWeight: 900, color: surpriseColor }}>
+                      {e.surprisePercent >= 0 ? `+${e.surprisePercent.toFixed(1)}%` : `${e.surprisePercent.toFixed(1)}%`}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── EARNINGS DETAIL MODAL ── */}
+      {selectedEarning && createPortal(
+        <div className="modal-overlay" onClick={() => setSelectedEarning(null)}>
+          <div className="modal-content" style={{ maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 15 }}>📊 รายละเอียดงบไตรมาส (Quarterly Earnings)</span>
+              <button className="btn-close" onClick={() => setSelectedEarning(null)}><X size={18} /></button>
+            </div>
+            
+            <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "10px 0", background: "rgba(99,102,241,0.03)", borderRadius: 16, border: "1px solid var(--border)" }}>
+                <span style={{ fontSize: 13, color: "var(--text-muted)" }}>ไตรมาส {selectedEarning.quarter} / ปี {selectedEarning.year}</span>
+                <span style={{ fontSize: 24, fontWeight: 900, color: "var(--text-main)", marginTop: 4 }}>
+                  จริง: {selectedEarning.actual?.toFixed(2) ?? "-"} | คาด: {selectedEarning.estimate?.toFixed(2) ?? "-"}
+                </span>
+                
+                <div style={{ 
+                  marginTop: 10,
+                  fontSize: 12, 
+                  fontWeight: 900, 
+                  color: selectedEarning.surprise >= 0 ? "var(--gain)" : "var(--loss)", 
+                  background: selectedEarning.surprise >= 0 ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)",
+                  padding: "4px 12px",
+                  borderRadius: 12,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4
+                }}>
+                  <AlertCircle size={14} />
+                  {selectedEarning.surprise >= 0 
+                    ? `เข้าเป้า (Beat คาดการณ์ +${selectedEarning.surprisePercent?.toFixed(1)}%)` 
+                    : `ต่ำกว่าคาด (Miss คาดการณ์ ${selectedEarning.surprisePercent?.toFixed(1)}%)`
+                  }
+                </div>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-muted)" }}>ข้อมูลประกอบ:</span>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 12.5, color: "var(--text-main)", lineHeight: 1.4 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>ส่วนต่างกำไรต่อหุ้น (Surprise Value):</span>
+                    <strong>{selectedEarning.surprise >= 0 ? `+${selectedEarning.surprise?.toFixed(2)}` : selectedEarning.surprise?.toFixed(2)} EPS</strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>วันประกาศปิดรอบงบ (Report Period):</span>
+                    <strong>{selectedEarning.period}</strong>
+                  </div>
+                  
+                  {nextEstimate && (
+                    <div style={{ marginTop: 8, paddingTop: 10, borderTop: "1px dashed var(--border)", display: "flex", flexDirection: "column", gap: 6 }}>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: "var(--primary)" }}>🔮 คาดการณ์งบรอบถัดไป:</span>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span>วันประกาศคาดการณ์ถัดไป:</span>
+                        <strong>{nextEstimate.date}</strong>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span>ประมาณการกำไรต่อหุ้น (EPS Estimate):</span>
+                        <strong>{nextEstimate.epsEstimate?.toFixed(2) ?? "-"} EPS</strong>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <button 
+                onClick={() => setSelectedEarning(null)} 
+                style={{ width: "100%", padding: "10px 0", background: "var(--primary)", color: "#ffffff", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 13, fontWeight: 800 }}
+              >
+                ตกลง
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}

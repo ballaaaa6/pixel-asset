@@ -67,7 +67,7 @@ export default function TechnicalChart({ candles = [], symbol = "", currentPrice
   // SVG dimensions
   const width = 500;
   const height = 240;
-  const paddingLeft = 45;
+  const paddingLeft = 65;
   const paddingRight = 95;
   const paddingTop = 20;
   const paddingBottom = 30;
@@ -191,8 +191,41 @@ export default function TechnicalChart({ candles = [], symbol = "", currentPrice
             </linearGradient>
           </defs>
 
-          {/* Dotted grid lines */}
-          <line x1={paddingLeft} y1={getY(pp)} x2={width - paddingRight} y2={getY(pp)} stroke="var(--border)" strokeWidth="0.5" strokeDasharray="2,2" />
+          {/* Y Axis Grid lines and labels */}
+          {(() => {
+            const ticks = 5;
+            const res = [];
+            for (let i = 0; i < ticks; i++) {
+              const val = viewMin + (i / (ticks - 1)) * (viewMax - viewMin);
+              const y = getY(val);
+              res.push(
+                <g key={`y-grid-${i}`}>
+                  <line 
+                    x1={paddingLeft} 
+                    y1={y} 
+                    x2={width - paddingRight} 
+                    y2={y} 
+                    stroke="var(--border)" 
+                    strokeWidth="0.5" 
+                    strokeDasharray="2,2" 
+                    opacity="0.35"
+                  />
+                  <text 
+                    x={paddingLeft - 6} 
+                    y={y + 3} 
+                    textAnchor="end" 
+                    fontSize="9" 
+                    fill="var(--text-muted)" 
+                    fontFamily="Outfit,sans-serif"
+                    fontWeight="600"
+                  >
+                    ${val.toFixed(2)}
+                  </text>
+                </g>
+              );
+            }
+            return res;
+          })()}
 
           {/* Support and Resistance Lines */}
           {renderSRLine(r2, "แนวต้าน 2 (R2)", "#EF4444")}
@@ -218,27 +251,106 @@ export default function TechnicalChart({ candles = [], symbol = "", currentPrice
             strokeLinejoin="round" 
           />
 
-          {/* Vertical indicator line on hover */}
-          {hoveredIdx !== null && (
-            <g>
-              <line 
-                x1={getX(hoveredIdx)} 
-                y1={paddingTop} 
-                x2={getX(hoveredIdx)} 
-                y2={height - paddingBottom} 
-                stroke="var(--border)" 
-                strokeWidth="1" 
-              />
-              <circle 
-                cx={getX(hoveredIdx)} 
-                cy={getY(activeCandle.close)} 
-                r="5" 
-                fill="var(--primary)" 
-                stroke="#ffffff" 
-                strokeWidth="2.5" 
-              />
-            </g>
-          )}
+          {/* Guidelines and Badges on hover */}
+          {hoveredIdx !== null && (() => {
+            const x = getX(hoveredIdx);
+            const y = getY(activeCandle.close);
+            
+            // Format coordinates
+            const dateObj = new Date(activeCandle.date);
+            const xValText = dateObj.toLocaleDateString("th-TH", { day: "numeric", month: "short" });
+            const yValText = `$${activeCandle.close.toFixed(2)}`;
+            
+            const rectW_X = xValText.length * 7 + 12;
+            const badgeX = Math.max(2, Math.min(width - rectW_X - 2, x - rectW_X / 2));
+            
+            const rectW_Y = yValText.length * 6.5 + 12;
+            const badgeX_Y = Math.max(2, paddingLeft - rectW_Y - 4);
+            const badgeY = Math.max(paddingTop, Math.min(height - paddingBottom - 18, y - 9));
+            
+            return (
+              <g style={{ pointerEvents: "none" }}>
+                {/* Horizontal line */}
+                <line 
+                  x1={paddingLeft} 
+                  y1={y} 
+                  x2={width - paddingRight} 
+                  y2={y} 
+                  stroke="var(--primary)" 
+                  strokeWidth="1" 
+                  strokeDasharray="3,3"
+                  opacity="0.7"
+                />
+                {/* Vertical line */}
+                <line 
+                  x1={x} 
+                  y1={paddingTop} 
+                  x2={x} 
+                  y2={height - paddingBottom} 
+                  stroke="var(--primary)" 
+                  strokeWidth="1" 
+                  strokeDasharray="3,3"
+                  opacity="0.7"
+                />
+                
+                {/* X-axis coordinate badge */}
+                <rect 
+                  x={badgeX} 
+                  y={height - paddingBottom + 2} 
+                  width={rectW_X} 
+                  height={18} 
+                  rx={4} 
+                  fill="var(--text-main)" 
+                  stroke="var(--border)" 
+                  strokeWidth="1" 
+                />
+                <text 
+                  x={badgeX + rectW_X / 2} 
+                  y={height - paddingBottom + 14} 
+                  textAnchor="middle" 
+                  fontSize="9.5" 
+                  fill="var(--bg-card)" 
+                  fontWeight="bold"
+                  fontFamily="Outfit,sans-serif"
+                >
+                  {xValText}
+                </text>
+                
+                {/* Y-axis coordinate badge */}
+                <rect 
+                  x={badgeX_Y} 
+                  y={badgeY} 
+                  width={rectW_Y} 
+                  height={18} 
+                  rx={4} 
+                  fill="var(--text-main)" 
+                  stroke="var(--border)" 
+                  strokeWidth="1" 
+                />
+                <text 
+                  x={badgeX_Y + rectW_Y / 2} 
+                  y={badgeY + 12} 
+                  textAnchor="middle" 
+                  fontSize="9.5" 
+                  fill="var(--bg-card)" 
+                  fontWeight="bold"
+                  fontFamily="Outfit,sans-serif"
+                >
+                  {yValText}
+                </text>
+                
+                {/* Hovered point circle */}
+                <circle 
+                  cx={x} 
+                  cy={y} 
+                  r="5" 
+                  fill="var(--primary)" 
+                  stroke="#ffffff" 
+                  strokeWidth="2.5" 
+                />
+              </g>
+            );
+          })()}
 
           {/* X Axis labels (First, Middle, Last dates) */}
           <text x={getX(0)} y={height - 10} fill="var(--text-muted)" fontSize="9" textAnchor="start">

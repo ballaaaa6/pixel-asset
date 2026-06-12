@@ -1,0 +1,146 @@
+import React, { useState } from "react";
+import { createPortal } from "react-dom";
+import { X } from "lucide-react";
+
+export default function StockNewsTab({ news = [] }) {
+  const [selectedNews, setSelectedNews] = useState(null);
+  const [translating, setTranslating] = useState(false);
+  const [translatedNews, setTranslatedNews] = useState(null);
+
+  const handleNewsClick = async (item) => {
+    setSelectedNews(item);
+    setTranslating(true);
+    setTranslatedNews(null);
+    try {
+      const [headRes, sumRes] = await Promise.all([
+        fetch(`/api/prices?translate=${encodeURIComponent(item.headline)}`),
+        fetch(`/api/prices?translate=${encodeURIComponent(item.summary || "")}`)
+      ]);
+      const headData = headRes.ok ? await headRes.json() : {};
+      const sumData = sumRes.ok ? await sumRes.json() : {};
+      
+      setTranslatedNews({
+        headline: headData.translatedText || item.headline,
+        summary: sumData.translatedText || item.summary || ""
+      });
+    } catch {
+      setTranslatedNews({
+        headline: item.headline,
+        summary: item.summary || ""
+      });
+    } finally {
+      setTranslating(false);
+    }
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {(!news || news.length === 0) ? (
+        <div style={{ padding: 20, textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>ไม่มีรายงานข่าวเด่นในช่วงนี้</div>
+      ) : (
+        news.map((item, idx) => (
+          <div 
+            key={idx} 
+            onClick={() => handleNewsClick(item)} 
+            style={{ 
+              display: "flex", 
+              gap: 12, 
+              padding: 10, 
+              background: "rgba(0,0,0,0.015)", 
+              borderRadius: 12, 
+              border: "1px solid var(--border)",
+              cursor: "pointer",
+              transition: "transform 0.2s"
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-2px)"}
+            onMouseLeave={(e) => e.currentTarget.style.transform = "none"}
+          >
+            {item.image && (
+              <img 
+                src={item.image} 
+                alt="news thumb" 
+                style={{ width: 80, height: 60, borderRadius: 8, objectFit: "cover", flexShrink: 0 }}
+                onError={(e) => e.target.style.display = "none"}
+              />
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 10, color: "var(--primary)", fontWeight: 800 }}>{item.source}</span>
+                <span style={{ fontSize: 9, color: "var(--text-muted)" }}>
+                  {new Date(item.datetime * 1000).toLocaleDateString("th-TH")}
+                </span>
+              </div>
+              <span style={{ fontSize: 12.5, fontWeight: 800, color: "var(--text-main)", lineHeight: 1.3 }}>{item.headline}</span>
+              <span style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                {item.summary}
+              </span>
+            </div>
+          </div>
+        ))
+      )}
+
+      {/* ── NEWS MODAL WITH AI THAI TRANSLATION ── */}
+      {selectedNews && createPortal(
+        <div className="modal-overlay" onClick={() => setSelectedNews(null)}>
+          <div className="modal-content" style={{ maxWidth: 540 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 15 }}>📰 ตัวอ่านข่าวแปลไทย (AI Translator)</span>
+              <button className="btn-close" onClick={() => setSelectedNews(null)}><X size={18} /></button>
+            </div>
+            
+            <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {selectedNews.image && (
+                <img 
+                  src={selectedNews.image} 
+                  alt="news banner" 
+                  style={{ width: "100%", height: 180, borderRadius: 12, objectFit: "cover" }} 
+                />
+              )}
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, color: "var(--text-muted)", fontWeight: 800 }}>
+                <span>แหล่งข่าว: {selectedNews.source}</span>
+                <span>{new Date(selectedNews.datetime * 1000).toLocaleString("th-TH")}</span>
+              </div>
+
+              {translating ? (
+                <div style={{ padding: "30px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+                  <div className="spinner sm" />
+                  <span style={{ fontSize: 13, color: "var(--text-muted)" }}>กำลังใช้ AI แปลเป็นภาษาไทย...</span>
+                </div>
+              ) : translatedNews ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <h3 style={{ fontSize: 16, fontWeight: 900, color: "var(--text-main)", margin: 0, lineHeight: 1.4 }}>
+                    {translatedNews.headline}
+                  </h3>
+                  <div style={{ borderTop: "1px dashed var(--border)", paddingTop: 12 }}>
+                    <p style={{ fontSize: 13, color: "var(--text-main)", lineHeight: 1.6, margin: 0 }}>
+                      {translatedNews.summary || "ไม่มีรายละเอียดข่าวย่อย"}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+
+              <div style={{ borderTop: "1px solid var(--border)", paddingTop: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <a 
+                  href={selectedNews.url} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  style={{ fontSize: 12, color: "var(--primary)", fontWeight: 800, textDecoration: "none" }}
+                >
+                  อ่านข่าวต้นฉบับภาษาอังกฤษ 🔗
+                </a>
+                <button 
+                  onClick={() => setSelectedNews(null)} 
+                  style={{ padding: "6px 14px", background: "rgba(0,0,0,0.03)", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 800, color: "var(--text-main)" }}
+                >
+                  ปิดหน้าต่าง
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}

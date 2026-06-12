@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from "react";
-import { Search, Star, ArrowLeft, TrendingUp, ShieldAlert, Award, Compass, RefreshCw } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { Search, Star, ArrowLeft, RefreshCw } from "lucide-react";
 import TechnicalChart from "../charts/TechnicalChart";
 import StockInfoTabs from "./StockInfoTabs";
-
-const PRESET_SYMBOLS = ["AAPL", "MSFT", "NVDA", "AMZN", "META", "TSLA", "GOOGL", "NFLX", "AMD", "MU", "QCOM", "TSM", "KBANK.BK", "SCB.BK", "PTT.BK", "CPALL.BK", "ADVANC.BK"];
+import MarketScreeners from "./MarketScreeners";
 
 export default function StockAnalyzer({ showToast }) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -12,6 +11,13 @@ export default function StockAnalyzer({ showToast }) {
   const [details, setDetails] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [tf, setTf] = useState("3M");
+
+  const [suggestions, setSuggestions] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [showDrop, setShowDrop] = useState(false);
+
+  const debounceRef = useRef(null);
 
   const [watchlist, setWatchlist] = useState(() => {
     try {
@@ -20,23 +26,40 @@ export default function StockAnalyzer({ showToast }) {
     } catch { return ["AAPL", "NVDA", "SCB.BK"]; }
   });
 
-  const [screenerType, setScreenerType] = useState("");
-  const [screenerLoading, setScreenerLoading] = useState(false);
-  const [screenerData, setScreenerData] = useState([]);
-
   useEffect(() => {
     localStorage.setItem("analyzer_watchlist", JSON.stringify(watchlist));
   }, [watchlist]);
 
-  const toggleWatchlist = (sym) => {
-    if (watchlist.includes(sym)) {
-      setWatchlist(watchlist.filter(s => s !== sym));
-      showToast(`⭐ นำ ${sym} ออกจากหุ้นโปรดแล้ว`, "info");
-    } else {
-      setWatchlist([...watchlist, sym]);
-      showToast(`⭐ เพิ่ม ${sym} เข้าในหุ้นโปรดแล้ว`, "success");
+  // Autocomplete suggest effect
+  useEffect(() => {
+    clearTimeout(debounceRef.current);
+    if (!searchTerm.trim()) {
+      setSuggestions([]);
+      return;
     }
-  };
+    setSearching(true);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/prices?q=${encodeURIComponent(searchTerm)}`);
+        if (res.ok) {
+          const data = await res.json();
+          // Filter to only equities, ETFs, mutual funds (same as AssetSearchSelector)
+          const filtered = data.filter(item => {
+            const t = (item.type || "").toUpperCase();
+            return t === "EQUITY" || t === "ETF" || t === "MUTUALFUND";
+          });
+          setSuggestions(filtered.slice(0, 7));
+          setShowDrop(filtered.length > 0);
+        }
+      } catch (e) {
+        console.error("Autocomplete fetch failed:", e);
+      } finally {
+        setSearching(false);
+      }
+    }, 350);
+
+    return () => clearTimeout(debounceRef.current);
+  }, [searchTerm]);
 
   const handleSearch = async (symbolToSearch) => {
     const sym = symbolToSearch ? symbolToSearch.toUpperCase().trim() : searchTerm.toUpperCase().trim();
@@ -44,11 +67,11 @@ export default function StockAnalyzer({ showToast }) {
 
     setLoading(true);
     setError("");
-    setScreenerType(""); // Close any open screener
+    setShowDrop(false);
     try {
       // Fetch details & history concurrently
       const [historyRes, detailsRes] = await Promise.all([
-        fetch(`/api/prices?history=${encodeURIComponent(sym)}&tf=3M`),
+        fetch(`/api/prices?history=${encodeURIComponent(sym)}&tf=${tf}`),
         fetch(`/api/prices?details=${encodeURIComponent(sym)}`)
       ]);
 
@@ -75,50 +98,29 @@ export default function StockAnalyzer({ showToast }) {
     }
   };
 
-  const handleScreener = async (type) => {
-    setScreenerType(type);
-    setScreenerLoading(true);
+  const handleTfChange = async (newTf) => {
+    if (!selectedSymbol) return;
+    setTf(newTf);
+    setLoading(true);
     try {
-      const resp = await fetch(`/api/prices?symbols=${PRESET_SYMBOLS.join(",")}`);
-      if (!resp.ok) throw new Error("ดึงข้อมูลภาพรวมตลาดไม่สำเร็จ");
-
-      const data = await resp.json();
-      const quotes = data.quotes || {};
-
-      let result = [];
-      if (type === "gain_loss") {
-        // Sort by changePercent
-        const sorted = Object.values(quotes).sort((a, b) => (b.changePercent || 0) - (a.changePercent || 0));
-        result = {
-          gainers: sorted.slice(0, 4),
-          losers: [...sorted].reverse().slice(0, 4)
-        };
-      } else if (type === "rsi") {
-        // Simulate RSI based on daily momentum and 52-week position
-        result = Object.values(quotes).map(q => {
-          let hash = 0;
-          for (let i = 0; i < q.symbol.length; i++) hash = q.symbol.charCodeAt(i) + ((hash << 5) - hash);
-          const baseRsi = 40 + (Math.abs(hash) % 25); // 40-65
-          const dayChangeEffect = (q.changePercent || 0) * 3; // magnify daily change
-          const computedRsi = Math.max(10, Math.min(90, Math.round(baseRsi + dayChangeEffect)));
-          return { ...q, rsi: computedRsi };
-        }).sort((a, b) => b.rsi - a.rsi);
-      } else if (type === "support") {
-        // Calculate proximity to support level
-        result = Object.values(quotes).map(q => {
-          let hash = 0;
-          for (let i = 0; i < q.symbol.length; i++) hash = q.symbol.charCodeAt(i) + ((hash << 5) - hash);
-          const pctFromSupport = Math.abs(hash) % 8; // 0% to 8% above support
-          const underSupport = (Math.abs(hash) % 10) > 8; // 20% chance under support
-          return { ...q, pctFromSupport: underSupport ? -pctFromSupport : pctFromSupport };
-        }).sort((a, b) => a.pctFromSupport - b.pctFromSupport);
-      }
-
-      setScreenerData(result);
+      const historyRes = await fetch(`/api/prices?history=${encodeURIComponent(selectedSymbol)}&tf=${newTf}`);
+      if (!historyRes.ok) throw new Error("ดึงประวัติราคาในกรอบเวลานี้ไม่สำเร็จ");
+      const historyData = await historyRes.json();
+      setCandles(historyData.candles || []);
     } catch (err) {
       showToast(err.message, "error");
     } finally {
-      setScreenerLoading(false);
+      setLoading(false);
+    }
+  };
+
+  const toggleWatchlist = (sym) => {
+    if (watchlist.includes(sym)) {
+      setWatchlist(watchlist.filter(s => s !== sym));
+      showToast(`⭐ นำ ${sym} ออกจากหุ้นโปรดแล้ว`, "info");
+    } else {
+      setWatchlist([...watchlist, sym]);
+      showToast(`⭐ เพิ่ม ${sym} เข้าในหุ้นโปรดแล้ว`, "success");
     }
   };
 
@@ -164,13 +166,34 @@ export default function StockAnalyzer({ showToast }) {
           </div>
 
           <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 24, padding: 20, display: "flex", flexDirection: "column", gap: 20, boxShadow: "0 4px 24px rgba(0,0,0,0.01)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: 20, fontWeight: 900, color: "var(--text-main)" }}>
                 ข้อมูลหุ้น: <span style={{ color: "var(--primary)" }}>{selectedSymbol}</span>
               </span>
-              <span style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 800 }}>
-                {details.profile?.name || ""}
-              </span>
+
+              {/* Timeframe Selector */}
+              <div style={{ display: "flex", gap: 4, background: "rgba(0,0,0,0.02)", padding: 3, borderRadius: 10 }}>
+                {["1W", "1M", "3M", "1Y"].map((t) => (
+                  <button
+                    key={t}
+                    disabled={loading}
+                    onClick={() => handleTfChange(t)}
+                    style={{
+                      border: "none",
+                      background: tf === t ? "var(--primary)" : "transparent",
+                      color: tf === t ? "#ffffff" : "var(--text-muted)",
+                      padding: "4px 12px",
+                      borderRadius: 8,
+                      fontSize: 11.5,
+                      fontWeight: 800,
+                      cursor: "pointer",
+                      transition: "all 0.15s ease"
+                    }}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Technical Chart Overlay */}
@@ -186,6 +209,8 @@ export default function StockAnalyzer({ showToast }) {
               metrics={details.metrics} 
               earnings={details.earnings} 
               news={details.news} 
+              calendar={details.calendar}
+              thaiSummary={details.thaiSummary}
             />
           </div>
 
@@ -205,10 +230,39 @@ export default function StockAnalyzer({ showToast }) {
                   type="text" 
                   placeholder="ใส่ชื่อหุ้น เช่น AAPL, NVDA, SCB.BK" 
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => { setSearchTerm(e.target.value); setShowDrop(true); }}
+                  onFocus={() => setShowDrop(true)}
+                  onBlur={() => setTimeout(() => setShowDrop(false), 200)}
                   onKeyDown={(e) => { if (e.key === "Enter") handleSearch(); }}
                   style={{ width: "100%", padding: "12px 14px 12px 42px", borderRadius: 14, border: "1px solid var(--border)", background: "rgba(0,0,0,0.01)", color: "var(--text-main)", fontSize: 14, fontWeight: 800 }}
                 />
+                
+                {searching && <div className="spinner sm" style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)" }} />}
+
+                {/* Dropdown Suggestions */}
+                {showDrop && suggestions.length > 0 && (
+                  <div className="suggestions-dropdown" style={{ zIndex: 1000 }}>
+                    {suggestions.map(item => (
+                      <div 
+                        key={item.symbol} 
+                        className="suggestion-item" 
+                        onMouseDown={(e) => { 
+                          e.preventDefault(); 
+                          pickSuggestion(item); 
+                        }}
+                      >
+                        <div className="suggestion-left">
+                          <span className="suggestion-symbol">{item.symbol.replace(".BK", "")}</span>
+                          <span className="suggestion-name">{item.name}</span>
+                        </div>
+                        <div className="suggestion-right">
+                          <span className="suggestion-exchange">{item.exchange}</span>
+                          <span style={{ fontSize: 9, color: "var(--text-muted)", textTransform: "uppercase" }}>{item.type}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               <button 
                 onClick={() => handleSearch()} 
@@ -243,147 +297,18 @@ export default function StockAnalyzer({ showToast }) {
             )}
           </div>
 
-          {/* Market Screeners Layout */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <span style={{ fontSize: 16, fontWeight: 900, color: "var(--text-main)" }}>ภาพรวมตลาดด่วน (Market Screeners)</span>
-            
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }} className="dashboard-grid">
-              <button 
-                onClick={() => handleScreener("gain_loss")}
-                style={{ padding: 16, border: "1px solid var(--border)", background: "var(--bg-card)", borderRadius: 16, cursor: "pointer", display: "flex", flexDirection: "column", gap: 8, textAlign: "left" }}
-              >
-                <span style={{ fontSize: 24 }}>📊</span>
-                <span style={{ fontSize: 14, fontWeight: 900, color: "var(--text-main)" }}>Top Gainer/Loser</span>
-                <span style={{ fontSize: 12, color: "var(--text-muted)" }}>หุ้นที่มีการเปลี่ยนแปลงราคาสูงสุดวันนี้</span>
-              </button>
-
-              <button 
-                onClick={() => handleScreener("rsi")}
-                style={{ padding: 16, border: "1px solid var(--border)", background: "var(--bg-card)", borderRadius: 16, cursor: "pointer", display: "flex", flexDirection: "column", gap: 8, textAlign: "left" }}
-              >
-                <span style={{ fontSize: 24 }}>📈</span>
-                <span style={{ fontSize: 14, fontWeight: 900, color: "var(--text-main)" }}>สรุป RSI สุดขั้ว</span>
-                <span style={{ fontSize: 12, color: "var(--text-muted)" }}>ตรวจจับสัญญาณ Overbought & Oversold</span>
-              </button>
-
-              <button 
-                onClick={() => handleScreener("support")}
-                style={{ padding: 16, border: "1px solid var(--border)", background: "var(--bg-card)", borderRadius: 16, cursor: "pointer", display: "flex", flexDirection: "column", gap: 8, textAlign: "left" }}
-              >
-                <span style={{ fontSize: 24 }}>🛡️</span>
-                <span style={{ fontSize: 14, fontWeight: 900, color: "var(--text-main)" }}>ชี้นำจุดแนวรับ</span>
-                <span style={{ fontSize: 12, color: "var(--text-muted)" }}>หุ้นที่เคลื่อนไหวใกล้เคียงกับราคาแนวรับ</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Screener Results View */}
-          {screenerType && (
-            <div className="fade-in" style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 24, padding: 20, boxShadow: "0 4px 20px rgba(0,0,0,0.01)" }}>
-              <div style={{ display: "flex", justifyItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                <span style={{ fontSize: 15, fontWeight: 900, color: "var(--text-main)" }}>
-                  🔍 ผลลัพธ์ตัวกรอง: {screenerType === "gain_loss" ? "Top Gainer / Loser" : screenerType === "rsi" ? "สัญญาณ RSI" : "ใกล้แนวรับ"}
-                </span>
-                {screenerLoading && <RefreshCw size={16} className="spin" />}
-              </div>
-
-              {screenerLoading ? (
-                <div style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>กำลังวิเคราะห์ข้อมูลตลาด...</div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  
-                  {/* Case A: Gainers & Losers */}
-                  {screenerType === "gain_loss" && screenerData && (
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }} className="dashboard-grid">
-                      <div>
-                        <span style={{ fontSize: 13, fontWeight: 800, color: "var(--gain)", display: "block", marginBottom: 8 }}>🟢 Top 4 Gainers</span>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                          {screenerData.gainers?.map(q => (
-                            <div key={q.symbol} onClick={() => handleSearch(q.symbol)} style={{ display: "flex", justifyContent: "space-between", padding: "8px 10px", background: "rgba(0,0,0,0.01)", borderRadius: 10, cursor: "pointer", border: "1px solid var(--border)" }}>
-                              <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)" }}>{q.symbol}</span>
-                              <span style={{ fontSize: 13, fontWeight: 800, color: "var(--gain)" }}>+{q.changePercent?.toFixed(2)}%</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <span style={{ fontSize: 13, fontWeight: 800, color: "var(--loss)", display: "block", marginBottom: 8 }}>🔴 Top 4 Losers</span>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                          {screenerData.losers?.map(q => (
-                            <div key={q.symbol} onClick={() => handleSearch(q.symbol)} style={{ display: "flex", justifyContent: "space-between", padding: "8px 10px", background: "rgba(0,0,0,0.01)", borderRadius: 10, cursor: "pointer", border: "1px solid var(--border)" }}>
-                              <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)" }}>{q.symbol}</span>
-                              <span style={{ fontSize: 13, fontWeight: 800, color: "var(--loss)" }}>{q.changePercent?.toFixed(2)}%</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Case B: RSI extremes */}
-                  {screenerType === "rsi" && (
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }} className="dashboard-grid">
-                      <div>
-                        <span style={{ fontSize: 13, fontWeight: 800, color: "var(--gain)", display: "block", marginBottom: 8 }}>🟢 Oversold (RSI ต่ำ - โอกาสสะสม)</span>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                          {screenerData.filter(q => q.rsi <= 45).slice(0, 4).map(q => (
-                            <div key={q.symbol} onClick={() => handleSearch(q.symbol)} style={{ display: "flex", justifyContent: "space-between", padding: "8px 10px", background: "rgba(0,0,0,0.01)", borderRadius: 10, cursor: "pointer", border: "1px solid var(--border)" }}>
-                              <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)" }}>{q.symbol}</span>
-                              <span style={{ fontSize: 13, fontWeight: 800, color: "var(--gain)" }}>RSI: {q.rsi}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <span style={{ fontSize: 13, fontWeight: 800, color: "var(--loss)", display: "block", marginBottom: 8 }}>🔴 Overbought (RSI สูง - ระวัง)</span>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                          {screenerData.filter(q => q.rsi > 45).slice(0, 4).map(q => (
-                            <div key={q.symbol} onClick={() => handleSearch(q.symbol)} style={{ display: "flex", justifyContent: "space-between", padding: "8px 10px", background: "rgba(0,0,0,0.01)", borderRadius: 10, cursor: "pointer", border: "1px solid var(--border)" }}>
-                              <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)" }}>{q.symbol}</span>
-                              <span style={{ fontSize: 13, fontWeight: 800, color: "var(--loss)" }}>RSI: {q.rsi}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Case C: Support Levels */}
-                  {screenerType === "support" && (
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }} className="dashboard-grid">
-                      <div>
-                        <span style={{ fontSize: 13, fontWeight: 800, color: "var(--gain)", display: "block", marginBottom: 8 }}>🟢 ใกล้แนวรับ (ห่างน้อยกว่า 5%)</span>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                          {screenerData.filter(q => q.pctFromSupport >= 0).slice(0, 4).map(q => (
-                            <div key={q.symbol} onClick={() => handleSearch(q.symbol)} style={{ display: "flex", justifyContent: "space-between", padding: "8px 10px", background: "rgba(0,0,0,0.01)", borderRadius: 10, cursor: "pointer", border: "1px solid var(--border)" }}>
-                              <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)" }}>{q.symbol}</span>
-                              <span style={{ fontSize: 13, fontWeight: 800, color: "var(--gain)" }}>ห่าง +{q.pctFromSupport.toFixed(1)}%</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <span style={{ fontSize: 13, fontWeight: 800, color: "var(--loss)", display: "block", marginBottom: 8 }}>🔴 หลุดแนวรับลงมาแล้ว</span>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                          {screenerData.filter(q => q.pctFromSupport < 0).slice(0, 4).map(q => (
-                            <div key={q.symbol} onClick={() => handleSearch(q.symbol)} style={{ display: "flex", justifyContent: "space-between", padding: "8px 10px", background: "rgba(0,0,0,0.01)", borderRadius: 10, cursor: "pointer", border: "1px solid var(--border)" }}>
-                              <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-main)" }}>{q.symbol}</span>
-                              <span style={{ fontSize: 13, fontWeight: 800, color: "var(--loss)" }}>หลุด {q.pctFromSupport.toFixed(1)}%</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                </div>
-              )}
-            </div>
-          )}
+          {/* Market Screeners */}
+          <MarketScreeners handleSearch={handleSearch} showToast={showToast} />
 
         </div>
       )}
 
     </div>
   );
+
+  function pickSuggestion(item) {
+    setSearchTerm(item.symbol);
+    setShowDrop(false);
+    handleSearch(item.symbol);
+  }
 }
