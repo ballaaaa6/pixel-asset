@@ -97,15 +97,15 @@ export default function PortfolioStressTest({ assets = [], exchangeRate = 35.0, 
         const baseImpact = sc.impacts[key] !== undefined ? sc.impacts[key] : -10;
         const finalImpact = baseImpact * severityMultiplier;
         const weight = (a.valueUSD || 0) / totalPortfolioValue;
-        weightedImpact += finalImpact * weight;
+        totalWeightedImpact += finalImpact * weight;
       });
 
-      const impactAmountUSD = (totalPortfolioValue * weightedImpact) / 100;
+      const impactAmountUSD = (totalPortfolioValue * totalWeightedImpact) / 100;
       const impactAmountTHB = impactAmountUSD * exchangeRate;
 
       return {
         ...sc,
-        pct: weightedImpact,
+        pct: totalWeightedImpact,
         amountUSD: impactAmountUSD,
         amountTHB: impactAmountTHB
       };
