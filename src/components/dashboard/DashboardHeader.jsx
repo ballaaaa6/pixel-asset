@@ -92,61 +92,7 @@ export default function DashboardHeader({
           <span className="live-dot" title="Live" />
         </div>
         <div className="navbar-actions">
-          <div
-            className="user-profile-btn"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              cursor: "pointer",
-              padding: "4px 10px",
-              borderRadius: 10,
-              background: "var(--primary-light)",
-              userSelect: "none",
-              transition: "var(--transition)"
-            }}
-            onClick={() => setInvestorModalOpen(true)}
-            title="โปรไฟล์นักลงทุน"
-          >
-            {profilePic ? (
-              <img
-                src={profilePic}
-                alt="avatar"
-                style={{
-                  width: 20,
-                  height: 20,
-                  borderRadius: "50%",
-                  objectFit: "cover",
-                  border: "1.5px solid var(--primary)"
-                }}
-              />
-            ) : (
-              <span style={{ fontSize: 13 }}>👤</span>
-            )}
-            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--primary)" }}>
-              {nickname || user?.username}
-            </span>
-          </div>
-          <button
-            onClick={() => setProfileModalOpen(true)}
-            style={{
-              background: "#F1F5F9",
-              border: "none",
-              color: "var(--text-main)",
-              cursor: "pointer",
-              width: 32,
-              height: 32,
-              borderRadius: "50%",
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              transition: "var(--transition)"
-            }}
-            title="ตั้งค่า"
-            className="ripple-btn"
-          >
-            <Settings size={16} />
-          </button>
+          {/* Actions moved to Sidebar */}
         </div>
       </div>
     </nav>

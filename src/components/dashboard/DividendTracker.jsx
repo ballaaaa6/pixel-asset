@@ -185,7 +185,7 @@ export default function DividendTracker({
       {/* 1. Summary Cards */}
       <div className="kpi-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 }}>
         <div className="kpi-card" style={{ display: "flex", alignItems: "center", gap: 16, padding: "20px 24px" }}>
-          <div style={{ width: 44, height: 44, borderRadius: "50%", background: "var(--primary-light)", display: "flex", alignItems: "center", justifycontent: "center", color: "var(--primary)" }}>
+          <div style={{ width: 44, height: 44, borderRadius: "50%", background: "var(--primary-light)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--primary)" }}>
             <DollarSign size={20} />
           </div>
           <div>
@@ -200,7 +200,7 @@ export default function DividendTracker({
         </div>
 
         <div className="kpi-card" style={{ display: "flex", alignItems: "center", gap: 16, padding: "20px 24px" }}>
-          <div style={{ width: 44, height: 44, borderRadius: "50%", background: "rgba(0,185,138,0.1)", display: "flex", alignItems: "center", justifycontent: "center", color: "var(--gain)" }}>
+          <div style={{ width: 44, height: 44, borderRadius: "50%", background: "rgba(0,185,138,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--gain)" }}>
             <Percent size={20} />
           </div>
           <div>
@@ -215,7 +215,7 @@ export default function DividendTracker({
         </div>
 
         <div className="kpi-card" style={{ display: "flex", alignItems: "center", gap: 16, padding: "20px 24px" }}>
-          <div style={{ width: 44, height: 44, borderRadius: "50%", background: "rgba(245,158,11,0.1)", display: "flex", alignItems: "center", justifycontent: "center", color: "var(--gold)" }}>
+          <div style={{ width: 44, height: 44, borderRadius: "50%", background: "rgba(245,158,11,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--gold)" }}>
             <Calendar size={20} />
           </div>
           <div>

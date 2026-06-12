@@ -42,7 +42,8 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
     getHistoricalRate, getRealizedPnLInTHB, handleClearAsset, handleDeleteAsset, handleDeleteLot, handleEditLot,
     handleRangeChange, handleSort, handleSaveAsset, fetchPrices, fetchSparklines, savePortfolio, totalUSD,
     totalCostUSD, todayChangeUSD, totalRealizedUSD, totalRealizedTHB, bestAsset, sortedAssets, donutSegments,
-    initialCapitalUSD, totalUnrealizedUSD, totalUnrealizedTHB, totalGainTHB, totalGainUSD, totalGainPct, todayChangePct, isDirty
+    initialCapitalUSD, totalUnrealizedUSD, totalUnrealizedTHB, totalGainTHB, totalGainUSD, totalGainPct, todayChangePct, isDirty,
+    dividendData, dividendLoading, fetchDividendEvents
   } = usePortfolioData({ user, showToast, onSessionExpired, askConfirm });
 
   const filteredAssets = useMemo(() => {
@@ -175,7 +176,12 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
           setSidebarCollapsed={setSidebarCollapsed}
           sidebarOpen={sidebarOpen}
           setSidebarOpen={setSidebarOpen}
-          handleLogout={handleLogoutConfirm}
+          onLogout={onLogout}
+          user={user}
+          nickname={nickname}
+          profilePic={profilePic}
+          setInvestorModalOpen={setInvestorModalOpen}
+          setProfileModalOpen={setProfileModalOpen}
         />
 
         <div className="main-content-wrapper">

@@ -79,7 +79,7 @@ export default function DividendChart({
                     height={22}
                     rx="6"
                     fill="rgba(15, 23, 42, 0.9)"
-                    boxShadow="var(--shadow-md)"
+                    style={{ filter: "drop-shadow(0 4px 6px rgba(0,0,0,0.15))" }}
                   />
                   <text
                     x={startX + barWidth / 2}
