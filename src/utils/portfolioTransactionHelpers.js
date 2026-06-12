@@ -3,6 +3,8 @@
  * Logic for processing and validating transactions in the portfolio.
  */
 
+import { getHistoricalExchangeRate } from "./assetHelpers";
+
 export function processTransactions({ formData, assets, exchangeRate, historicalRates }) {
   const isBatch = Array.isArray(formData);
   const transactions = isBatch ? formData : [formData];
@@ -18,19 +20,7 @@ export function processTransactions({ formData, assets, exchangeRate, historical
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
 
-  const getHistoricalRate = (dateStr) => {
-    if (!dateStr) return exchangeRate;
-    const targetDate = dateStr.split("T")[0];
-    if (historicalRates && historicalRates[targetDate]) return historicalRates[targetDate];
-    const dates = Object.keys(historicalRates || {}).sort();
-    if (dates.length === 0) return exchangeRate;
-    let bestRate = exchangeRate;
-    for (const d of dates) {
-      if (d <= targetDate) bestRate = historicalRates[d];
-      else break;
-    }
-    return bestRate;
-  };
+  const getHistoricalRate = (dateStr) => getHistoricalExchangeRate(dateStr, historicalRates, exchangeRate);
 
   const skippedTxs = [];
   let updatedAssets = [...assets];
