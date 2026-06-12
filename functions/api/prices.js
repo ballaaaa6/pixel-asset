@@ -449,7 +449,50 @@ export async function onRequestGet(context) {
     }
   }
 
-  return new Response(JSON.stringify({ error: "ระบุพารามิเตอร์ ?symbols= หรือ ?q= หรือ ?sparkline= หรือ ?history=" }), { status: 400, headers: corsHeaders });
+  // ─── 5. Detailed Stock Fundamentals (?details=SYM) ──────────────────
+  const detailsParam = url.searchParams.get("details");
+  if (detailsParam) {
+    try {
+      const symbol = detailsParam.trim().toUpperCase();
+      const cacheKey = `https://cache.local/details/${symbol}`;
+      const cached = await getCache(cacheKey);
+      if (cached) return new Response(cached, { status: 200, headers: corsHeaders });
+
+      const token = "d8e3e4hr01qm5ffvbi4gd8e3e4hr01qm5ffvbi50";
+      const toDate = new Date().toISOString().slice(0, 10);
+      const fromDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+      // Concurrently fetch profile, metrics, news, and earnings from Finnhub
+      const [profileRes, metricsRes, newsRes, earningsRes] = await Promise.all([
+        fetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${symbol}&token=${token}`),
+        fetch(`https://finnhub.io/api/v1/stock/metric?symbol=${symbol}&metric=all&token=${token}`),
+        fetch(`https://finnhub.io/api/v1/company-news?symbol=${symbol}&from=${fromDate}&to=${toDate}&token=${token}`),
+        fetch(`https://finnhub.io/api/v1/stock/earnings?symbol=${symbol}&token=${token}`)
+      ]);
+
+      const profile = profileRes.ok ? await profileRes.json() : {};
+      const metrics = metricsRes.ok ? await metricsRes.json() : {};
+      const news = newsRes.ok ? await newsRes.json() : [];
+      const earnings = earningsRes.ok ? await earningsRes.json() : [];
+
+      const result = {
+        symbol,
+        profile,
+        metrics,
+        news: Array.isArray(news) ? news.slice(0, 8) : [],
+        earnings: Array.isArray(earnings) ? earnings.slice(0, 4) : []
+      };
+
+      const responseBody = JSON.stringify(result);
+      putCache(context, cacheKey, responseBody, 86400); // Cache for 1 day
+
+      return new Response(responseBody, { status: 200, headers: corsHeaders });
+    } catch (err) {
+      return new Response(JSON.stringify({ error: "Details error: " + err.message }), { status: 500, headers: corsHeaders });
+    }
+  }
+
+  return new Response(JSON.stringify({ error: "ระบุพารามิเตอร์ ?symbols= หรือ ?q= หรือ ?sparkline= หรือ ?history= หรือ ?details=" }), { status: 400, headers: corsHeaders });
 
 }
 
