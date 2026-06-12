@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X, Download, Upload, LogOut } from "lucide-react";
 import { registerModal } from "../../utils/modalStack";
 
@@ -27,7 +28,7 @@ export default function ProfileModal({
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div
       className="modal-overlay"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
@@ -109,6 +110,7 @@ export default function ProfileModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

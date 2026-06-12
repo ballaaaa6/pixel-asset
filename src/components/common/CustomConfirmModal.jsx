@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { AlertTriangle, X } from "lucide-react";
 import { registerModal } from "../../utils/modalStack";
 
@@ -7,7 +8,7 @@ export default function CustomConfirmModal({ title, message, onConfirm, onCancel
     return registerModal(onCancel);
   }, [onCancel]);
 
-  return (
+  return createPortal(
     <div className="modal-overlay" style={{ zIndex: 1300, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
       <div className="modal-content" style={{ maxWidth: 420, padding: 0, overflow: "hidden", animation: "scaleInModal 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", borderBottom: "1px solid var(--border)", background: "rgba(244, 63, 94, 0.05)" }}>
@@ -25,6 +26,7 @@ export default function CustomConfirmModal({ title, message, onConfirm, onCancel
           <button type="button" className="btn ripple-btn" onClick={onConfirm} style={{ height: 38, padding: "0 16px", fontSize: 13, borderRadius: 10, background: "#E11D48", color: "white", border: "none", fontWeight: 700, cursor: "pointer", margin: 0 }}>ยืนยัน</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -1,4 +1,5 @@
 import React, { useMemo, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { registerModal } from "../../utils/modalStack";
 import { fmtUSD, fmtTHB, fmtPct } from "../../utils/formatters";
@@ -55,7 +56,7 @@ export default function KPIDetailsModal({
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal-content" style={{ background: "var(--bg-modal)", backdropFilter: "blur(20px)" }}>
         <div className="modal-header" style={{ borderBottom: "1px solid var(--border)", paddingBottom: 14 }}>
@@ -122,6 +123,7 @@ export default function KPIDetailsModal({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

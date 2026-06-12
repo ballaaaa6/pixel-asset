@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { X, Save } from "lucide-react";
 import { getCurrencyTicker } from "../utils/assetHelpers.js";
 import { fmtDate, fmtUSD, fmtQty } from "../utils/formatters.js";
@@ -170,7 +171,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, edit
 
   const lots = editingAsset?.lots || [];
 
-  return (
+  return createPortal(
     <div className="modal-overlay" style={{ zIndex: 1200 }} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal-content" style={{ maxWidth: 500 }}>
         <div className="modal-header">
@@ -324,6 +325,7 @@ export default function AssetModal({ isOpen, onClose, onSave, editingAsset, edit
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

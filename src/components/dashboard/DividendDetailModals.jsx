@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import { X, TrendingUp, TrendingDown, Info } from "lucide-react";
+import { createPortal } from "react-dom";
 import { fmtUSD, fmtTHB, fmtPct } from "../../utils/formatters";
 import { registerModal } from "../../utils/modalStack";
 
@@ -20,7 +21,7 @@ export function MonthDetailModal({ isOpen, onClose, monthName, monthPayments = [
 
   const totalMonthlyUSD = monthPayments.reduce((sum, p) => sum + (p.estPayoutUSD || 0), 0);
 
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal-content" style={{ maxWidth: 500 }}>
         <div className="modal-header">
@@ -67,7 +68,8 @@ export function MonthDetailModal({ isOpen, onClose, monthName, monthPayments = [
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -94,7 +96,7 @@ export function YieldComparisonModal({ isOpen, onClose, computedAssets = [], hid
       };
     });
 
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal-content" style={{ maxWidth: 640 }}>
         <div className="modal-header">
@@ -162,7 +164,8 @@ export function YieldComparisonModal({ isOpen, onClose, computedAssets = [], hid
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -179,7 +182,7 @@ export function IncomeShareModal({ isOpen, onClose, computedAssets = [], hideVal
     .filter(a => a.annualIncomeUSD > 0)
     .sort((a, b) => b.annualIncomeUSD - a.annualIncomeUSD);
 
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal-content" style={{ maxWidth: 460 }}>
         <div className="modal-header">
@@ -221,7 +224,8 @@ export function IncomeShareModal({ isOpen, onClose, computedAssets = [], hideVal
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -234,7 +238,7 @@ export function UpcomingPayoutModal({ isOpen, onClose, selectedUpcomingPayout, h
 
   if (!isOpen || !selectedUpcomingPayout) return null;
 
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal-content" style={{ maxWidth: 400 }}>
         <div className="modal-header">
@@ -292,6 +296,7 @@ export function UpcomingPayoutModal({ isOpen, onClose, selectedUpcomingPayout, h
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

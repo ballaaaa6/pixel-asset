@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X, Eye, Plus, Edit3, Save, Sparkles } from "lucide-react";
 import { PRESET_AVATARS } from "../../utils/constants";
 import { registerModal } from "../../utils/modalStack";
@@ -45,7 +46,7 @@ export default function InvestorProfileModal({
     });
   };
 
-  return (
+  return createPortal(
     <>
       <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
         <div className="modal-content" style={{ maxWidth: 480 }}>
@@ -211,6 +212,7 @@ export default function InvestorProfileModal({
           </div>
         </div>
       )}
-    </>
+    </>,
+    document.body
   );
 }

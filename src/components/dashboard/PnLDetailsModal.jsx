@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { getDisplaySymbol, getAssetFullName } from "../../utils/assetHelpers";
 import { computeAssetMetrics } from "../../utils/pnlHelpers";
@@ -76,7 +77,7 @@ export default function PnLDetailsModal({
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal-content" style={{ maxWidth: 840, width: "95%" }}>
         <div className="modal-header" style={{ borderBottom: "1px solid var(--border)", paddingBottom: 14 }}>
@@ -275,6 +276,7 @@ export default function PnLDetailsModal({
           </table>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
