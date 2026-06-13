@@ -3,18 +3,22 @@ import { getYahooCookieAndCrumb } from "./_pricesBase.js";
 async function googleTranslate(text, targetLang = "th") {
   if (!text) return "";
   try {
-    // Capping at 4000 characters to avoid URL length constraints and Google limits
-    const truncatedText = text.slice(0, 4000);
-    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLang}&dt=t&q=${encodeURIComponent(truncatedText)}`;
+    // Capping at 4500 characters to fit Google's translation limits
+    const truncatedText = text.slice(0, 4500);
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLang}&dt=t`;
     
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 seconds timeout
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 seconds timeout
 
+    // Using POST to bypass URL length limits (414 Request-URI Too Long)
     const res = await fetch(url, {
-      signal: controller.signal,
+      method: "POST",
       headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-      }
+      },
+      body: `q=${encodeURIComponent(truncatedText)}`,
+      signal: controller.signal
     });
     clearTimeout(timeoutId);
 
@@ -25,7 +29,7 @@ async function googleTranslate(text, targetLang = "th") {
     }
     return text;
   } catch (e) {
-    console.error("googleTranslate error:", e);
+    console.error("googleTranslate POST error:", e);
     return text;
   }
 }
@@ -33,27 +37,43 @@ async function googleTranslate(text, targetLang = "th") {
 async function myMemoryTranslate(text, targetLang = "th") {
   if (!text) return "";
   try {
-    // Limit to 1000 characters for MyMemory free tier limit
-    const truncatedText = text.slice(0, 1000);
-    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(truncatedText)}&langpair=en|${targetLang}`;
-    
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 seconds timeout
-
-    const res = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeoutId);
-
-    if (!res.ok) return text;
-    const data = await res.json();
-    if (data && data.responseData && data.responseData.translatedText) {
-      let translated = data.responseData.translatedText;
-      // Post-process common financial term translation mistakes
-      translated = translated
-        .replace(/ซื้อน้ำจิ้ม/gi, "ซื้อช่วงย่อตัว (Buy the dip)")
-        .replace(/น้ำจิ้ม/gi, "ช่วงย่อตัว (dip)");
-      return translated;
+    // MyMemory limits single query to 500 characters. 
+    // We split it into 400-character chunks to completely avoid the 500-char error.
+    const chunkSize = 400;
+    const chunks = [];
+    for (let i = 0; i < text.length; i += chunkSize) {
+      chunks.push(text.slice(i, i + chunkSize));
     }
-    return text;
+    
+    const translatedChunks = [];
+    for (const chunk of chunks) {
+      const trimmed = chunk.trim();
+      if (!trimmed) continue;
+
+      const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(trimmed)}&langpair=en|${targetLang}`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 seconds timeout
+
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        translatedChunks.push(chunk);
+        continue;
+      }
+      const data = await res.json();
+      if (data && data.responseData && data.responseData.translatedText) {
+        let translated = data.responseData.translatedText;
+        // Post-process common financial term translation mistakes
+        translated = translated
+          .replace(/ซื้อน้ำจิ้ม/gi, "ซื้อช่วงย่อตัว (Buy the dip)")
+          .replace(/น้ำจิ้ม/gi, "ช่วงย่อตัว (dip)");
+        translatedChunks.push(translated);
+      } else {
+        translatedChunks.push(chunk);
+      }
+    }
+    return translatedChunks.join("");
   } catch (e) {
     console.error("myMemoryTranslate error:", e);
     return text;
@@ -63,7 +83,7 @@ async function myMemoryTranslate(text, targetLang = "th") {
 async function robustTranslate(text, targetLang = "th") {
   if (!text) return "";
   const googleResult = await googleTranslate(text, targetLang);
-  // If googleTranslate failed and returned the original text, fallback to MyMemory
+  // If googleTranslate failed and returned the original text, fallback to MyMemory chunked
   if (googleResult === text) {
     console.log("Google Translate failed or was blocked, falling back to MyMemory...");
     return await myMemoryTranslate(text, targetLang);
