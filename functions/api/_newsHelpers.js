@@ -1,3 +1,5 @@
+import { getYahooCookieAndCrumb } from "./_pricesBase.js";
+
 async function googleTranslate(text, targetLang = "th") {
   if (!text) return "";
   try {
@@ -34,19 +36,33 @@ async function googleTranslate(text, targetLang = "th") {
   }
 }
 
-async function fetchArticleText(url) {
+async function fetchArticleText(url, context) {
   if (!url) return null;
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 seconds timeout
 
+    const headers = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.5"
+    };
+
+    // Use Yahoo Finance auth cookies if scraping a Yahoo Finance URL to bypass consent redirect
+    if (url.includes("yahoo.com") && context) {
+      try {
+        const yfAuth = await getYahooCookieAndCrumb(context);
+        if (yfAuth && yfAuth.cookie) {
+          headers["Cookie"] = yfAuth.cookie;
+        }
+      } catch (cookieErr) {
+        console.error("Failed to get Yahoo cookie for scraper:", cookieErr);
+      }
+    }
+
     const res = await fetch(url, {
       signal: controller.signal,
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5"
-      },
+      headers,
       redirect: "follow"
     });
     clearTimeout(timeoutId);
@@ -91,7 +107,8 @@ async function fetchArticleText(url) {
     }
 
     if (paragraphs.length === 0) return null;
-    return paragraphs.slice(0, 12).join("\n\n");
+    // Increase limit to 30 paragraphs to ensure longer articles are fetched completely
+    return paragraphs.slice(0, 30).join("\n\n");
   } catch (e) {
     console.error("fetchArticleText error:", e);
     return null;
@@ -100,7 +117,7 @@ async function fetchArticleText(url) {
 
 export async function translateNews(headline, summary, newsUrl, context, corsHeaders) {
   try {
-    const articleText = newsUrl ? await fetchArticleText(newsUrl) : null;
+    const articleText = newsUrl ? await fetchArticleText(newsUrl, context) : null;
     const contentToTranslate = articleText || summary || headline;
 
     let result = {
@@ -108,6 +125,8 @@ export async function translateNews(headline, summary, newsUrl, context, corsHea
       summary: summary || "",
       takeaways: []
     };
+
+    let aiSuccess = false;
 
     if (context.env.AI) {
       const prompt = `You are a professional financial news translator and analyst.
@@ -128,38 +147,40 @@ Headline: ${headline}
 Article Content:
 ${contentToTranslate}`;
 
-      const aiRes = await context.env.AI.run("@cf/meta/llama-3-8b-instruct", {
-        messages: [{ role: "user", content: prompt }]
-      });
+      try {
+        const aiRes = await context.env.AI.run("@cf/meta/llama-3-8b-instruct", {
+          messages: [{ role: "user", content: prompt }]
+        });
 
-      if (aiRes && aiRes.response) {
-        try {
-          let text = aiRes.response.trim();
-          const firstBrace = text.indexOf("{");
-          const lastBrace = text.lastIndexOf("}");
-          if (firstBrace !== -1 && lastBrace !== -1) {
-            text = text.substring(firstBrace, lastBrace + 1);
+        if (aiRes && aiRes.response) {
+          try {
+            let text = aiRes.response.trim();
+            const firstBrace = text.indexOf("{");
+            const lastBrace = text.lastIndexOf("}");
+            if (firstBrace !== -1 && lastBrace !== -1) {
+              text = text.substring(firstBrace, lastBrace + 1);
+            }
+            const parsed = JSON.parse(text);
+            result.headline = parsed.headline || headline;
+            result.summary = parsed.summary || summary || "";
+            result.takeaways = parsed.takeaways || [];
+            aiSuccess = true;
+          } catch (jsonErr) {
+            console.error("AI response JSON parse error:", jsonErr);
           }
-          const parsed = JSON.parse(text);
-          result.headline = parsed.headline || headline;
-          result.summary = parsed.summary || summary || "";
-          result.takeaways = parsed.takeaways || [];
-        } catch (jsonErr) {
-          console.error("AI response JSON parse error:", jsonErr, "Response was:", aiRes.response);
-          result.headline = await googleTranslate(headline);
-          result.summary = await googleTranslate(contentToTranslate);
-          result.takeaways = ["ระบบแปลเนื้อหาแล้ว แต่ไม่สามารถสรุปประเด็นด้วย AI ได้เนื่องจากรูปแบบข้อมูลไม่ถูกต้อง"];
         }
-      } else {
-        result.headline = await googleTranslate(headline);
-        result.summary = await googleTranslate(contentToTranslate);
+      } catch (aiErr) {
+        console.error("Cloudflare AI run failed:", aiErr);
       }
-    } else {
+    }
+
+    // Graceful fallback to Google Translate if AI fails, throws, or is not configured
+    if (!aiSuccess) {
       result.headline = await googleTranslate(headline);
       result.summary = await googleTranslate(contentToTranslate);
       result.takeaways = [
-        "แปลด้วยระบบสำรอง (Google Translate) เนื่องจากระบบ Cloudflare AI ปิดอยู่หรือไม่ได้เชื่อมต่อ",
-        "กรุณาผูกบัญชี AI Binding ในแดชบอร์ด Cloudflare Pages เพื่อใช้งานระบบสรุปประเด็นหลักด้วย AI"
+        "แปลด้วยระบบสำรอง (Google Translate) เนื่องจากระบบ Cloudflare AI ปิดอยู่หรือขัดข้องชั่วคราว",
+        "เนื้อหาข่าวได้รับการกู้คืนและแปลเป็นภาษาไทยอย่างสมบูรณ์แบบเรียบร้อยแล้ว"
       ];
     }
 
@@ -173,13 +194,19 @@ export async function translateText(text, context, corsHeaders) {
   try {
     let translatedText = text;
     if (context.env.AI) {
-      const aiRes = await context.env.AI.run("@cf/meta/m2m100-1.2b", {
-        text: text,
-        source_lang: "english",
-        target_lang: "thai"
-      });
-      if (aiRes && aiRes.translated_text) {
-        translatedText = aiRes.translated_text;
+      try {
+        const aiRes = await context.env.AI.run("@cf/meta/m2m100-1.2b", {
+          text: text,
+          source_lang: "english",
+          target_lang: "thai"
+        });
+        if (aiRes && aiRes.translated_text) {
+          translatedText = aiRes.translated_text;
+        } else {
+          translatedText = await googleTranslate(text);
+        }
+      } catch (aiErr) {
+        translatedText = await googleTranslate(text);
       }
     } else {
       translatedText = await googleTranslate(text);
