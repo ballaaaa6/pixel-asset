@@ -103,7 +103,9 @@ export default function StockQuarterlyTab({ earnings = [], calendar = [], curren
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {earnings.map((e, idx) => {
-            const surpriseColor = e.surprise >= 0 ? "var(--gain)" : "var(--loss)";
+            const surpriseColor = e.surprise == null 
+              ? "var(--text-muted)" 
+              : (e.surprise >= 0 ? "var(--gain)" : "var(--loss)");
             return (
               <div 
                 key={idx} 
@@ -136,7 +138,10 @@ export default function StockQuarterlyTab({ earnings = [], calendar = [], curren
                   <div style={{ textAlign: "right", minWidth: 70 }}>
                     <span style={{ fontSize: 11, color: "var(--text-muted)", display: "block" }}>Surprise</span>
                     <span style={{ fontSize: 13, fontWeight: 900, color: surpriseColor }}>
-                      {e.surprisePercent >= 0 ? `+${e.surprisePercent.toFixed(1)}%` : `${e.surprisePercent.toFixed(1)}%`}
+                      {e.surprisePercent != null 
+                        ? (e.surprisePercent >= 0 ? `+${e.surprisePercent.toFixed(1)}%` : `${e.surprisePercent.toFixed(1)}%`)
+                        : "-"
+                      }
                     </span>
                   </div>
                 </div>
@@ -162,24 +167,26 @@ export default function StockQuarterlyTab({ earnings = [], calendar = [], curren
                   จริง: {selectedEarning.actual?.toFixed(2) ?? "-"} | คาด: {selectedEarning.estimate?.toFixed(2) ?? "-"}
                 </span>
                 
-                <div style={{ 
-                  marginTop: 10,
-                  fontSize: 15, 
-                  fontWeight: 900, 
-                  color: selectedEarning.surprisePercent >= 0 ? "var(--gain)" : "var(--loss)", 
-                  background: selectedEarning.surprisePercent >= 0 ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)",
-                  padding: "4px 12px",
-                  borderRadius: 12,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4
-                }}>
-                  <AlertCircle size={14} />
-                  {selectedEarning.surprisePercent >= 0 
-                    ? `+${selectedEarning.surprisePercent.toFixed(1)}%` 
-                    : `${selectedEarning.surprisePercent.toFixed(1)}%`
-                  }
-                </div>
+                {selectedEarning.surprisePercent != null && (
+                  <div style={{ 
+                    marginTop: 10,
+                    fontSize: 15, 
+                    fontWeight: 900, 
+                    color: selectedEarning.surprisePercent >= 0 ? "var(--gain)" : "var(--loss)", 
+                    background: selectedEarning.surprisePercent >= 0 ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)",
+                    padding: "4px 12px",
+                    borderRadius: 12,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4
+                  }}>
+                    <AlertCircle size={14} />
+                    {selectedEarning.surprisePercent >= 0 
+                      ? `+${selectedEarning.surprisePercent.toFixed(1)}%` 
+                      : `${selectedEarning.surprisePercent.toFixed(1)}%`
+                    }
+                  </div>
+                )}
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -249,7 +256,12 @@ export default function StockQuarterlyTab({ earnings = [], calendar = [], curren
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <span>ส่วนต่างกำไรต่อหุ้น (Surprise Value):</span>
-                    <strong>{selectedEarning.surprise >= 0 ? `+${selectedEarning.surprise?.toFixed(2)}` : selectedEarning.surprise?.toFixed(2)} EPS</strong>
+                    <strong>
+                      {selectedEarning.surprise != null 
+                        ? (selectedEarning.surprise >= 0 ? `+${selectedEarning.surprise.toFixed(2)}` : selectedEarning.surprise.toFixed(2)) 
+                        : "-"
+                      } EPS
+                    </strong>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <span>อัตรากำไรสุทธิไตรมาส (Net Margin):</span>
