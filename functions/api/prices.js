@@ -1,7 +1,8 @@
 import { searchSymbols, fetchSparklines } from "./_pricesSearch.js";
 import { fetchLivePrices, fetchDetailedAssetHistory } from "./_pricesLive.js";
 import { fetchDetailedAsset } from "./_pricesDetails.js";
-import { translateNews, translateText } from "./_newsHelpers.js";
+import { translateNews } from "./_newsHelpers.js";
+import { translateText } from "./_translationHelpers.js";
 
 export async function onRequestGet(context) {
   const { request } = context;

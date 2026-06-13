@@ -167,7 +167,7 @@ export function mapFinancialsAndEarnings(earnings, yfSummary, yfIncomeHistory = 
     if (!series || series.length === 0 || !targetTime) return null;
     let best = null;
     let minDiff = Infinity;
-    const maxDiff = 15 * 24 * 60 * 60 * 1000; // 15 days is enough for period-end matching
+    const maxDiff = 50 * 24 * 60 * 60 * 1000; // 50 days is enough for period-end matching with shifted fiscal calendars
     series.forEach(item => {
       if (!item || !item.asOfDate) return;
       const itemTime = parseDate(item.asOfDate);
@@ -289,7 +289,7 @@ export function mapFinancialsAndEarnings(earnings, yfSummary, yfIncomeHistory = 
 
   allTSDates.forEach(dateStr => {
     const dTime = parseDate(dateStr);
-    const exists = mapped.some(e => Math.abs(parseDate(e.period) - dTime) < 15 * 24 * 60 * 60 * 1000);
+    const exists = mapped.some(e => Math.abs(parseDate(e.period) - dTime) < 50 * 24 * 60 * 60 * 1000);
     if (!exists) {
       const d = new Date(dateStr);
       const month = d.getUTCMonth() + 1;

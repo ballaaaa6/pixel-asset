@@ -102,7 +102,7 @@ export default function StockQuarterlyTab({ earnings = [], calendar = [], curren
         <div style={{ padding: 20, textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>ไม่มีข้อมูลรายงานกำไรสุทธิไตรมาสล่าสุด</div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {earnings.map((e, idx) => {
+          {earnings.slice(0, 10).map((e, idx) => {
             const surpriseColor = e.surprise == null 
               ? "var(--text-muted)" 
               : (e.surprise >= 0 ? "var(--gain)" : "var(--loss)");

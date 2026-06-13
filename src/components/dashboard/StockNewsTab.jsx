@@ -155,7 +155,7 @@ export default function StockNewsTab({ news = [] }) {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ fontSize: 10, color: "var(--primary)", fontWeight: 800 }}>{item.source}</span>
                   <span style={{ fontSize: 9, color: "var(--text-muted)" }}>
-                    {new Date(item.datetime * 1000).toLocaleDateString("th-TH")}
+                    {new Date(item.datetime * 1000).toLocaleDateString("th-TH")} {new Date(item.datetime * 1000).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })} น.
                   </span>
                 </div>
                 <span style={{ fontSize: 12.5, fontWeight: 800, color: "var(--text-main)", lineHeight: 1.3 }}>{item.headline}</span>
@@ -235,7 +235,7 @@ export default function StockNewsTab({ news = [] }) {
             <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, color: "var(--text-muted)", fontWeight: 800 }}>
                 <span>แหล่งข่าว: {selectedNews.source}</span>
-                <span>{new Date(selectedNews.datetime * 1000).toLocaleString("th-TH")}</span>
+                <span>{new Date(selectedNews.datetime * 1000).toLocaleDateString("th-TH")} {new Date(selectedNews.datetime * 1000).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })} น.</span>
               </div>
 
               {loadingDetails ? (

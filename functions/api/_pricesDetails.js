@@ -15,7 +15,7 @@ import {
 
 export async function fetchDetailedAsset(symbol, tf, context, corsHeaders) {
   try {
-    const cacheKey = `https://cache.local/details/v5/${symbol}`;
+    const cacheKey = `https://cache.local/details/v6/${symbol}`;
     const cached = await getCache(cacheKey);
     
     if (cached) {
@@ -325,7 +325,7 @@ export async function fetchDetailedAsset(symbol, tf, context, corsHeaders) {
       metrics,
       thaiSummary: thaiSummary || null,
       news: Array.isArray(news) ? news.slice(0, 30) : [],
-      earnings: Array.isArray(earnings) ? earnings.slice(0, 8) : [],
+      earnings: Array.isArray(earnings) ? earnings.slice(0, 22) : [],
       calendar: calendar?.earningsCalendar || []
     };
 
