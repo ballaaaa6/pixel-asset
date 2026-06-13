@@ -1,3 +1,39 @@
+async function googleTranslate(text, targetLang = "th") {
+  if (!text) return "";
+  try {
+    const chunkSize = 1000;
+    const chunks = [];
+    for (let i = 0; i < text.length; i += chunkSize) {
+      chunks.push(text.slice(i, i + chunkSize));
+    }
+    
+    const translatedChunks = [];
+    for (const chunk of chunks) {
+      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLang}&dt=t&q=${encodeURIComponent(chunk)}`;
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+      });
+      if (!res.ok) {
+        translatedChunks.push(chunk);
+        continue;
+      }
+      const data = await res.json();
+      if (data && data[0]) {
+        const translatedPart = data[0].map(x => x[0]).join("");
+        translatedChunks.push(translatedPart);
+      } else {
+        translatedChunks.push(chunk);
+      }
+    }
+    return translatedChunks.join("");
+  } catch (e) {
+    console.error("googleTranslate error:", e);
+    return text;
+  }
+}
+
 async function fetchArticleText(url) {
   if (!url) return null;
   try {
@@ -34,6 +70,11 @@ async function fetchArticleText(url) {
         .trim();
 
       if (pText.length > 40) {
+        // Filter out JSON-LD and inline JavaScript blocks
+        if (pText.includes("{") || pText.includes("}") || pText.includes("@type") || pText.includes("@context")) {
+          continue;
+        }
+
         const lower = pText.toLowerCase();
         if (
           !lower.includes("cookie") &&
@@ -62,7 +103,14 @@ export async function translateNews(headline, summary, newsUrl, context, corsHea
     const articleText = newsUrl ? await fetchArticleText(newsUrl) : null;
     const contentToTranslate = articleText || summary || headline;
 
-    const prompt = `You are a professional financial news translator and analyst.
+    let result = {
+      headline: headline,
+      summary: summary || "",
+      takeaways: []
+    };
+
+    if (context.env.AI) {
+      const prompt = `You are a professional financial news translator and analyst.
 Your task is to translate the financial news article content into Thai, and summarize it with 3-5 bulleted key takeaways.
 
 Translate the headline to a compelling Thai headline.
@@ -80,13 +128,6 @@ Headline: ${headline}
 Article Content:
 ${contentToTranslate}`;
 
-    let result = {
-      headline: headline,
-      summary: summary || "",
-      takeaways: []
-    };
-
-    if (context.env.AI) {
       const aiRes = await context.env.AI.run("@cf/meta/llama-3-8b-instruct", {
         messages: [{ role: "user", content: prompt }]
       });
@@ -105,11 +146,21 @@ ${contentToTranslate}`;
           result.takeaways = parsed.takeaways || [];
         } catch (jsonErr) {
           console.error("AI response JSON parse error:", jsonErr, "Response was:", aiRes.response);
-          // Simple fallback
-          result.headline = "แปล: " + headline;
-          result.summary = "แปล: " + (summary || "");
+          result.headline = await googleTranslate(headline);
+          result.summary = await googleTranslate(contentToTranslate);
+          result.takeaways = ["ระบบแปลเนื้อหาแล้ว แต่ไม่สามารถสรุปประเด็นด้วย AI ได้เนื่องจากรูปแบบข้อมูลไม่ถูกต้อง"];
         }
+      } else {
+        result.headline = await googleTranslate(headline);
+        result.summary = await googleTranslate(contentToTranslate);
       }
+    } else {
+      result.headline = await googleTranslate(headline);
+      result.summary = await googleTranslate(contentToTranslate);
+      result.takeaways = [
+        "แปลด้วยระบบสำรอง (Google Translate) เนื่องจากระบบ Cloudflare AI ปิดอยู่หรือไม่ได้เชื่อมต่อ",
+        "กรุณาผูกบัญชี AI Binding ในแดชบอร์ด Cloudflare Pages เพื่อใช้งานระบบสรุปประเด็นหลักด้วย AI"
+      ];
     }
 
     return new Response(JSON.stringify(result), { status: 200, headers: corsHeaders });
@@ -130,6 +181,8 @@ export async function translateText(text, context, corsHeaders) {
       if (aiRes && aiRes.translated_text) {
         translatedText = aiRes.translated_text;
       }
+    } else {
+      translatedText = await googleTranslate(text);
     }
     return new Response(JSON.stringify({ translatedText }), { status: 200, headers: corsHeaders });
   } catch (err) {

@@ -52,7 +52,7 @@ export async function onRequestGet(context) {
 
   // 6. On-Demand News Translation and Bullet Takeaway Summary (?translateNews=true)
   const translateNewsParam = url.searchParams.get("translateNews");
-  if (translateNewsParam && context.env.AI) {
+  if (translateNewsParam) {
     const headline = url.searchParams.get("headline") || "";
     const summary = url.searchParams.get("summary") || "";
     const newsUrl = url.searchParams.get("newsUrl") || "";
