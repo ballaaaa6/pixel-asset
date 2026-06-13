@@ -3,37 +3,72 @@ import { getYahooCookieAndCrumb } from "./_pricesBase.js";
 async function googleTranslate(text, targetLang = "th") {
   if (!text) return "";
   try {
-    const chunkSize = 1000;
-    const chunks = [];
-    for (let i = 0; i < text.length; i += chunkSize) {
-      chunks.push(text.slice(i, i + chunkSize));
-    }
+    // Capping at 4000 characters to avoid URL length constraints and Google limits
+    const truncatedText = text.slice(0, 4000);
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLang}&dt=t&q=${encodeURIComponent(truncatedText)}`;
     
-    const translatedChunks = [];
-    for (const chunk of chunks) {
-      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLang}&dt=t&q=${encodeURIComponent(chunk)}`;
-      const res = await fetch(url, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        }
-      });
-      if (!res.ok) {
-        translatedChunks.push(chunk);
-        continue;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 seconds timeout
+
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
       }
-      const data = await res.json();
-      if (data && data[0]) {
-        const translatedPart = data[0].map(x => x[0]).join("");
-        translatedChunks.push(translatedPart);
-      } else {
-        translatedChunks.push(chunk);
-      }
+    });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) return text;
+    const data = await res.json();
+    if (data && data[0]) {
+      return data[0].map(x => x[0]).join("");
     }
-    return translatedChunks.join("");
+    return text;
   } catch (e) {
     console.error("googleTranslate error:", e);
     return text;
   }
+}
+
+async function myMemoryTranslate(text, targetLang = "th") {
+  if (!text) return "";
+  try {
+    // Limit to 1000 characters for MyMemory free tier limit
+    const truncatedText = text.slice(0, 1000);
+    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(truncatedText)}&langpair=en|${targetLang}`;
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 seconds timeout
+
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) return text;
+    const data = await res.json();
+    if (data && data.responseData && data.responseData.translatedText) {
+      let translated = data.responseData.translatedText;
+      // Post-process common financial term translation mistakes
+      translated = translated
+        .replace(/ซื้อน้ำจิ้ม/gi, "ซื้อช่วงย่อตัว (Buy the dip)")
+        .replace(/น้ำจิ้ม/gi, "ช่วงย่อตัว (dip)");
+      return translated;
+    }
+    return text;
+  } catch (e) {
+    console.error("myMemoryTranslate error:", e);
+    return text;
+  }
+}
+
+async function robustTranslate(text, targetLang = "th") {
+  if (!text) return "";
+  const googleResult = await googleTranslate(text, targetLang);
+  // If googleTranslate failed and returned the original text, fallback to MyMemory
+  if (googleResult === text) {
+    console.log("Google Translate failed or was blocked, falling back to MyMemory...");
+    return await myMemoryTranslate(text, targetLang);
+  }
+  return googleResult;
 }
 
 async function fetchArticleText(url, context) {
@@ -174,13 +209,13 @@ ${contentToTranslate}`;
       }
     }
 
-    // Graceful fallback to Google Translate if AI fails, throws, or is not configured
+    // Graceful fallback to the fast, robust translation chain if AI fails, throws, or is not configured
     if (!aiSuccess) {
-      result.headline = await googleTranslate(headline);
-      result.summary = await googleTranslate(contentToTranslate);
+      result.headline = await robustTranslate(headline);
+      result.summary = await robustTranslate(contentToTranslate);
       result.takeaways = [
-        "แปลด้วยระบบสำรอง (Google Translate) เนื่องจากระบบ Cloudflare AI ปิดอยู่หรือขัดข้องชั่วคราว",
-        "เนื้อหาข่าวได้รับการกู้คืนและแปลเป็นภาษาไทยอย่างสมบูรณ์แบบเรียบร้อยแล้ว"
+        "แปลด้วยระบบแปลภาษาสำรองอัตโนมัติ เนื่องจากระบบ Cloudflare AI ปิดอยู่หรือขัดข้องชั่วคราว",
+        "รายละเอียดเนื้อหาข่าวและข้อความได้รับการแปลเป็นภาษาไทยเรียบร้อยแล้ว"
       ];
     }
 
@@ -203,13 +238,13 @@ export async function translateText(text, context, corsHeaders) {
         if (aiRes && aiRes.translated_text) {
           translatedText = aiRes.translated_text;
         } else {
-          translatedText = await googleTranslate(text);
+          translatedText = await robustTranslate(text);
         }
       } catch (aiErr) {
-        translatedText = await googleTranslate(text);
+        translatedText = await robustTranslate(text);
       }
     } else {
-      translatedText = await googleTranslate(text);
+      translatedText = await robustTranslate(text);
     }
     return new Response(JSON.stringify({ translatedText }), { status: 200, headers: corsHeaders });
   } catch (err) {
