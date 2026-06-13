@@ -5,12 +5,22 @@ import { registerModal } from "../../utils/modalStack";
 
 export default function StockQuarterlyTab({ earnings = [], calendar = [], currency = "USD", metrics = {} }) {
   const [selectedEarning, setSelectedEarning] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 12;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [earnings]);
 
   useEffect(() => {
     if (!selectedEarning) return;
     const onClose = () => setSelectedEarning(null);
     return registerModal(onClose);
   }, [selectedEarning]);
+
+  const totalPages = Math.ceil(earnings.length / pageSize) || 1;
+  const startIndex = (currentPage - 1) * pageSize;
+  const paginatedEarnings = earnings.slice(startIndex, startIndex + pageSize);
 
   const getScreenerNextEstimate = () => {
     if (!calendar || calendar.length === 0) return null;
@@ -109,7 +119,7 @@ export default function StockQuarterlyTab({ earnings = [], calendar = [], curren
         <div style={{ padding: 20, textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>ไม่มีข้อมูลรายงานกำไรสุทธิไตรมาสล่าสุด</div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {earnings.slice(0, 10).map((e, idx) => {
+          {paginatedEarnings.map((e, idx) => {
             const surpriseColor = e.surprise == null 
               ? "var(--text-muted)" 
               : (e.surprise >= 0 ? "var(--gain)" : "var(--loss)");
@@ -155,6 +165,48 @@ export default function StockQuarterlyTab({ earnings = [], calendar = [], curren
               </div>
             );
           })}
+        </div>
+      )}
+
+      {totalPages > 1 && (
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 12, marginTop: 6, padding: "8px 0" }}>
+          <button 
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+            style={{
+              padding: "6px 12px",
+              background: currentPage === 1 ? "var(--border)" : "var(--primary)",
+              color: "#ffffff",
+              border: "none",
+              borderRadius: 8,
+              cursor: currentPage === 1 ? "not-allowed" : "pointer",
+              fontSize: 12,
+              fontWeight: 800,
+              transition: "opacity 0.2s"
+            }}
+          >
+            ก่อนหน้า
+          </button>
+          <span style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)" }}>
+            หน้า {currentPage} / {totalPages}
+          </span>
+          <button 
+            disabled={currentPage === totalPages}
+            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+            style={{
+              padding: "6px 12px",
+              background: currentPage === totalPages ? "var(--border)" : "var(--primary)",
+              color: "#ffffff",
+              border: "none",
+              borderRadius: 8,
+              cursor: currentPage === totalPages ? "not-allowed" : "pointer",
+              fontSize: 12,
+              fontWeight: 800,
+              transition: "opacity 0.2s"
+            }}
+          >
+            ถัดไป
+          </button>
         </div>
       )}
 

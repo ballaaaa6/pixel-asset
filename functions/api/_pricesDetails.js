@@ -15,7 +15,7 @@ import { mapFinancialsAndEarnings } from "./_financialsHelpers.js";
 
 export async function fetchDetailedAsset(symbol, tf, context, corsHeaders) {
   try {
-    const cacheKey = `https://cache.local/details/v8/${symbol}`;
+    const cacheKey = `https://cache.local/details/v9/${symbol}`;
     const cached = await getCache(cacheKey);
     
     if (cached) {
@@ -280,7 +280,7 @@ export async function fetchDetailedAsset(symbol, tf, context, corsHeaders) {
 
     const yfIncomeHistory = yfSummary?.incomeStatementHistoryQuarterly?.incomeStatementHistory || [];
     const yfCFHistory = yfSummary?.cashflowStatementHistoryQuarterly?.cashflowStatements || [];
-    earnings = mapFinancialsAndEarnings(earnings, yfSummary, yfIncomeHistory, yfCFHistory, yfTimeSeries, metrics);
+    earnings = mapFinancialsAndEarnings(earnings, yfSummary, yfIncomeHistory, yfCFHistory, yfTimeSeries, metrics, profile);
 
     if (!calendar || !calendar.earningsCalendar || calendar.earningsCalendar.length === 0) {
       const yfCalendarEvents = yfSummary?.calendarEvents?.earnings;

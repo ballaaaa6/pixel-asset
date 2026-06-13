@@ -1,4 +1,4 @@
-export function mapFinancialsAndEarnings(earnings, yfSummary, yfIncomeHistory = [], yfCFHistory = [], yfTimeSeries = null, metrics = null) {
+export function mapFinancialsAndEarnings(earnings, yfSummary, yfIncomeHistory = [], yfCFHistory = [], yfTimeSeries = null, metrics = null, profile = null) {
   const parseDate = (dStr) => {
     try { return new Date(dStr).getTime(); } catch { return 0; }
   };
@@ -302,11 +302,17 @@ export function mapFinancialsAndEarnings(earnings, yfSummary, yfIncomeHistory = 
     }
   });
 
-  mapped.sort((a, b) => {
+  let finalMapped = mapped;
+  if (profile?.ipo) {
+    const ipoTime = new Date(profile.ipo).getTime() - 90 * 24 * 60 * 60 * 1000;
+    finalMapped = mapped.filter(e => parseDate(e.period) >= ipoTime);
+  }
+
+  finalMapped.sort((a, b) => {
     if (a.year !== b.year) return b.year - a.year;
     if (a.quarter !== b.quarter) return b.quarter - a.quarter;
     return parseDate(b.period) - parseDate(a.period);
   });
 
-  return mapped;
+  return finalMapped;
 }

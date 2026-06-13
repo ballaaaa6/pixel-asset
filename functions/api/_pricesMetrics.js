@@ -12,9 +12,10 @@ export function enrichMetricsFromYF(metrics, yfSummary, returnsObj, chartStats) 
       priceData.marketCap?.raw || 
       sumDetail.marketCap?.raw || 
       keyStats.marketCap?.raw || 
-      metrics.metric.marketCapitalization || 
-      null;
-    metrics.metric.enterpriseValue = keyStats.enterpriseValue?.raw || null;
+      (metrics.metric.marketCapitalization ? metrics.metric.marketCapitalization * 1e6 : null);
+    metrics.metric.enterpriseValue = 
+      keyStats.enterpriseValue?.raw || 
+      (metrics.metric.enterpriseValue ? metrics.metric.enterpriseValue * 1e6 : null);
     metrics.metric.peTrailing = keyStats.trailingPE?.raw || sumDetail.trailingPE?.raw || metrics.metric.peTrailing || null;
     metrics.metric.pbCurrent = keyStats.priceToBook?.raw || metrics.metric.pbCurrent || null;
     metrics.metric.epsTTM = keyStats.trailingEps?.raw || metrics.metric.epsTTM || null;
