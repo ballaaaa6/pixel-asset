@@ -237,6 +237,7 @@ export async function fetchDetailedAsset(symbol, tf, context, corsHeaders) {
         yfNews = (yfSearchData.news || []).map(item => {
           const image = item.thumbnail?.resolutions?.[0]?.url || null;
           return {
+            uuid: item.uuid || "",
             headline: item.title || "",
             summary: item.title || "",
             source: item.publisher || "Yahoo Finance",

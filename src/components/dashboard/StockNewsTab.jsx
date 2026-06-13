@@ -28,7 +28,7 @@ export default function StockNewsTab({ news = [] }) {
     setIsThaiView(false);
     setThaiTranslation(null);
     try {
-      const url = `/api/prices?translateNews=true&headline=${encodeURIComponent(item.headline)}&summary=${encodeURIComponent(item.summary || "")}&newsUrl=${encodeURIComponent(item.url || "")}`;
+      const url = `/api/prices?translateNews=true&uuid=${item.uuid || ""}&headline=${encodeURIComponent(item.headline)}&summary=${encodeURIComponent(item.summary || "")}&newsUrl=${encodeURIComponent(item.url || "")}`;
       const res = await fetch(url);
       const data = res.ok ? await res.json() : {};
       

@@ -56,7 +56,8 @@ export async function onRequestGet(context) {
     const headline = url.searchParams.get("headline") || "";
     const summary = url.searchParams.get("summary") || "";
     const newsUrl = url.searchParams.get("newsUrl") || "";
-    return translateNews(headline, summary, newsUrl, context, corsHeaders);
+    const uuid = url.searchParams.get("uuid") || "";
+    return translateNews(headline, summary, newsUrl, context, corsHeaders, uuid);
   }
 
   // 7. On-Demand Text Translation (?translate=TEXT)

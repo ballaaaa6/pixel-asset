@@ -91,8 +91,91 @@ async function robustTranslate(text, targetLang = "th") {
   return googleResult;
 }
 
-async function fetchArticleText(url, context) {
+async function fetchArticleText(url, context, uuid = "") {
+  if (!url && !uuid) return null;
+
+  if (!uuid && url) {
+    const uuidMatch = url.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+    if (uuidMatch) {
+      uuid = uuidMatch[1];
+    }
+  }
+
+  if (uuid) {
+    try {
+      const caasUrl = `https://finance.yahoo.com/caas/content/article/?uuid=${uuid}&appid=article2_csn`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+      const res = await fetch(caasUrl, {
+        signal: controller.signal,
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Accept": "application/json"
+        }
+      });
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const json = await res.json();
+        const item = json?.items?.[0];
+        const markup = item?.markup || "";
+        if (markup) {
+          const elementRegex = /<(p|h2|h3|h4|li)[^>]*>([\s\S]*?)<\/\1>/gi;
+          let paragraphs = [];
+          let match;
+          while ((match = elementRegex.exec(markup)) !== null) {
+            const tag = match[1].toLowerCase();
+            let rawText = match[2];
+            let pText = rawText
+              .replace(/<[^>]*>/g, "")
+              .replace(/&nbsp;/g, " ")
+              .replace(/&amp;/g, "&")
+              .replace(/&lt;/g, "<")
+              .replace(/&gt;/g, ">")
+              .replace(/&quot;/g, '"')
+              .replace(/&#39;/g, "'")
+              .replace(/\s+/g, " ")
+              .trim();
+
+            if (pText.length > 10) {
+              if (pText.includes("{") || pText.includes("}") || pText.includes("@type") || pText.includes("@context")) {
+                continue;
+              }
+
+              const lower = pText.toLowerCase();
+              if (
+                lower.includes("terms of service") ||
+                lower.includes("privacy policy") ||
+                lower.includes("all rights reserved") ||
+                lower.includes("subscribe to") ||
+                lower.includes("sign up") ||
+                lower.includes("copyright")
+              ) {
+                continue;
+              }
+
+              if (tag.startsWith("h")) {
+                paragraphs.push(`**${pText}**`);
+              } else if (tag === "li") {
+                paragraphs.push(`• ${pText}`);
+              } else {
+                paragraphs.push(pText);
+              }
+            }
+          }
+          if (paragraphs.length > 0) {
+            return paragraphs.slice(0, 30).join("\n\n").replace(/\n{3,}/g, "\n\n");
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Yahoo CaaS API fetch failed:", e);
+    }
+  }
+
   if (!url) return null;
+
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 seconds timeout
@@ -215,9 +298,9 @@ async function fetchArticleText(url, context) {
   }
 }
 
-export async function translateNews(headline, summary, newsUrl, context, corsHeaders) {
+export async function translateNews(headline, summary, newsUrl, context, corsHeaders, uuid = "") {
   try {
-    const articleText = newsUrl ? await fetchArticleText(newsUrl, context) : null;
+    const articleText = await fetchArticleText(newsUrl, context, uuid);
     const contentToTranslate = articleText || summary || headline;
 
     let result = {
@@ -298,11 +381,7 @@ export async function translateText(text, context, corsHeaders) {
           source_lang: "english",
           target_lang: "thai"
         });
-        if (aiRes && aiRes.translated_text) {
-          translatedText = aiRes.translated_text;
-        } else {
-          translatedText = await robustTranslate(text);
-        }
+        translatedText = aiRes?.translated_text || await robustTranslate(text);
       } catch (aiErr) {
         translatedText = await robustTranslate(text);
       }
