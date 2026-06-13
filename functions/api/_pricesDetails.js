@@ -15,7 +15,7 @@ import {
 
 export async function fetchDetailedAsset(symbol, tf, context, corsHeaders) {
   try {
-    const cacheKey = `https://cache.local/details/v6/${symbol}`;
+    const cacheKey = `https://cache.local/details/v7/${symbol}`;
     const cached = await getCache(cacheKey);
     
     if (cached) {

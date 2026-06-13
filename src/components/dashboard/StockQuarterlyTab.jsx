@@ -1,9 +1,16 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X, AlertCircle } from "lucide-react";
+import { registerModal } from "../../utils/modalStack";
 
 export default function StockQuarterlyTab({ earnings = [], calendar = [], currency = "USD", metrics = {} }) {
   const [selectedEarning, setSelectedEarning] = useState(null);
+
+  useEffect(() => {
+    if (!selectedEarning) return;
+    const onClose = () => setSelectedEarning(null);
+    return registerModal(onClose);
+  }, [selectedEarning]);
 
   const getScreenerNextEstimate = () => {
     if (!calendar || calendar.length === 0) return null;

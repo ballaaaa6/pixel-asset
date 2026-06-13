@@ -277,6 +277,21 @@ export function mapFinancialsAndEarnings(earnings, yfSummary, yfIncomeHistory = 
     };
   });
 
+  // Calculate fiscal offset shift from the baseList to handle shifted fiscal calendars
+  let shiftQ = 0;
+  let shiftY = 0;
+  if (baseList.length > 0) {
+    const first = baseList[0];
+    const fDate = new Date(first.period);
+    const fMonth = fDate.getUTCMonth() + 1;
+    let calQ = 4;
+    if (fMonth <= 3) calQ = 1;
+    else if (fMonth <= 6) calQ = 2;
+    else if (fMonth <= 9) calQ = 3;
+    shiftQ = first.quarter - calQ;
+    shiftY = first.year - fDate.getUTCFullYear();
+  }
+
   // Extract extra quarters from timeseries data and append them
   const allTSDates = new Set([
     ...gpSeries.map(x => x.asOfDate),
@@ -293,11 +308,22 @@ export function mapFinancialsAndEarnings(earnings, yfSummary, yfIncomeHistory = 
     if (!exists) {
       const d = new Date(dateStr);
       const month = d.getUTCMonth() + 1;
-      const year = d.getUTCFullYear();
-      let quarter = 4;
-      if (month <= 3) quarter = 1;
-      else if (month <= 6) quarter = 2;
-      else if (month <= 9) quarter = 3;
+      const calY = d.getUTCFullYear();
+      let calQ = 4;
+      if (month <= 3) calQ = 1;
+      else if (month <= 6) calQ = 2;
+      else if (month <= 9) calQ = 3;
+
+      let quarter = calQ + shiftQ;
+      let year = calY + shiftY;
+      while (quarter > 4) {
+        quarter -= 4;
+        year += 1;
+      }
+      while (quarter < 1) {
+        quarter += 4;
+        year -= 1;
+      }
 
       const gpMatch = findTSMatch(dTime, gpSeries);
       const capexMatch = findTSMatch(dTime, capexSeries);

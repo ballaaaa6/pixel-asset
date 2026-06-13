@@ -1,9 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import { registerModal } from "../../utils/modalStack";
 
 export default function StockNewsTab({ news = [] }) {
   const [selectedNews, setSelectedNews] = useState(null);
+
+  useEffect(() => {
+    if (!selectedNews) return;
+    const onClose = () => setSelectedNews(null);
+    return registerModal(onClose);
+  }, [selectedNews]);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [newsDetail, setNewsDetail] = useState(null);
   const [isThaiView, setIsThaiView] = useState(false);
@@ -79,17 +86,10 @@ export default function StockNewsTab({ news = [] }) {
       const translateTextClient = async (text) => {
         if (!text) return "";
         try {
-          const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=th&dt=t&q=${encodeURIComponent(text)}`;
-          const res = await fetch(url);
-          if (!res.ok) return text;
-          const data = await res.json();
-          if (data && data[0]) {
-            return data[0].map(x => x[0]).join("");
-          }
-          return text;
-        } catch {
-          return text;
-        }
+          const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=th&dt=t&q=${encodeURIComponent(text)}`);
+          const data = res.ok ? await res.json() : null;
+          return data?.[0] ? data[0].map(x => x[0]).join("") : text;
+        } catch { return text; }
       };
 
       const translatedHeadline = await translateTextClient(newsDetail.headline);
@@ -154,7 +154,7 @@ export default function StockNewsTab({ news = [] }) {
               <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ fontSize: 10, color: "var(--primary)", fontWeight: 800 }}>{item.source}</span>
-                  <span style={{ fontSize: 9, color: "var(--text-muted)" }}>
+                  <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 700 }}>
                     {new Date(item.datetime * 1000).toLocaleDateString("th-TH")} {new Date(item.datetime * 1000).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })} น.
                   </span>
                 </div>
@@ -233,7 +233,7 @@ export default function StockNewsTab({ news = [] }) {
             </div>
             
             <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, color: "var(--text-muted)", fontWeight: 800 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, color: "var(--text-muted)", fontWeight: 800 }}>
                 <span>แหล่งข่าว: {selectedNews.source}</span>
                 <span>{new Date(selectedNews.datetime * 1000).toLocaleDateString("th-TH")} {new Date(selectedNews.datetime * 1000).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })} น.</span>
               </div>
