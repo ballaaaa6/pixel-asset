@@ -24,44 +24,27 @@ export default function StockQuarterlyTab({ earnings = [], calendar = [], curren
 
   const getGrowthStats = () => {
     if (!selectedEarning) return null;
-    const idx = earnings.indexOf(selectedEarning);
+    const prevYoY = earnings.find(e => e.quarter === selectedEarning.quarter && e.year === selectedEarning.year - 1);
+    
     let revGrowth = null;
     let netGrowth = null;
-    let type = "YoY";
 
+    if (prevYoY) {
+      if (selectedEarning.revenue != null && prevYoY.revenue != null) {
+        revGrowth = ((selectedEarning.revenue - prevYoY.revenue) / prevYoY.revenue) * 100;
+      }
+      if (selectedEarning.netIncome != null && prevYoY.netIncome != null) {
+        netGrowth = ((selectedEarning.netIncome - prevYoY.netIncome) / prevYoY.netIncome) * 100;
+      }
+    }
+    
+    const idx = earnings.indexOf(selectedEarning);
     if (idx === 0) {
-      revGrowth = metrics?.metric?.revenueGrowthYoY;
-      netGrowth = metrics?.metric?.earningsGrowthYoY;
+      if (revGrowth == null) revGrowth = metrics?.metric?.revenueGrowthYoY;
+      if (netGrowth == null) netGrowth = metrics?.metric?.earningsGrowthYoY;
     }
 
-    if ((revGrowth == null || netGrowth == null) && idx + 4 < earnings.length) {
-      const prevYoY = earnings[idx + 4];
-      if (prevYoY) {
-        if (revGrowth == null && selectedEarning.revenue != null && prevYoY.revenue) {
-          revGrowth = ((selectedEarning.revenue - prevYoY.revenue) / prevYoY.revenue) * 100;
-        }
-        if (netGrowth == null && selectedEarning.netIncome != null && prevYoY.netIncome) {
-          netGrowth = ((selectedEarning.netIncome - prevYoY.netIncome) / prevYoY.netIncome) * 100;
-        }
-        type = "YoY";
-      }
-    }
-
-    if ((revGrowth == null || netGrowth == null) && idx + 1 < earnings.length) {
-      const prevQoQ = earnings[idx + 1];
-      if (prevQoQ) {
-        if (revGrowth == null && selectedEarning.revenue != null && prevQoQ.revenue) {
-          revGrowth = ((selectedEarning.revenue - prevQoQ.revenue) / prevQoQ.revenue) * 100;
-          type = "QoQ";
-        }
-        if (netGrowth == null && selectedEarning.netIncome != null && prevQoQ.netIncome) {
-          netGrowth = ((selectedEarning.netIncome - prevQoQ.netIncome) / prevQoQ.netIncome) * 100;
-          type = "QoQ";
-        }
-      }
-    }
-
-    return { revGrowth, netGrowth, type };
+    return { revGrowth, netGrowth };
   };
 
   const growth = getGrowthStats();
@@ -145,8 +128,8 @@ export default function StockQuarterlyTab({ earnings = [], calendar = [], curren
                   marginTop: 10,
                   fontSize: 12, 
                   fontWeight: 900, 
-                  color: selectedEarning.surprise >= 0 ? "var(--gain)" : "var(--loss)", 
-                  background: selectedEarning.surprise >= 0 ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)",
+                  color: selectedEarning.surprisePercent >= 0 ? "var(--gain)" : "var(--loss)", 
+                  background: selectedEarning.surprisePercent >= 0 ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)",
                   padding: "4px 12px",
                   borderRadius: 12,
                   display: "flex",
@@ -154,9 +137,9 @@ export default function StockQuarterlyTab({ earnings = [], calendar = [], curren
                   gap: 4
                 }}>
                   <AlertCircle size={14} />
-                  {selectedEarning.surprise >= 0 
-                    ? `เข้าเป้า (Beat คาดการณ์ +${selectedEarning.surprisePercent?.toFixed(1)}%)` 
-                    : `ต่ำกว่าคาด (Miss คาดการณ์ ${selectedEarning.surprisePercent?.toFixed(1)}%)`
+                  {selectedEarning.surprisePercent >= 0 
+                    ? `+${selectedEarning.surprisePercent.toFixed(1)}%` 
+                    : `${selectedEarning.surprisePercent.toFixed(1)}%`
                   }
                 </div>
               </div>
@@ -177,8 +160,8 @@ export default function StockQuarterlyTab({ earnings = [], calendar = [], curren
                     <strong style={{ display: "flex", alignItems: "center", gap: 4 }}>
                       {formatMoney(selectedEarning.revenue)}
                       {growth?.revGrowth != null && (
-                        <span style={{ fontSize: 10, fontWeight: 900, color: growth.revGrowth >= 0 ? "var(--gain)" : "var(--loss)" }}>
-                          ({growth.type}: {growth.revGrowth >= 0 ? "+" : ""}{growth.revGrowth.toFixed(1)}% {growth.revGrowth >= 0 ? "เข้าเป้า 🟢" : "ไม่เข้าเป้า 🔴"})
+                        <span style={{ fontSize: 10.5, fontWeight: 900, color: growth.revGrowth >= 0 ? "var(--gain)" : "var(--loss)" }}>
+                          (YoY: {growth.revGrowth >= 0 ? "+" : ""}{growth.revGrowth.toFixed(1)}%)
                         </span>
                       )}
                     </strong>
@@ -188,8 +171,8 @@ export default function StockQuarterlyTab({ earnings = [], calendar = [], curren
                     <strong style={{ display: "flex", alignItems: "center", gap: 4 }}>
                       {formatMoney(selectedEarning.netIncome)}
                       {growth?.netGrowth != null && (
-                        <span style={{ fontSize: 10, fontWeight: 900, color: growth.netGrowth >= 0 ? "var(--gain)" : "var(--loss)" }}>
-                          ({growth.type}: {growth.netGrowth >= 0 ? "+" : ""}{growth.netGrowth.toFixed(1)}% {growth.netGrowth >= 0 ? "เข้าเป้า 🟢" : "ไม่เข้าเป้า 🔴"})
+                        <span style={{ fontSize: 10.5, fontWeight: 900, color: growth.netGrowth >= 0 ? "var(--gain)" : "var(--loss)" }}>
+                          (YoY: {growth.netGrowth >= 0 ? "+" : ""}{growth.netGrowth.toFixed(1)}%)
                         </span>
                       )}
                     </strong>

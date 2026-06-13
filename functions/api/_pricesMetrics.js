@@ -9,6 +9,7 @@ export function enrichMetricsFromYF(metrics, yfSummary, returnsObj, chartStats) 
     const sumDetail = yfSummary.summaryDetail || {};
     
     metrics.metric.marketCapitalization = priceData.marketCap?.raw || keyStats.enterpriseValue?.raw || metrics.metric.marketCapitalization || null;
+    metrics.metric.enterpriseValue = keyStats.enterpriseValue?.raw || null;
     metrics.metric.peTrailing = keyStats.trailingPE?.raw || sumDetail.trailingPE?.raw || metrics.metric.peTrailing || null;
     metrics.metric.pbCurrent = keyStats.priceToBook?.raw || metrics.metric.pbCurrent || null;
     metrics.metric.epsTTM = keyStats.trailingEps?.raw || metrics.metric.epsTTM || null;

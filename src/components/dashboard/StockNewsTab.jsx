@@ -12,7 +12,7 @@ export default function StockNewsTab({ news = [] }) {
     setTranslating(true);
     setTranslatedNews(null);
     try {
-      const url = `/api/prices?translateNews=true&headline=${encodeURIComponent(item.headline)}&summary=${encodeURIComponent(item.summary || "")}`;
+      const url = `/api/prices?translateNews=true&headline=${encodeURIComponent(item.headline)}&summary=${encodeURIComponent(item.summary || "")}&newsUrl=${encodeURIComponent(item.url || "")}`;
       const res = await fetch(url);
       const data = res.ok ? await res.json() : {};
       
@@ -54,14 +54,7 @@ export default function StockNewsTab({ news = [] }) {
             onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-2px)"}
             onMouseLeave={(e) => e.currentTarget.style.transform = "none"}
           >
-            {item.image && (
-              <img 
-                src={item.image} 
-                alt="news thumb" 
-                style={{ width: 80, height: 60, borderRadius: 8, objectFit: "cover", flexShrink: 0 }}
-                onError={(e) => e.target.style.display = "none"}
-              />
-            )}
+
             <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: 10, color: "var(--primary)", fontWeight: 800 }}>{item.source}</span>
@@ -88,13 +81,7 @@ export default function StockNewsTab({ news = [] }) {
             </div>
             
             <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              {selectedNews.image && (
-                <img 
-                  src={selectedNews.image} 
-                  alt="news banner" 
-                  style={{ width: "100%", height: 180, borderRadius: 12, objectFit: "cover" }} 
-                />
-              )}
+
 
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, color: "var(--text-muted)", fontWeight: 800 }}>
                 <span>แหล่งข่าว: {selectedNews.source}</span>
@@ -111,10 +98,16 @@ export default function StockNewsTab({ news = [] }) {
                   <h3 style={{ fontSize: 16, fontWeight: 900, color: "var(--text-main)", margin: 0, lineHeight: 1.4 }}>
                     {translatedNews.headline}
                   </h3>
-                  <div style={{ borderTop: "1px dashed var(--border)", paddingTop: 12 }}>
-                    <p style={{ fontSize: 13, color: "var(--text-main)", lineHeight: 1.6, margin: 0 }}>
-                      {translatedNews.summary || "ไม่มีรายละเอียดข่าวย่อย"}
-                    </p>
+                  <div style={{ borderTop: "1px dashed var(--border)", paddingTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+                    {translatedNews.summary ? (
+                      translatedNews.summary.split("\n\n").map((para, i) => (
+                        <p key={i} style={{ fontSize: 13, color: "var(--text-main)", lineHeight: 1.6, margin: 0, textAlign: "justify" }}>
+                          {para}
+                        </p>
+                      ))
+                    ) : (
+                      <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>ไม่มีรายละเอียดข่าวย่อย</p>
+                    )}
                   </div>
                   {translatedNews.takeaways && translatedNews.takeaways.length > 0 && (
                     <div style={{ marginTop: 10, padding: "12px 16px", background: "rgba(99, 102, 241, 0.04)", border: "1px solid rgba(99, 102, 241, 0.12)", borderRadius: 16, display: "flex", flexDirection: "column", gap: 6 }}>

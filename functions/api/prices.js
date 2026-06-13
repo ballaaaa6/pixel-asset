@@ -1,6 +1,7 @@
 import { searchSymbols, fetchSparklines } from "./_pricesSearch.js";
 import { fetchLivePrices, fetchDetailedAssetHistory } from "./_pricesLive.js";
-import { fetchDetailedAsset, translateNews, translateText } from "./_pricesDetails.js";
+import { fetchDetailedAsset } from "./_pricesDetails.js";
+import { translateNews, translateText } from "./_newsHelpers.js";
 
 export async function onRequestGet(context) {
   const { request } = context;
@@ -54,7 +55,8 @@ export async function onRequestGet(context) {
   if (translateNewsParam && context.env.AI) {
     const headline = url.searchParams.get("headline") || "";
     const summary = url.searchParams.get("summary") || "";
-    return translateNews(headline, summary, context, corsHeaders);
+    const newsUrl = url.searchParams.get("newsUrl") || "";
+    return translateNews(headline, summary, newsUrl, context, corsHeaders);
   }
 
   // 7. On-Demand Text Translation (?translate=TEXT)
