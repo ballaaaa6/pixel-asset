@@ -219,30 +219,19 @@ export default function StockNewsTab({ news = [] }) {
                   </div>
 
                   {/* Headline & Body Text */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                     <h3 style={{ fontSize: 16, fontWeight: 900, color: "var(--text-main)", margin: 0, lineHeight: 1.4 }}>
                       {isThaiView ? thaiTranslation?.headline : newsDetail.headline}
                     </h3>
-                    <div style={{ borderTop: "1px dashed var(--border)", paddingTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
-                      {(isThaiView ? thaiTranslation?.summary : newsDetail.summary) ? (
-                        (isThaiView ? thaiTranslation?.summary : newsDetail.summary).split("\n\n").map((para, i) => (
-                          <p key={i} style={{ fontSize: 13, color: "var(--text-main)", lineHeight: 1.6, margin: 0, textAlign: "justify" }}>
-                            {para}
-                          </p>
-                        ))
-                      ) : (
-                        <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>ไม่มีรายละเอียดข่าว</p>
-                      )}
-                    </div>
 
-                    {/* Brief / Takeaway Summary Box */}
+                    {/* Brief / Takeaway Summary Box (Lifted Up & Enlarged) */}
                     {isThaiView ? (
                       thaiTranslation?.takeaways && thaiTranslation.takeaways.length > 0 && (
-                        <div style={{ marginTop: 10, padding: "12px 16px", background: "rgba(99, 102, 241, 0.04)", border: "1px solid rgba(99, 102, 241, 0.12)", borderRadius: 16, display: "flex", flexDirection: "column", gap: 6 }}>
-                          <span style={{ fontSize: 12.5, fontWeight: 900, color: "var(--primary)" }}>
+                        <div style={{ padding: "12px 16px", background: "rgba(99, 102, 241, 0.04)", border: "1px solid rgba(99, 102, 241, 0.12)", borderRadius: 16, display: "flex", flexDirection: "column", gap: 6 }}>
+                          <span style={{ fontSize: 13.5, fontWeight: 900, color: "var(--primary)" }}>
                             {newsDetail.takeaways && newsDetail.takeaways.length > 0 ? "💡 สรุปประเด็นสำคัญ (AI Summary):" : "📝 สรุปย่อข่าว (Brief Summary):"}
                           </span>
-                          <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12, color: "var(--text-main)", lineHeight: 1.5 }}>
+                          <ul style={{ margin: 0, paddingLeft: 16, fontSize: 13, color: "var(--text-main)", lineHeight: 1.5 }}>
                             {thaiTranslation.takeaways.map((takeaway, idx) => (
                               <li key={idx} style={{ marginBottom: 4 }}>{takeaway}</li>
                             ))}
@@ -251,21 +240,50 @@ export default function StockNewsTab({ news = [] }) {
                       )
                     ) : (
                       (newsDetail.takeaways && newsDetail.takeaways.length > 0) ? (
-                        <div style={{ marginTop: 10, padding: "12px 16px", background: "rgba(99, 102, 241, 0.04)", border: "1px solid rgba(99, 102, 241, 0.12)", borderRadius: 16, display: "flex", flexDirection: "column", gap: 6 }}>
-                          <span style={{ fontSize: 12.5, fontWeight: 900, color: "var(--primary)" }}>💡 Key Takeaways (AI Summary):</span>
-                          <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12, color: "var(--text-main)", lineHeight: 1.5 }}>
+                        <div style={{ padding: "12px 16px", background: "rgba(99, 102, 241, 0.04)", border: "1px solid rgba(99, 102, 241, 0.12)", borderRadius: 16, display: "flex", flexDirection: "column", gap: 6 }}>
+                          <span style={{ fontSize: 13.5, fontWeight: 900, color: "var(--primary)" }}>💡 Key Takeaways (AI Summary):</span>
+                          <ul style={{ margin: 0, paddingLeft: 16, fontSize: 13, color: "var(--text-main)", lineHeight: 1.5 }}>
                             {newsDetail.takeaways.map((takeaway, idx) => (
                               <li key={idx} style={{ marginBottom: 4 }}>{takeaway}</li>
                             ))}
                           </ul>
                         </div>
                       ) : selectedNews.summary ? (
-                        <div style={{ marginTop: 10, padding: "12px 16px", background: "rgba(99, 102, 241, 0.04)", border: "1px solid rgba(99, 102, 241, 0.12)", borderRadius: 16, display: "flex", flexDirection: "column", gap: 6 }}>
-                          <span style={{ fontSize: 12.5, fontWeight: 900, color: "var(--primary)" }}>📝 Brief Summary:</span>
-                          <p style={{ margin: 0, fontSize: 12, color: "var(--text-main)", lineHeight: 1.5 }}>{selectedNews.summary}</p>
+                        <div style={{ padding: "12px 16px", background: "rgba(99, 102, 241, 0.04)", border: "1px solid rgba(99, 102, 241, 0.12)", borderRadius: 16, display: "flex", flexDirection: "column", gap: 6 }}>
+                          <span style={{ fontSize: 13.5, fontWeight: 900, color: "var(--primary)" }}>📝 Brief Summary:</span>
+                          <p style={{ margin: 0, fontSize: 13, color: "var(--text-main)", lineHeight: 1.5 }}>{selectedNews.summary}</p>
                         </div>
                       ) : null
                     )}
+
+                    {/* Dashed Separator Line & Article Body */}
+                    <div style={{ borderTop: "1px dashed var(--border)", paddingTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+                      {(isThaiView ? thaiTranslation?.summary : newsDetail.summary) ? (
+                        (isThaiView ? thaiTranslation?.summary : newsDetail.summary).split("\n\n").map((para, i) => {
+                          const isBoldHeader = para.startsWith("**") && para.endsWith("**");
+                          const cleanText = isBoldHeader ? para.slice(2, -2) : para;
+                          return (
+                            <p 
+                              key={i} 
+                              style={{ 
+                                fontSize: isBoldHeader ? 14 : 13, 
+                                fontWeight: isBoldHeader ? 800 : 400,
+                                color: "var(--text-main)", 
+                                lineHeight: 1.6, 
+                                margin: 0, 
+                                textAlign: "justify",
+                                marginTop: isBoldHeader ? 12 : 0,
+                                marginBottom: isBoldHeader ? 4 : 0
+                              }}
+                            >
+                              {cleanText}
+                            </p>
+                          );
+                        })
+                      ) : (
+                        <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>ไม่มีรายละเอียดข่าว</p>
+                      )}
+                    </div>
                   </div>
                 </div>
               ) : null}

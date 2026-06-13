@@ -123,14 +123,54 @@ async function fetchArticleText(url, context) {
     clearTimeout(timeoutId);
 
     if (!res.ok) return null;
-    const html = await res.text();
+    
+    let html = await res.text();
 
-    const pRegex = /<p[^>]*>([\s\S]*?)<\/p>/gi;
+    // Target the main article body container by cropping the HTML
+    let articleHtml = html;
+    let startIndex = -1;
+    const startSelectors = [
+      'class="caas-body"',
+      'class="canvas-body"',
+      'itemprop="articleBody"',
+      '<article'
+    ];
+    for (const selector of startSelectors) {
+      const idx = html.indexOf(selector);
+      if (idx !== -1) {
+        startIndex = idx;
+        break;
+      }
+    }
+
+    if (startIndex !== -1) {
+      let endIndex = html.length;
+      const endSelectors = [
+        'id="caas-feedback"',
+        'class="caas-dnd-sidebar"',
+        'class="caas-footer"',
+        '<footer',
+        'id="consent-iframe"'
+      ];
+      for (const selector of endSelectors) {
+        const idx = html.indexOf(selector, startIndex);
+        if (idx !== -1 && idx < endIndex) {
+          endIndex = idx;
+        }
+      }
+      articleHtml = html.substring(startIndex, endIndex);
+    }
+
+    // Extract elements sequentially: paragraphs, headings, list items
+    const elementRegex = /<(p|h2|h3|h4|li)[^>]*>([\s\S]*?)<\/\1>/gi;
     let paragraphs = [];
     let match;
-    while ((match = pRegex.exec(html)) !== null) {
-      let pText = match[1]
-        .replace(/<[^>]*>/g, "") // strip HTML tags
+    while ((match = elementRegex.exec(articleHtml)) !== null) {
+      const tag = match[1].toLowerCase();
+      let rawText = match[2];
+      
+      let pText = rawText
+        .replace(/<[^>]*>/g, "") // strip inner HTML tags
         .replace(/&nbsp;/g, " ")
         .replace(/&amp;/g, "&")
         .replace(/&lt;/g, "<")
@@ -140,32 +180,37 @@ async function fetchArticleText(url, context) {
         .replace(/\s+/g, " ")
         .trim();
 
-      if (pText.length > 40) {
-        // Filter out JSON-LD and inline JavaScript blocks
+      if (pText.length > 10) {
         if (pText.includes("{") || pText.includes("}") || pText.includes("@type") || pText.includes("@context")) {
           continue;
         }
 
         const lower = pText.toLowerCase();
         if (
-          !lower.includes("cookie") &&
-          !lower.includes("terms of service") &&
-          !lower.includes("privacy policy") &&
-          !lower.includes("all rights reserved") &&
-          !lower.includes("subscribe to") &&
-          !lower.includes("sign up") &&
-          !lower.includes("copyright")
+          lower.includes("terms of service") ||
+          lower.includes("privacy policy") ||
+          lower.includes("all rights reserved") ||
+          lower.includes("subscribe to") ||
+          lower.includes("sign up") ||
+          lower.includes("copyright")
         ) {
+          continue;
+        }
+
+        if (tag.startsWith("h")) {
+          paragraphs.push(`**${pText}**`);
+        } else if (tag === "li") {
+          paragraphs.push(`• ${pText}`);
+        } else {
           paragraphs.push(pText);
         }
       }
     }
 
     if (paragraphs.length === 0) return null;
-    // Increase limit to 30 paragraphs to ensure longer articles are fetched completely
-    return paragraphs.slice(0, 30).join("\n\n");
-  } catch (e) {
-    console.error("fetchArticleText error:", e);
+    return paragraphs.slice(0, 30).join("\n\n").replace(/\n{3,}/g, "\n\n");
+  } catch (err) {
+    console.error("Error fetching article text:", err);
     return null;
   }
 }
