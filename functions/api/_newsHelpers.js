@@ -229,14 +229,12 @@ ${contentToTranslate}`;
       }
     }
 
-    // Graceful fallback to the fast, robust translation chain if AI fails, throws, or is not configured
+    // Graceful fallback: return English content immediately if AI fails or is not configured
     if (!aiSuccess) {
-      result.headline = await robustTranslate(headline);
-      result.summary = await robustTranslate(contentToTranslate);
-      result.takeaways = [
-        "แปลด้วยระบบแปลภาษาสำรองอัตโนมัติ เนื่องจากระบบ Cloudflare AI ปิดอยู่หรือขัดข้องชั่วคราว",
-        "รายละเอียดเนื้อหาข่าวและข้อความได้รับการแปลเป็นภาษาไทยเรียบร้อยแล้ว"
-      ];
+      result.headline = headline;
+      result.summary = contentToTranslate;
+      result.takeaways = [];
+      result.isEnglish = true;
     }
 
     return new Response(JSON.stringify(result), { status: 200, headers: corsHeaders });
