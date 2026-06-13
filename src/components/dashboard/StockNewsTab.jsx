@@ -13,6 +13,17 @@ export default function StockNewsTab({ news = [] }) {
 
   const itemsPerPage = 10;
 
+  const getBriefSummary = () => {
+    if (selectedNews?.summary && selectedNews.summary !== selectedNews.headline) {
+      return selectedNews.summary;
+    }
+    if (newsDetail?.summary) {
+      const firstPara = newsDetail.summary.split("\n\n")[0] || "";
+      if (firstPara.trim().length > 10) return firstPara;
+    }
+    return selectedNews?.headline || "";
+  };
+
   useEffect(() => {
     setCurrentPage(1);
   }, [news]);
@@ -98,8 +109,9 @@ export default function StockNewsTab({ news = [] }) {
         translatedTakeaways = await Promise.all(
           newsDetail.takeaways.map(t => translateTextClient(t))
         );
-      } else if (selectedNews.summary) {
-        const briefTranslated = await translateTextClient(selectedNews.summary);
+      } else {
+        const briefSummaryText = getBriefSummary();
+        const briefTranslated = await translateTextClient(briefSummaryText);
         translatedTakeaways = [briefTranslated];
       }
 
@@ -316,12 +328,12 @@ export default function StockNewsTab({ news = [] }) {
                             ))}
                           </ul>
                         </div>
-                      ) : selectedNews.summary ? (
+                      ) : (
                         <div style={{ padding: "12px 16px", background: "rgba(99, 102, 241, 0.04)", border: "1px solid rgba(99, 102, 241, 0.12)", borderRadius: 16, display: "flex", flexDirection: "column", gap: 6 }}>
                           <span style={{ fontSize: 13.5, fontWeight: 900, color: "var(--primary)" }}>📝 Brief Summary:</span>
-                          <p style={{ margin: 0, fontSize: 13, color: "var(--text-main)", lineHeight: 1.5 }}>{selectedNews.summary}</p>
+                          <p style={{ margin: 0, fontSize: 13, color: "var(--text-main)", lineHeight: 1.5 }}>{getBriefSummary()}</p>
                         </div>
-                      ) : null
+                      )
                     )}
 
                     {/* Dashed Separator Line & Article Body */}
