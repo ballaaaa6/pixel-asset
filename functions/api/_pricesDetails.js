@@ -15,7 +15,7 @@ import {
 
 export async function fetchDetailedAsset(symbol, tf, context, corsHeaders) {
   try {
-    const cacheKey = `https://cache.local/details/v3/${symbol}`;
+    const cacheKey = `https://cache.local/details/v5/${symbol}`;
     const cached = await getCache(cacheKey);
     
     if (cached) {
@@ -268,12 +268,12 @@ export async function fetchDetailedAsset(symbol, tf, context, corsHeaders) {
       combinedNews.push(item);
     };
 
-    // Prioritize Finnhub news for US equities because they are highly stock-specific
-    if (news && Array.isArray(news)) {
-      news.forEach(item => addNewsItem(item));
-    }
+    // Prioritize Yahoo Finance news because they contain Yahoo UUIDs for full-text fetching via CaaS JSON API
     if (yfNews && Array.isArray(yfNews)) {
       yfNews.forEach(item => addNewsItem(item));
+    }
+    if (news && Array.isArray(news)) {
+      news.forEach(item => addNewsItem(item));
     }
 
     news = combinedNews;
