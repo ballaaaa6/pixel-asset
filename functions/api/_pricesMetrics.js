@@ -12,7 +12,6 @@ export function enrichMetricsFromYF(metrics, yfSummary, returnsObj, chartStats) 
       priceData.marketCap?.raw || 
       sumDetail.marketCap?.raw || 
       keyStats.marketCap?.raw || 
-      keyStats.enterpriseValue?.raw || 
       metrics.metric.marketCapitalization || 
       null;
     metrics.metric.enterpriseValue = keyStats.enterpriseValue?.raw || null;
@@ -136,7 +135,7 @@ export function calculateReturnsFromHistory(historyData) {
   };
 }
 
-export function mapFinancialsAndEarnings(earnings, yfSummary, yfIncomeHistory = [], yfCFHistory = []) {
+export function mapFinancialsAndEarnings(earnings, yfSummary, yfIncomeHistory = [], yfCFHistory = [], yfTimeSeries = null) {
   const parseDate = (dStr) => {
     try { return new Date(dStr).getTime(); } catch { return 0; }
   };
@@ -148,6 +147,30 @@ export function mapFinancialsAndEarnings(earnings, yfSummary, yfIncomeHistory = 
     const maxDiff = 50 * 24 * 60 * 60 * 1000; // 50 days threshold
     history.forEach(item => {
       const itemTime = (item.endDate?.raw) ? (item.endDate.raw * 1000) : 0;
+      const diff = Math.abs(targetTime - itemTime);
+      if (diff < maxDiff && diff < minDiff) {
+        minDiff = diff;
+        best = item;
+      }
+    });
+    return best;
+  };
+
+  const gpSeries = (yfTimeSeries?.find(item => item.meta?.type?.includes("quarterlyGrossProfit"))?.quarterlyGrossProfit || []).filter(x => x !== null);
+  const capexSeries = (yfTimeSeries?.find(item => item.meta?.type?.includes("quarterlyCapitalExpenditure"))?.quarterlyCapitalExpenditure || []).filter(x => x !== null);
+  const revSeries = (yfTimeSeries?.find(item => item.meta?.type?.includes("quarterlyTotalRevenue"))?.quarterlyTotalRevenue || []).filter(x => x !== null);
+  const netSeries = (yfTimeSeries?.find(item => item.meta?.type?.includes("quarterlyNetIncome"))?.quarterlyNetIncome || []).filter(x => x !== null);
+  const epsBasicSeries = (yfTimeSeries?.find(item => item.meta?.type?.includes("quarterlyBasicEPS"))?.quarterlyBasicEPS || []).filter(x => x !== null);
+  const epsDilutedSeries = (yfTimeSeries?.find(item => item.meta?.type?.includes("quarterlyDilutedEPS"))?.quarterlyDilutedEPS || []).filter(x => x !== null);
+
+  const findTSMatch = (targetTime, series) => {
+    if (!series || series.length === 0 || !targetTime) return null;
+    let best = null;
+    let minDiff = Infinity;
+    const maxDiff = 15 * 24 * 60 * 60 * 1000; // 15 days is enough for period-end matching
+    series.forEach(item => {
+      if (!item || !item.asOfDate) return;
+      const itemTime = parseDate(item.asOfDate);
       const diff = Math.abs(targetTime - itemTime);
       if (diff < maxDiff && diff < minDiff) {
         minDiff = diff;
@@ -195,15 +218,30 @@ export function mapFinancialsAndEarnings(earnings, yfSummary, yfIncomeHistory = 
     }).reverse();
   }
 
-  return baseList.map(e => {
+  const mapped = baseList.map(e => {
     const eTime = parseDate(e.period);
     const bestInc = findBestMatch(eTime, yfIncomeHistory);
     const bestCF = findBestMatch(eTime, yfCFHistory);
 
-    let revenue = bestInc?.totalRevenue?.raw || null;
-    let netIncome = bestInc?.netIncome?.raw || null;
-    let grossProfit = bestInc?.grossProfit?.raw || null;
-    let capEx = bestCF?.capitalExpenditures?.raw || null;
+    const gpMatch = findTSMatch(eTime, gpSeries);
+    const capexMatch = findTSMatch(eTime, capexSeries);
+    const revMatch = findTSMatch(eTime, revSeries);
+    const netMatch = findTSMatch(eTime, netSeries);
+    const epsBasicMatch = findTSMatch(eTime, epsBasicSeries);
+    const epsDilutedMatch = findTSMatch(eTime, epsDilutedSeries);
+
+    let revenue = revMatch?.reportedValue?.raw ?? bestInc?.totalRevenue?.raw ?? null;
+    let netIncome = netMatch?.reportedValue?.raw ?? bestInc?.netIncome?.raw ?? null;
+    
+    let grossProfit = gpMatch?.reportedValue?.raw ?? null;
+    if (grossProfit == null) {
+      grossProfit = bestInc?.grossProfit?.raw !== undefined ? bestInc.grossProfit.raw : null;
+    }
+
+    let capEx = capexMatch?.reportedValue?.raw ?? null;
+    if (capEx == null) {
+      capEx = bestCF?.capitalExpenditures?.raw !== undefined ? bestCF.capitalExpenditures.raw : null;
+    }
 
     if (revenue == null || netIncome == null) {
       const quarterlyCharts = yfSummary?.earnings?.financialsChart?.quarterly || [];
@@ -223,12 +261,79 @@ export function mapFinancialsAndEarnings(earnings, yfSummary, yfIncomeHistory = 
       grossProfit = revenue * yfSummary.financialData.grossMargins.raw;
     }
 
+    let actual = e.actual;
+    const epsVal = epsBasicMatch?.reportedValue?.raw ?? epsDilutedMatch?.reportedValue?.raw ?? null;
+    if (epsVal !== null) {
+      actual = epsVal;
+    }
+
     return {
       ...e,
+      actual,
       revenue,
       netIncome,
       grossProfit,
       capEx
     };
   });
+
+  // Extract extra quarters from timeseries data and append them
+  const allTSDates = new Set([
+    ...gpSeries.map(x => x.asOfDate),
+    ...capexSeries.map(x => x.asOfDate),
+    ...revSeries.map(x => x.asOfDate),
+    ...netSeries.map(x => x.asOfDate),
+    ...epsBasicSeries.map(x => x.asOfDate),
+    ...epsDilutedSeries.map(x => x.asOfDate)
+  ].filter(Boolean));
+
+  allTSDates.forEach(dateStr => {
+    const dTime = parseDate(dateStr);
+    const exists = mapped.some(e => Math.abs(parseDate(e.period) - dTime) < 15 * 24 * 60 * 60 * 1000);
+    if (!exists) {
+      const d = new Date(dateStr);
+      const month = d.getUTCMonth() + 1;
+      const year = d.getUTCFullYear();
+      let quarter = 4;
+      if (month <= 3) quarter = 1;
+      else if (month <= 6) quarter = 2;
+      else if (month <= 9) quarter = 3;
+
+      const gpMatch = findTSMatch(dTime, gpSeries);
+      const capexMatch = findTSMatch(dTime, capexSeries);
+      const revMatch = findTSMatch(dTime, revSeries);
+      const netMatch = findTSMatch(dTime, netSeries);
+      const epsBasicMatch = findTSMatch(dTime, epsBasicSeries);
+      const epsDilutedMatch = findTSMatch(dTime, epsDilutedSeries);
+
+      const revenue = revMatch?.reportedValue?.raw ?? null;
+      const netIncome = netMatch?.reportedValue?.raw ?? null;
+      const grossProfit = gpMatch?.reportedValue?.raw ?? null;
+      const capEx = capexMatch?.reportedValue?.raw ?? null;
+      const actual = epsBasicMatch?.reportedValue?.raw ?? epsDilutedMatch?.reportedValue?.raw ?? null;
+
+      if (revenue !== null || netIncome !== null) {
+        mapped.push({
+          quarter,
+          year,
+          period: dateStr,
+          actual,
+          estimate: null,
+          surprise: null,
+          surprisePercent: null,
+          revenue,
+          netIncome,
+          grossProfit,
+          capEx
+        });
+      }
+    }
+  });
+
+  mapped.sort((a, b) => {
+    if (a.year !== b.year) return b.year - a.year;
+    return b.quarter - a.quarter;
+  });
+
+  return mapped;
 }

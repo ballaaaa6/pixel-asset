@@ -87,7 +87,18 @@ export default function StockInfoTabs({
               onClick={() => {
                 setActiveTab(tab.id);
                 if (navRef.current) {
-                  navRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+                  const scrollContainer = navRef.current.closest(".main-content-scrollable");
+                  if (scrollContainer) {
+                    const containerRect = scrollContainer.getBoundingClientRect();
+                    const navRect = navRef.current.getBoundingClientRect();
+                    const relativeTop = navRect.top - containerRect.top;
+                    scrollContainer.scrollTo({
+                      top: scrollContainer.scrollTop + relativeTop,
+                      behavior: "smooth"
+                    });
+                  } else {
+                    navRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }
                 }
               }}
               style={{

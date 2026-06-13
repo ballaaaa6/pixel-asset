@@ -71,16 +71,39 @@ export async function fetchDetailedAsset(symbol, tf, context, corsHeaders) {
     let longBusinessSummary = "";
     let ceo = "";
     let yfSummary = null;
+    let yfTimeSeries = null;
     try {
       const yfAuth = await getYahooCookieAndCrumb(context);
       const yfUrl = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${symbol}?modules=assetProfile,defaultKeyStatistics,financialData,calendarEvents,earnings,incomeStatementHistoryQuarterly,cashflowStatementHistoryQuarterly${yfAuth.crumb ? `&crumb=${encodeURIComponent(yfAuth.crumb)}` : ""}`;
-      const yfResp = await fetch(yfUrl, { 
-        headers: { 
-          ...YF_HEADERS,
-          ...(yfAuth.cookie ? { "Cookie": yfAuth.cookie } : {})
-        } 
-      });
-      if (yfResp.ok) {
+      
+      const now = Math.floor(Date.now() / 1000);
+      const fiveYearsAgo = now - 5 * 365 * 24 * 3600;
+      const types = [
+        "quarterlyGrossProfit",
+        "quarterlyCapitalExpenditure",
+        "quarterlyTotalRevenue",
+        "quarterlyNetIncome",
+        "quarterlyBasicEPS",
+        "quarterlyDilutedEPS"
+      ].join(",");
+      const tsUrl = `https://query2.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/${symbol}?symbol=${symbol}&type=${types}&period1=${fiveYearsAgo}&period2=${now}&padTimeSeries=true${yfAuth.crumb ? `&crumb=${encodeURIComponent(yfAuth.crumb)}` : ""}`;
+
+      const [yfResp, tsResp] = await Promise.all([
+        fetch(yfUrl, { 
+          headers: { 
+            ...YF_HEADERS,
+            ...(yfAuth.cookie ? { "Cookie": yfAuth.cookie } : {})
+          } 
+        }),
+        fetch(tsUrl, {
+          headers: {
+            ...YF_HEADERS,
+            ...(yfAuth.cookie ? { "Cookie": yfAuth.cookie } : {})
+          }
+        })
+      ]);
+
+      if (yfResp && yfResp.ok) {
         const yfData = await yfResp.json();
         yfSummary = yfData?.quoteSummary?.result?.[0];
         if (yfSummary) {
@@ -100,8 +123,13 @@ export async function fetchDetailedAsset(symbol, tf, context, corsHeaders) {
           }
         }
       }
+      
+      if (tsResp && tsResp.ok) {
+        const tsData = await tsResp.json();
+        yfTimeSeries = tsData?.timeseries?.result || null;
+      }
     } catch (e) {
-      console.error("YF QuoteSummary fetch failed:", e);
+      console.error("YF fetches failed:", e);
     }
 
     const token = "d8e3e4hr01qm5ffvbi4gd8e3e4hr01qm5ffvbi50";
@@ -199,10 +227,10 @@ export async function fetchDetailedAsset(symbol, tf, context, corsHeaders) {
     // Enrich metrics using modular helper
     metrics = enrichMetricsFromYF(metrics, yfSummary, returns, stats);
 
-    // Always fetch Yahoo Finance search news first because it is directly related to the stock ticker and is very fresh
+    // Always fetch Yahoo Finance search news because it is directly related to the stock ticker and is very fresh
     let yfNews = [];
     try {
-      const yfSearchUrl = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(symbol)}&quotesCount=0&newsCount=30`;
+      const yfSearchUrl = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(symbol)}&quotesCount=0&newsCount=60`;
       const yfSearchResp = await fetch(yfSearchUrl, { headers: YF_HEADERS });
       if (yfSearchResp.ok) {
         const yfSearchData = await yfSearchResp.json();
@@ -222,13 +250,36 @@ export async function fetchDetailedAsset(symbol, tf, context, corsHeaders) {
       console.error("YF news fetch failed:", e);
     }
 
-    if (yfNews && yfNews.length > 0) {
-      news = yfNews;
+    // Combine and deduplicate news from Finnhub and Yahoo Finance
+    const combinedNews = [];
+    const seenUrls = new Set();
+    const seenHeadlines = new Set();
+
+    const addNewsItem = (item) => {
+      const url = (item.url || "").trim();
+      const headline = (item.headline || "").trim().toLowerCase();
+      if (!headline) return;
+      if (url && seenUrls.has(url)) return;
+      if (seenHeadlines.has(headline)) return;
+      
+      if (url) seenUrls.add(url);
+      seenHeadlines.add(headline);
+      combinedNews.push(item);
+    };
+
+    // Prioritize Finnhub news for US equities because they are highly stock-specific
+    if (news && Array.isArray(news)) {
+      news.forEach(item => addNewsItem(item));
     }
+    if (yfNews && Array.isArray(yfNews)) {
+      yfNews.forEach(item => addNewsItem(item));
+    }
+
+    news = combinedNews;
 
     const yfIncomeHistory = yfSummary?.incomeStatementHistoryQuarterly?.incomeStatementHistory || [];
     const yfCFHistory = yfSummary?.cashflowStatementHistoryQuarterly?.cashflowStatements || [];
-    earnings = mapFinancialsAndEarnings(earnings, yfSummary, yfIncomeHistory, yfCFHistory);
+    earnings = mapFinancialsAndEarnings(earnings, yfSummary, yfIncomeHistory, yfCFHistory, yfTimeSeries);
 
     if (!calendar || !calendar.earningsCalendar || calendar.earningsCalendar.length === 0) {
       const yfCalendarEvents = yfSummary?.calendarEvents?.earnings;
