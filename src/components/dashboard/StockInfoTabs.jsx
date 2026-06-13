@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { BookOpen, BarChart3, Landmark, Percent, Calendar } from "lucide-react";
 import StockSummaryTab from "./StockSummaryTab";
 import StockQuarterlyTab from "./StockQuarterlyTab";
@@ -16,6 +16,7 @@ export default function StockInfoTabs({
   thaiSummary = "" 
 }) {
   const [activeTab, setActiveTab] = useState("summary");
+  const navRef = useRef(null);
 
   const isNonEquity = symbol.includes("-") || symbol.includes("=") || symbol.includes("/") || symbol.startsWith("^");
 
@@ -40,10 +41,12 @@ export default function StockInfoTabs({
   const formatLargeNum = (num) => {
     if (num == null) return "-";
     const prefix = profile.currency === "THB" ? "฿" : "$";
-    if (num >= 1e12) return `${prefix}${(num / 1e12).toFixed(2)}T`;
-    if (num >= 1e9) return `${prefix}${(num / 1e9).toFixed(2)}B`;
-    if (num >= 1e6) return `${prefix}${(num / 1e6).toFixed(2)}M`;
-    return `${prefix}${num.toLocaleString()}`;
+    const abs = Math.abs(num);
+    const sign = num < 0 ? "-" : "";
+    if (abs >= 1e12) return `${sign}${prefix}${(abs / 1e12).toFixed(2)}T`;
+    if (abs >= 1e9) return `${sign}${prefix}${(abs / 1e9).toFixed(2)}B`;
+    if (abs >= 1e6) return `${sign}${prefix}${(abs / 1e6).toFixed(2)}M`;
+    return `${sign}${prefix}${abs.toLocaleString()}`;
   };
 
   const fmtPercent = (val) => {
@@ -54,13 +57,16 @@ export default function StockInfoTabs({
   const fmtVal = (val, customPrefix = null) => {
     if (val == null) return "-";
     const prefix = customPrefix !== null ? customPrefix : (profile.currency === "THB" ? "฿" : "$");
-    return `${prefix}${val.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+    const abs = Math.abs(val);
+    const sign = val < 0 ? "-" : "";
+    return `${sign}${prefix}${abs.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
   };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* Tabs navigation row */}
       <div 
+        ref={navRef}
         style={{ 
           display: "flex", 
           gap: 4, 
@@ -78,7 +84,12 @@ export default function StockInfoTabs({
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => {
+                setActiveTab(tab.id);
+                if (navRef.current) {
+                  navRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+                }
+              }}
               style={{
                 flex: 1,
                 display: "flex",

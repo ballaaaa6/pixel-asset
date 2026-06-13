@@ -8,7 +8,13 @@ export function enrichMetricsFromYF(metrics, yfSummary, returnsObj, chartStats) 
     const priceData = yfSummary.price || {};
     const sumDetail = yfSummary.summaryDetail || {};
     
-    metrics.metric.marketCapitalization = priceData.marketCap?.raw || keyStats.enterpriseValue?.raw || metrics.metric.marketCapitalization || null;
+    metrics.metric.marketCapitalization = 
+      priceData.marketCap?.raw || 
+      sumDetail.marketCap?.raw || 
+      keyStats.marketCap?.raw || 
+      keyStats.enterpriseValue?.raw || 
+      metrics.metric.marketCapitalization || 
+      null;
     metrics.metric.enterpriseValue = keyStats.enterpriseValue?.raw || null;
     metrics.metric.peTrailing = keyStats.trailingPE?.raw || sumDetail.trailingPE?.raw || metrics.metric.peTrailing || null;
     metrics.metric.pbCurrent = keyStats.priceToBook?.raw || metrics.metric.pbCurrent || null;
@@ -130,14 +136,42 @@ export function calculateReturnsFromHistory(historyData) {
   };
 }
 
-export function mapFinancialsAndEarnings(earnings, yfSummary, yfIncomeHistory, yfCFHistory = []) {
+export function mapFinancialsAndEarnings(earnings, yfSummary, yfIncomeHistory = [], yfCFHistory = []) {
   const parseDate = (dStr) => {
     try { return new Date(dStr).getTime(); } catch { return 0; }
   };
 
-  if (!earnings || earnings.length === 0) {
+  const findBestMatch = (targetTime, history) => {
+    if (!history || history.length === 0 || !targetTime) return null;
+    let best = null;
+    let minDiff = Infinity;
+    const maxDiff = 50 * 24 * 60 * 60 * 1000; // 50 days threshold
+    history.forEach(item => {
+      const itemTime = (item.endDate?.raw) ? (item.endDate.raw * 1000) : 0;
+      const diff = Math.abs(targetTime - itemTime);
+      if (diff < maxDiff && diff < minDiff) {
+        minDiff = diff;
+        best = item;
+      }
+    });
+    return best;
+  };
+
+  let baseList = [];
+
+  if (earnings && earnings.length > 0) {
+    baseList = earnings.map(e => ({
+      quarter: e.quarter,
+      year: e.year,
+      period: e.period,
+      actual: e.actual,
+      estimate: e.estimate,
+      surprise: e.surprise,
+      surprisePercent: e.surprisePercent
+    }));
+  } else {
     const yfEarnings = yfSummary?.earnings?.earningsChart?.quarterly || [];
-    return yfEarnings.map((e, idx) => {
+    baseList = yfEarnings.map(e => {
       const match = e.date?.match(/(\d)Q(\d{4})/);
       const quarter = match ? parseInt(match[1]) : 0;
       const year = match ? parseInt(match[2]) : 0;
@@ -146,26 +180,8 @@ export function mapFinancialsAndEarnings(earnings, yfSummary, yfIncomeHistory, y
       const surprise = (actual != null && estimate != null) ? (actual - estimate) : null;
       const surprisePercent = (surprise != null && estimate !== 0 && estimate != null) ? (surprise / Math.abs(estimate)) * 100 : 0;
       
-      let revenue = null;
-      let netIncome = null;
-      let grossProfit = null;
-      let capEx = null;
-      let periodStr = e.date;
-      
-      const yfInc = yfIncomeHistory[yfIncomeHistory.length - 1 - idx];
-      if (yfInc) {
-        revenue = yfInc.totalRevenue?.raw || null;
-        netIncome = yfInc.netIncome?.raw || null;
-        grossProfit = yfInc.grossProfit?.raw || null;
-        if (yfInc.endDate?.raw) {
-          periodStr = new Date(yfInc.endDate.raw * 1000).toISOString().slice(0, 10);
-        }
-      }
-      
-      const yfCF = yfCFHistory[yfCFHistory.length - 1 - idx];
-      if (yfCF) {
-        capEx = yfCF.capitalExpenditures?.raw || null;
-      }
+      const qEndMonths = { 1: "03-31", 2: "06-30", 3: "09-30", 4: "12-31" };
+      const periodStr = `${year}-${qEndMonths[quarter] || "12-31"}`;
       
       return {
         quarter,
@@ -174,43 +190,20 @@ export function mapFinancialsAndEarnings(earnings, yfSummary, yfIncomeHistory, y
         actual,
         estimate,
         surprise,
-        surprisePercent,
-        revenue,
-        netIncome,
-        grossProfit,
-        capEx
+        surprisePercent
       };
     }).reverse();
   }
 
-  return earnings.map(e => {
+  return baseList.map(e => {
     const eTime = parseDate(e.period);
-    let bestMatch = null;
-    let minDiff = Infinity;
-    yfIncomeHistory.forEach(item => {
-      const itemTime = (item.endDate?.raw) ? (item.endDate.raw * 1000) : 0;
-      const diff = Math.abs(eTime - itemTime);
-      if (diff < 15 * 24 * 60 * 60 * 1000 && diff < minDiff) {
-        minDiff = diff;
-        bestMatch = item;
-      }
-    });
+    const bestInc = findBestMatch(eTime, yfIncomeHistory);
+    const bestCF = findBestMatch(eTime, yfCFHistory);
 
-    let bestCFMatch = null;
-    let minCFDiff = Infinity;
-    yfCFHistory.forEach(item => {
-      const itemTime = (item.endDate?.raw) ? (item.endDate.raw * 1000) : 0;
-      const diff = Math.abs(eTime - itemTime);
-      if (diff < 15 * 24 * 60 * 60 * 1000 && diff < minCFDiff) {
-        minCFDiff = diff;
-        bestCFMatch = item;
-      }
-    });
-
-    let revenue = bestMatch?.totalRevenue?.raw || null;
-    let netIncome = bestMatch?.netIncome?.raw || null;
-    let grossProfit = bestMatch?.grossProfit?.raw || null;
-    let capEx = bestCFMatch?.capitalExpenditures?.raw || null;
+    let revenue = bestInc?.totalRevenue?.raw || null;
+    let netIncome = bestInc?.netIncome?.raw || null;
+    let grossProfit = bestInc?.grossProfit?.raw || null;
+    let capEx = bestCF?.capitalExpenditures?.raw || null;
 
     if (revenue == null || netIncome == null) {
       const quarterlyCharts = yfSummary?.earnings?.financialsChart?.quarterly || [];
@@ -224,6 +217,10 @@ export function mapFinancialsAndEarnings(earnings, yfSummary, yfIncomeHistory, y
         if (revenue == null) revenue = chartMatch.revenue?.raw || null;
         if (netIncome == null) netIncome = chartMatch.earnings?.raw || null;
       }
+    }
+
+    if (grossProfit == null && revenue != null && yfSummary?.financialData?.grossMargins?.raw != null) {
+      grossProfit = revenue * yfSummary.financialData.grossMargins.raw;
     }
 
     return {

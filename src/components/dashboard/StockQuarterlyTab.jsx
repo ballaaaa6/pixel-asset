@@ -16,10 +16,12 @@ export default function StockQuarterlyTab({ earnings = [], calendar = [], curren
   const formatMoney = (val) => {
     if (val == null) return "-";
     const prefix = currency === "THB" ? "฿" : "$";
-    if (Math.abs(val) >= 1e12) return `${prefix}${(val / 1e12).toFixed(2)}T`;
-    if (Math.abs(val) >= 1e9) return `${prefix}${(val / 1e9).toFixed(2)}B`;
-    if (Math.abs(val) >= 1e6) return `${prefix}${(val / 1e6).toFixed(2)}M`;
-    return `${prefix}${val.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+    const abs = Math.abs(val);
+    const sign = val < 0 ? "-" : "";
+    if (abs >= 1e12) return `${sign}${prefix}${(abs / 1e12).toFixed(2)}T`;
+    if (abs >= 1e9) return `${sign}${prefix}${(abs / 1e9).toFixed(2)}B`;
+    if (abs >= 1e6) return `${sign}${prefix}${(abs / 1e6).toFixed(2)}M`;
+    return `${sign}${prefix}${abs.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
   };
 
   const getGrowthStats = () => {
@@ -77,6 +79,7 @@ export default function StockQuarterlyTab({ earnings = [], calendar = [], curren
     if (idx === 0) {
       if (revGrowth == null) revGrowth = metrics?.metric?.revenueGrowthYoY;
       if (netGrowth == null) netGrowth = metrics?.metric?.earningsGrowthYoY;
+      if (epsGrowth == null) epsGrowth = metrics?.metric?.earningsGrowthYoY;
     }
 
     return { revGrowth, netGrowth, epsGrowth, grossMarginGrowth, capExGrowth, netMarginGrowth };

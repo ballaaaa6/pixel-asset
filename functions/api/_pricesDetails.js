@@ -199,27 +199,31 @@ export async function fetchDetailedAsset(symbol, tf, context, corsHeaders) {
     // Enrich metrics using modular helper
     metrics = enrichMetricsFromYF(metrics, yfSummary, returns, stats);
 
-    if (!news || news.length === 0) {
-      try {
-        const yfSearchUrl = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(symbol)}&quotesCount=0&newsCount=8`;
-        const yfSearchResp = await fetch(yfSearchUrl, { headers: YF_HEADERS });
-        if (yfSearchResp.ok) {
-          const yfSearchData = await yfSearchResp.json();
-          news = (yfSearchData.news || []).map(item => {
-            const image = item.thumbnail?.resolutions?.[0]?.url || null;
-            return {
-              headline: item.title || "",
-              summary: item.title || "",
-              source: item.publisher || "Yahoo Finance",
-              datetime: item.providerPublishTime || Math.floor(Date.now() / 1000),
-              image,
-              url: item.link || ""
-            };
-          });
-        }
-      } catch (e) {
-        console.error("YF news fetch failed:", e);
+    // Always fetch Yahoo Finance search news first because it is directly related to the stock ticker and is very fresh
+    let yfNews = [];
+    try {
+      const yfSearchUrl = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(symbol)}&quotesCount=0&newsCount=30`;
+      const yfSearchResp = await fetch(yfSearchUrl, { headers: YF_HEADERS });
+      if (yfSearchResp.ok) {
+        const yfSearchData = await yfSearchResp.json();
+        yfNews = (yfSearchData.news || []).map(item => {
+          const image = item.thumbnail?.resolutions?.[0]?.url || null;
+          return {
+            headline: item.title || "",
+            summary: item.title || "",
+            source: item.publisher || "Yahoo Finance",
+            datetime: item.providerPublishTime || Math.floor(Date.now() / 1000),
+            image,
+            url: item.link || ""
+          };
+        });
       }
+    } catch (e) {
+      console.error("YF news fetch failed:", e);
+    }
+
+    if (yfNews && yfNews.length > 0) {
+      news = yfNews;
     }
 
     const yfIncomeHistory = yfSummary?.incomeStatementHistoryQuarterly?.incomeStatementHistory || [];
@@ -268,7 +272,7 @@ export async function fetchDetailedAsset(symbol, tf, context, corsHeaders) {
       },
       metrics,
       thaiSummary: thaiSummary || null,
-      news: Array.isArray(news) ? news.slice(0, 8) : [],
+      news: Array.isArray(news) ? news.slice(0, 30) : [],
       earnings: Array.isArray(earnings) ? earnings.slice(0, 8) : [],
       calendar: calendar?.earningsCalendar || []
     };

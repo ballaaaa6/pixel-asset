@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
@@ -9,6 +9,17 @@ export default function StockNewsTab({ news = [] }) {
   const [isThaiView, setIsThaiView] = useState(false);
   const [translatingClient, setTranslatingClient] = useState(false);
   const [thaiTranslation, setThaiTranslation] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const itemsPerPage = 5;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [news]);
+
+  const totalPages = Math.ceil(news.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedNews = news.slice(startIndex, startIndex + itemsPerPage);
 
   const handleNewsClick = async (item) => {
     setSelectedNews(item);
@@ -110,37 +121,94 @@ export default function StockNewsTab({ news = [] }) {
       {(!news || news.length === 0) ? (
         <div style={{ padding: 20, textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>ไม่มีรายงานข่าวเด่นในช่วงนี้</div>
       ) : (
-        news.map((item, idx) => (
-          <div 
-            key={idx} 
-            onClick={() => handleNewsClick(item)} 
-            style={{ 
-              display: "flex", 
-              gap: 12, 
-              padding: 10, 
-              background: "rgba(0,0,0,0.015)", 
-              borderRadius: 12, 
-              border: "1px solid var(--border)",
-              cursor: "pointer",
-              transition: "transform 0.2s"
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-2px)"}
-            onMouseLeave={(e) => e.currentTarget.style.transform = "none"}
-          >
-            <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 10, color: "var(--primary)", fontWeight: 800 }}>{item.source}</span>
-                <span style={{ fontSize: 9, color: "var(--text-muted)" }}>
-                  {new Date(item.datetime * 1000).toLocaleDateString("th-TH")}
+        <>
+          {paginatedNews.map((item, idx) => (
+            <div 
+              key={idx} 
+              onClick={() => handleNewsClick(item)} 
+              style={{ 
+                display: "flex", 
+                gap: 12, 
+                padding: 10, 
+                background: "rgba(0,0,0,0.015)", 
+                borderRadius: 12, 
+                border: "1px solid var(--border)",
+                cursor: "pointer",
+                transition: "transform 0.2s"
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-2px)"}
+              onMouseLeave={(e) => e.currentTarget.style.transform = "none"}
+            >
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 10, color: "var(--primary)", fontWeight: 800 }}>{item.source}</span>
+                  <span style={{ fontSize: 9, color: "var(--text-muted)" }}>
+                    {new Date(item.datetime * 1000).toLocaleDateString("th-TH")}
+                  </span>
+                </div>
+                <span style={{ fontSize: 12.5, fontWeight: 800, color: "var(--text-main)", lineHeight: 1.3 }}>{item.headline}</span>
+                <span style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                  {item.summary}
                 </span>
               </div>
-              <span style={{ fontSize: 12.5, fontWeight: 800, color: "var(--text-main)", lineHeight: 1.3 }}>{item.headline}</span>
-              <span style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                {item.summary}
-              </span>
             </div>
-          </div>
-        ))
+          ))}
+
+          {/* ── CLIENT-SIDE PAGINATION CONTROLS ── */}
+          {totalPages > 1 && (
+            <div style={{ 
+              display: "flex", 
+              justifyContent: "center", 
+              alignItems: "center", 
+              gap: 12, 
+              marginTop: 16, 
+              paddingTop: 12,
+              borderTop: "1px solid var(--border)"
+            }}>
+              <button
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                style={{
+                  padding: "6px 12px",
+                  background: currentPage === 1 ? "rgba(0,0,0,0.02)" : "var(--primary-light, rgba(99, 102, 241, 0.08))",
+                  border: "1px solid var(--border)",
+                  borderRadius: 8,
+                  fontSize: 12,
+                  fontWeight: 800,
+                  color: currentPage === 1 ? "var(--text-muted)" : "var(--primary)",
+                  cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                  opacity: currentPage === 1 ? 0.5 : 1,
+                  transition: "all 0.2s"
+                }}
+              >
+                ก่อนหน้า
+              </button>
+              
+              <span style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)" }}>
+                หน้า {currentPage} / {totalPages}
+              </span>
+              
+              <button
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                style={{
+                  padding: "6px 12px",
+                  background: currentPage === totalPages ? "rgba(0,0,0,0.02)" : "var(--primary-light, rgba(99, 102, 241, 0.08))",
+                  border: "1px solid var(--border)",
+                  borderRadius: 8,
+                  fontSize: 12,
+                  fontWeight: 800,
+                  color: currentPage === totalPages ? "var(--text-muted)" : "var(--primary)",
+                  cursor: currentPage === totalPages ? "not-allowed" : "pointer",
+                  opacity: currentPage === totalPages ? 0.5 : 1,
+                  transition: "all 0.2s"
+                }}
+              >
+                ถัดไป
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {/* ── NEWS MODAL WITH CLIENT-SIDE THAI TRANSLATION ── */}
