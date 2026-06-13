@@ -28,13 +28,35 @@ export default function StockQuarterlyTab({ earnings = [], calendar = [], curren
     
     let revGrowth = null;
     let netGrowth = null;
+    let epsGrowth = null;
+    let grossMarginGrowth = null;
+    let capExGrowth = null;
 
     if (prevYoY) {
-      if (selectedEarning.revenue != null && prevYoY.revenue != null) {
+      if (selectedEarning.revenue != null && prevYoY.revenue != null && prevYoY.revenue !== 0) {
         revGrowth = ((selectedEarning.revenue - prevYoY.revenue) / prevYoY.revenue) * 100;
       }
-      if (selectedEarning.netIncome != null && prevYoY.netIncome != null) {
+      if (selectedEarning.netIncome != null && prevYoY.netIncome != null && prevYoY.netIncome !== 0) {
         netGrowth = ((selectedEarning.netIncome - prevYoY.netIncome) / prevYoY.netIncome) * 100;
+      }
+      if (selectedEarning.actual != null && prevYoY.actual != null && prevYoY.actual !== 0) {
+        epsGrowth = ((selectedEarning.actual - prevYoY.actual) / Math.abs(prevYoY.actual)) * 100;
+      }
+      
+      let selectedGrossMargin = null;
+      if (selectedEarning.grossProfit != null && selectedEarning.revenue != null && selectedEarning.revenue !== 0) {
+        selectedGrossMargin = (selectedEarning.grossProfit / selectedEarning.revenue) * 100;
+      }
+      let prevGrossMargin = null;
+      if (prevYoY.grossProfit != null && prevYoY.revenue != null && prevYoY.revenue !== 0) {
+        prevGrossMargin = (prevYoY.grossProfit / prevYoY.revenue) * 100;
+      }
+      if (selectedGrossMargin != null && prevGrossMargin != null) {
+        grossMarginGrowth = selectedGrossMargin - prevGrossMargin;
+      }
+
+      if (selectedEarning.capEx != null && prevYoY.capEx != null && prevYoY.capEx !== 0) {
+        capExGrowth = ((Math.abs(selectedEarning.capEx) - Math.abs(prevYoY.capEx)) / Math.abs(prevYoY.capEx)) * 100;
       }
     }
     
@@ -44,7 +66,7 @@ export default function StockQuarterlyTab({ earnings = [], calendar = [], curren
       if (netGrowth == null) netGrowth = metrics?.metric?.earningsGrowthYoY;
     }
 
-    return { revGrowth, netGrowth };
+    return { revGrowth, netGrowth, epsGrowth, grossMarginGrowth, capExGrowth };
   };
 
   const growth = getGrowthStats();
@@ -111,22 +133,22 @@ export default function StockQuarterlyTab({ earnings = [], calendar = [], curren
       {/* ── EARNINGS DETAIL MODAL ── */}
       {selectedEarning && createPortal(
         <div className="modal-overlay" onClick={() => setSelectedEarning(null)}>
-          <div className="modal-content" style={{ maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <span className="modal-title" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 15 }}>📊 รายละเอียดงบไตรมาส (Quarterly Earnings)</span>
+              <span className="modal-title" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 17 }}>📊 รายละเอียดงบไตรมาส (Quarterly Earnings)</span>
               <button className="btn-close" onClick={() => setSelectedEarning(null)}><X size={18} /></button>
             </div>
             
             <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "10px 0", background: "rgba(99,102,241,0.03)", borderRadius: 16, border: "1px solid var(--border)" }}>
-                <span style={{ fontSize: 13, color: "var(--text-muted)" }}>ไตรมาส {selectedEarning.quarter} / ปี {selectedEarning.year}</span>
-                <span style={{ fontSize: 24, fontWeight: 900, color: "var(--text-main)", marginTop: 4 }}>
+                <span style={{ fontSize: 14, color: "var(--text-muted)" }}>ไตรมาส {selectedEarning.quarter} / ปี {selectedEarning.year}</span>
+                <span style={{ fontSize: 26, fontWeight: 900, color: "var(--text-main)", marginTop: 4 }}>
                   จริง: {selectedEarning.actual?.toFixed(2) ?? "-"} | คาด: {selectedEarning.estimate?.toFixed(2) ?? "-"}
                 </span>
                 
                 <div style={{ 
                   marginTop: 10,
-                  fontSize: 12, 
+                  fontSize: 14, 
                   fontWeight: 900, 
                   color: selectedEarning.surprisePercent >= 0 ? "var(--gain)" : "var(--loss)", 
                   background: selectedEarning.surprisePercent >= 0 ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)",
@@ -145,37 +167,73 @@ export default function StockQuarterlyTab({ earnings = [], calendar = [], curren
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-muted)" }}>ข้อมูลประกอบงบไตรมาส:</span>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 12.5, color: "var(--text-main)", lineHeight: 1.4 }}>
+                <span style={{ fontSize: 15, fontWeight: 800, color: "var(--text-muted)" }}>ข้อมูลประกอบงบไตรมาส:</span>
+                <div style={{ display: "flex", flexDirection: "column", gap: 9, fontSize: 14, color: "var(--text-main)", lineHeight: 1.4 }}>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span>ส่วนต่างกำไรต่อหุ้น (Surprise Value):</span>
-                    <strong>{selectedEarning.surprise >= 0 ? `+${selectedEarning.surprise?.toFixed(2)}` : selectedEarning.surprise?.toFixed(2)} EPS</strong>
+                    <span>รายได้รวม (Revenue / Top-line):</span>
+                    <strong style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      {formatMoney(selectedEarning.revenue)}
+                      {growth?.revGrowth != null && (
+                        <span style={{ fontSize: 11.5, fontWeight: 900, color: growth.revGrowth >= 0 ? "var(--gain)" : "var(--loss)" }}>
+                          ({growth.revGrowth >= 0 ? "+" : ""}{growth.revGrowth.toFixed(1)}%)
+                        </span>
+                      )}
+                    </strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>กำไรสุทธิ (Net Income / Bottom-line):</span>
+                    <strong style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      {formatMoney(selectedEarning.netIncome)}
+                      {growth?.netGrowth != null && (
+                        <span style={{ fontSize: 11.5, fontWeight: 900, color: growth.netGrowth >= 0 ? "var(--gain)" : "var(--loss)" }}>
+                          ({growth.netGrowth >= 0 ? "+" : ""}{growth.netGrowth.toFixed(1)}%)
+                        </span>
+                      )}
+                    </strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>กำไรต่อหุ้น (EPS):</span>
+                    <strong style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      จริง: {selectedEarning.actual?.toFixed(2) ?? "-"} | คาด: {selectedEarning.estimate?.toFixed(2) ?? "-"}
+                      {growth?.epsGrowth != null && (
+                        <span style={{ fontSize: 11.5, fontWeight: 900, color: growth.epsGrowth >= 0 ? "var(--gain)" : "var(--loss)" }}>
+                          ({growth.epsGrowth >= 0 ? "+" : ""}{growth.epsGrowth.toFixed(1)}%)
+                        </span>
+                      )}
+                    </strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>อัตรากำไรขั้นต้น (Gross Margin):</span>
+                    <strong style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      {selectedEarning.grossProfit != null && selectedEarning.revenue != null && selectedEarning.revenue !== 0
+                        ? `${((selectedEarning.grossProfit / selectedEarning.revenue) * 100).toFixed(2)}%`
+                        : "-"
+                      }
+                      {growth?.grossMarginGrowth != null && (
+                        <span style={{ fontSize: 11.5, fontWeight: 900, color: growth.grossMarginGrowth >= 0 ? "var(--gain)" : "var(--loss)" }}>
+                          ({growth.grossMarginGrowth >= 0 ? "+" : ""}{growth.grossMarginGrowth.toFixed(1)}%)
+                        </span>
+                      )}
+                    </strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>งบลงทุน (CapEx):</span>
+                    <strong style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      {selectedEarning.capEx != null ? formatMoney(Math.abs(selectedEarning.capEx)) : "-"}
+                      {growth?.capExGrowth != null && (
+                        <span style={{ fontSize: 11.5, fontWeight: 900, color: growth.capExGrowth >= 0 ? "var(--gain)" : "var(--loss)" }}>
+                          ({growth.capExGrowth >= 0 ? "+" : ""}{growth.capExGrowth.toFixed(1)}%)
+                        </span>
+                      )}
+                    </strong>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <span>วันประกาศปิดรอบงบ (Report Period):</span>
                     <strong>{selectedEarning.period}</strong>
                   </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px dashed var(--border)", paddingTop: 8 }}>
-                    <span>รายได้รวมประเมินไตรมาส (Revenue):</span>
-                    <strong style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      {formatMoney(selectedEarning.revenue)}
-                      {growth?.revGrowth != null && (
-                        <span style={{ fontSize: 10.5, fontWeight: 900, color: growth.revGrowth >= 0 ? "var(--gain)" : "var(--loss)" }}>
-                          (YoY: {growth.revGrowth >= 0 ? "+" : ""}{growth.revGrowth.toFixed(1)}%)
-                        </span>
-                      )}
-                    </strong>
-                  </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span>กำไรสุทธิไตรมาส (Net Income):</span>
-                    <strong style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      {formatMoney(selectedEarning.netIncome)}
-                      {growth?.netGrowth != null && (
-                        <span style={{ fontSize: 10.5, fontWeight: 900, color: growth.netGrowth >= 0 ? "var(--gain)" : "var(--loss)" }}>
-                          (YoY: {growth.netGrowth >= 0 ? "+" : ""}{growth.netGrowth.toFixed(1)}%)
-                        </span>
-                      )}
-                    </strong>
+                    <span>ส่วนต่างกำไรต่อหุ้น (Surprise Value):</span>
+                    <strong>{selectedEarning.surprise >= 0 ? `+${selectedEarning.surprise?.toFixed(2)}` : selectedEarning.surprise?.toFixed(2)} EPS</strong>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <span>อัตรากำไรสุทธิไตรมาส (Net Margin):</span>
@@ -189,15 +247,21 @@ export default function StockQuarterlyTab({ earnings = [], calendar = [], curren
                   
                   {nextEstimate && (
                     <div style={{ marginTop: 8, paddingTop: 10, borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 6 }}>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: "var(--primary)" }}>🔮 คาดการณ์งบรอบถัดไป:</span>
+                      <span style={{ fontSize: 15, fontWeight: 800, color: "var(--primary)" }}>🔮 คาดการณ์ไตรมาสถัดไป (Guidance / Outlook):</span>
                       <div style={{ display: "flex", justifyContent: "space-between" }}>
                         <span>วันประกาศคาดการณ์ถัดไป:</span>
                         <strong>{nextEstimate.date}</strong>
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between" }}>
-                        <span>ประมาณการกำไรต่อหุ้น (EPS Estimate):</span>
+                        <span>ประมาณการกำไรต่อหุ้น (EPS Guidance):</span>
                         <strong>{nextEstimate.epsEstimate?.toFixed(2) ?? "-"} EPS</strong>
                       </div>
+                      {nextEstimate.revenueEstimate != null && (
+                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                          <span>ประมาณการรายได้รวม (Revenue Guidance):</span>
+                          <strong>{formatMoney(nextEstimate.revenueEstimate)}</strong>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -205,7 +269,7 @@ export default function StockQuarterlyTab({ earnings = [], calendar = [], curren
 
               <button 
                 onClick={() => setSelectedEarning(null)} 
-                style={{ width: "100%", padding: "10px 0", background: "var(--primary)", color: "#ffffff", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 13, fontWeight: 800 }}
+                style={{ width: "100%", padding: "12px 0", background: "var(--primary)", color: "#ffffff", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 14, fontWeight: 800 }}
               >
                 ตกลง
               </button>

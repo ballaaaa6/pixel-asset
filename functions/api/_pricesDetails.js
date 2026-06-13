@@ -73,7 +73,7 @@ export async function fetchDetailedAsset(symbol, tf, context, corsHeaders) {
     let yfSummary = null;
     try {
       const yfAuth = await getYahooCookieAndCrumb(context);
-      const yfUrl = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${symbol}?modules=assetProfile,defaultKeyStatistics,financialData,calendarEvents,earnings,incomeStatementHistoryQuarterly${yfAuth.crumb ? `&crumb=${encodeURIComponent(yfAuth.crumb)}` : ""}`;
+      const yfUrl = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${symbol}?modules=assetProfile,defaultKeyStatistics,financialData,calendarEvents,earnings,incomeStatementHistoryQuarterly,cashflowStatementHistoryQuarterly${yfAuth.crumb ? `&crumb=${encodeURIComponent(yfAuth.crumb)}` : ""}`;
       const yfResp = await fetch(yfUrl, { 
         headers: { 
           ...YF_HEADERS,
@@ -223,7 +223,8 @@ export async function fetchDetailedAsset(symbol, tf, context, corsHeaders) {
     }
 
     const yfIncomeHistory = yfSummary?.incomeStatementHistoryQuarterly?.incomeStatementHistory || [];
-    earnings = mapFinancialsAndEarnings(earnings, yfSummary, yfIncomeHistory);
+    const yfCFHistory = yfSummary?.cashflowStatementHistoryQuarterly?.cashflowStatements || [];
+    earnings = mapFinancialsAndEarnings(earnings, yfSummary, yfIncomeHistory, yfCFHistory);
 
     if (!calendar || !calendar.earningsCalendar || calendar.earningsCalendar.length === 0) {
       const yfCalendarEvents = yfSummary?.calendarEvents?.earnings;
@@ -232,7 +233,8 @@ export async function fetchDetailedAsset(symbol, tf, context, corsHeaders) {
         calendar = {
           earningsCalendar: [{
             date: nextDateStr,
-            epsEstimate: yfCalendarEvents.earningsAverage?.raw ?? null
+            epsEstimate: yfCalendarEvents.earningsAverage?.raw ?? null,
+            revenueEstimate: yfCalendarEvents.revenueAverage?.raw ?? null
           }]
         };
       } else {

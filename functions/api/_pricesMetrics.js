@@ -130,7 +130,7 @@ export function calculateReturnsFromHistory(historyData) {
   };
 }
 
-export function mapFinancialsAndEarnings(earnings, yfSummary, yfIncomeHistory) {
+export function mapFinancialsAndEarnings(earnings, yfSummary, yfIncomeHistory, yfCFHistory = []) {
   const parseDate = (dStr) => {
     try { return new Date(dStr).getTime(); } catch { return 0; }
   };
@@ -148,15 +148,23 @@ export function mapFinancialsAndEarnings(earnings, yfSummary, yfIncomeHistory) {
       
       let revenue = null;
       let netIncome = null;
+      let grossProfit = null;
+      let capEx = null;
       let periodStr = e.date;
       
       const yfInc = yfIncomeHistory[yfIncomeHistory.length - 1 - idx];
       if (yfInc) {
         revenue = yfInc.totalRevenue?.raw || null;
         netIncome = yfInc.netIncome?.raw || null;
+        grossProfit = yfInc.grossProfit?.raw || null;
         if (yfInc.endDate?.raw) {
           periodStr = new Date(yfInc.endDate.raw * 1000).toISOString().slice(0, 10);
         }
+      }
+      
+      const yfCF = yfCFHistory[yfCFHistory.length - 1 - idx];
+      if (yfCF) {
+        capEx = yfCF.capitalExpenditures?.raw || null;
       }
       
       return {
@@ -168,7 +176,9 @@ export function mapFinancialsAndEarnings(earnings, yfSummary, yfIncomeHistory) {
         surprise,
         surprisePercent,
         revenue,
-        netIncome
+        netIncome,
+        grossProfit,
+        capEx
       };
     }).reverse();
   }
@@ -186,8 +196,21 @@ export function mapFinancialsAndEarnings(earnings, yfSummary, yfIncomeHistory) {
       }
     });
 
+    let bestCFMatch = null;
+    let minCFDiff = Infinity;
+    yfCFHistory.forEach(item => {
+      const itemTime = (item.endDate?.raw) ? (item.endDate.raw * 1000) : 0;
+      const diff = Math.abs(eTime - itemTime);
+      if (diff < 15 * 24 * 60 * 60 * 1000 && diff < minCFDiff) {
+        minCFDiff = diff;
+        bestCFMatch = item;
+      }
+    });
+
     let revenue = bestMatch?.totalRevenue?.raw || null;
     let netIncome = bestMatch?.netIncome?.raw || null;
+    let grossProfit = bestMatch?.grossProfit?.raw || null;
+    let capEx = bestCFMatch?.capitalExpenditures?.raw || null;
 
     if (revenue == null || netIncome == null) {
       const quarterlyCharts = yfSummary?.earnings?.financialsChart?.quarterly || [];
@@ -206,7 +229,9 @@ export function mapFinancialsAndEarnings(earnings, yfSummary, yfIncomeHistory) {
     return {
       ...e,
       revenue,
-      netIncome
+      netIncome,
+      grossProfit,
+      capEx
     };
   });
 }
