@@ -94,3 +94,14 @@ graph TD
 ### Dynamic Auto-mapping Check (Yahoo Finance Matcher)
 - **Logic**: Extracted symbols from trade receipts are often raw ticker symbols (e.g. `"PTT"`) without exchange suffixes, which fails Yahoo Finance pricing queries.
 - **Execution**: Upon successful OCR parsing, if a symbol lacks its suffix, the frontend sends a debounced query to the proxy autocomplete endpoint (`/api/prices?q=symbol`). It checks for suggestions starting with the base symbol (e.g. mapping `PTT` to `PTT.BK`) and automatically attaches the correct suffix to the transaction before queueing it.
+
+---
+
+## 6. AI Agent Guidelines & Ponytail Rules
+
+To maintain codebase cleanliness and prevent over-engineering, the project utilizes the **Ponytail** agent skill ruleset (configured in `.cursor/rules/ponytail.mdc`):
+- **Philosophy**: "The best code is the code you never wrote."
+- **Standard Library & Native APIs**: The agent must prioritize standard JS features and browser APIs (e.g. HTML5 native elements, native array methods) over importing third-party libraries.
+- **YAGNI**: Unnecessary code abstractions, premature optimization, and unused helper functions are strictly forbidden.
+- **Shortcuts Documentation**: If the agent makes a conscious simplification or shortcut to keep code minimal, it must mark it with a `// ponytail:` comment detailing the limitation and the upgrade path.
+

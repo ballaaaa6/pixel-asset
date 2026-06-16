@@ -42,6 +42,9 @@ This document records the current features, pending roadmap items, and immediate
   - Cloudflare Pages Functions serverless endpoints.
   - User UUID-based authentication storage routing dynamically through Cloudflare KV namespaces.
 
+- **Development & Code Quality Guardrails**:
+  - Integrated **Ponytail** rules (`.cursor/rules/ponytail.mdc`) to guide AI coding assistants to think like a "lazy senior developer," avoiding over-engineering, minimizing dependency bloat, and favoring native platform features.
+
 ---
 
 ## 2. Pending Features & Ongoing Enhancements
