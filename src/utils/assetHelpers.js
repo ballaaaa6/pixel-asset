@@ -72,6 +72,12 @@ export const ASSET_NAME_MAP = {
 
 export const getDisplaySymbol = (symbol) => {
   if (!symbol) return "";
+  const optionMatch = symbol.toUpperCase().match(/^([A-Z]+)(\d{2})(\d{2})(\d{2})([CP])(\d{8})$/);
+  if (optionMatch) {
+    const [_, underlying, yy, mm, dd, type, strikeRaw] = optionMatch;
+    const strike = parseFloat(strikeRaw) / 1000;
+    return `${underlying} ${type}${strike}`;
+  }
   const parts = symbol.split(".");
   if (parts.length > 1 && parts[parts.length - 1].length <= 3) {
     return parts.slice(0, -1).join(".");
@@ -81,6 +87,14 @@ export const getDisplaySymbol = (symbol) => {
 
 export const getAssetFullName = (symbol, name, category) => {
   const symUpper = (symbol || "").toUpperCase();
+  const optionMatch = symUpper.match(/^([A-Z]+)(\d{2})(\d{2})(\d{2})([CP])(\d{8})$/);
+  if (optionMatch) {
+    const [_, underlying, yy, mm, dd, type, strikeRaw] = optionMatch;
+    const year = `20${yy}`;
+    const strike = parseFloat(strikeRaw) / 1000;
+    const optionType = type === "C" ? "Call" : "Put";
+    return `${underlying} ${optionType} $${strike.toFixed(2)} (${dd}/${mm}/${year})`;
+  }
   if (ASSET_NAME_MAP[symUpper]) return ASSET_NAME_MAP[symUpper];
   if (symUpper.endsWith(".BK")) {
     const base = symUpper.replace(".BK", "");

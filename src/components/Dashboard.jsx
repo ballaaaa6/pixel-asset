@@ -8,6 +8,8 @@ import { useProfile } from "../hooks/useProfile";
 import { getCurrencyTicker } from "../utils/assetHelpers";
 import { isTransactionDuplicate } from "../utils/portfolioTransactionHelpers";
 import CustomConfirmModal from "./common/CustomConfirmModal";
+import { parseDimePdfReport, parseDimeTextReport } from "../utils/dimePdfParser";
+
 
 import Sidebar from "./dashboard/Sidebar";
 import DashboardHeader from "./dashboard/DashboardHeader";
@@ -135,6 +137,20 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
   };
 
   const handleLogoutConfirm = async () => { if (await askConfirm("คุณแน่ใจหรือไม่ที่จะออกจากระบบพอร์ตของคุณ?", "🚪 ยืนยันการออกจากระบบ")) onLogout(); };
+
+  const handleDimeReportUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      showToast("กำลังอ่านไฟล์ Dime PDF...", "info");
+      const parsed = file.name.endsWith(".pdf") ? await parseDimePdfReport(file) : parseDimeTextReport(await file.text());
+      if (parsed.length === 0) { showToast("ไม่พบรายการธุรกรรมที่ถูกต้อง", "error"); return; }
+      if (await askConfirm(`พบ ${parsed.length} รายการในรายงาน ต้องการนำเข้ารายการเหล่านี้ลงพอร์ตหรือไม่?`, "ยืนยันนำเข้า Dime Report")) {
+        if (await handleSaveAsset(parsed)) showToast(`นำเข้าสำเร็จ ${parsed.length} รายการ`, "success");
+      }
+    } catch (err) { showToast("เกิดข้อผิดพลาด: " + err.message, "error"); }
+    finally { e.target.value = ""; }
+  };
 
   /* ── EXPORT / IMPORT ── */
   const handleExport = () => {
@@ -321,10 +337,11 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
 
       <ProfileModal
         isOpen={profileModalOpen}
-        onClose={() => setProfileModalOpen(false)}
+        onClose={() => setSidebarOpen(false) || setProfileModalOpen(false)}
         handleClearPortfolio={handleClearPortfolio}
         handleClearAllData={handleClearAllData}
         onLogout={handleLogoutConfirm}
+        handleDimeReportUpload={handleDimeReportUpload}
         {...profileProps}
       />
 

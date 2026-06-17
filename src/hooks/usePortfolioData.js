@@ -4,6 +4,8 @@ import { calculatePortfolioHistoryTimeline } from "../utils/portfolioHistoryHelp
 import { processTransactions } from "../utils/portfolioTransactionHelpers";
 import { calculatePortfolioValuation } from "../utils/portfolioValuationHelpers";
 import { usePortfolioPrices } from "./usePortfolioPrices";
+import { autoExpirePortfolioOptions } from "../utils/dimePdfParser";
+
 
 export function usePortfolioData({ user, showToast, onSessionExpired, askConfirm }) {
   const [assets, setAssets] = useState([]);
@@ -107,11 +109,17 @@ export function usePortfolioData({ user, showToast, onSessionExpired, askConfirm
         return;
       }
       if (res.ok) {
-        const data = await res.json();
-        setAssets(data);
-        localStorage.setItem(`local_portfolio_${user.username}`, JSON.stringify(data));
-        localStorage.removeItem(`local_portfolio_${user.username}_dirty`);
-        setIsDirty(false);
+        let data = await res.json();
+        const { updated, changed } = autoExpirePortfolioOptions(data);
+        if (changed) {
+          data = updated;
+          await savePortfolio(data);
+        } else {
+          setAssets(data);
+          localStorage.setItem(`local_portfolio_${user.username}`, JSON.stringify(data));
+          localStorage.removeItem(`local_portfolio_${user.username}_dirty`);
+          setIsDirty(false);
+        }
         await fetchPrices(data);
         if (data.length > 0) fetchSparklines(data, chartRange);
       } else {
@@ -120,10 +128,17 @@ export function usePortfolioData({ user, showToast, onSessionExpired, askConfirm
     } catch (err) {
       console.warn("Server load failed, using local:", err.message);
       const localData = JSON.parse(localStorage.getItem(`local_portfolio_${user.username}`) || "[]");
-      setAssets(localData);
-      setIsDirty(localStorage.getItem(`local_portfolio_${user.username}_dirty`) === "true");
-      await fetchPrices(localData);
-      if (localData.length > 0) fetchSparklines(localData, chartRange);
+      const { updated, changed } = autoExpirePortfolioOptions(localData);
+      const finalLocalData = changed ? updated : localData;
+      if (changed) {
+        localStorage.setItem(`local_portfolio_${user.username}`, JSON.stringify(finalLocalData));
+        localStorage.setItem(`local_portfolio_${user.username}_dirty`, "true");
+        setIsDirty(true);
+      }
+      setAssets(finalLocalData);
+      setIsDirty(localStorage.getItem(`local_portfolio_${user.username}_dirty`) === "true" || changed);
+      await fetchPrices(finalLocalData);
+      if (finalLocalData.length > 0) fetchSparklines(finalLocalData, chartRange);
       showToast("ใช้ข้อมูลพอร์ตที่บันทึกในเครื่องชั่วคราว", "info");
     } finally {
       setLoading(false);

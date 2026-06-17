@@ -23,6 +23,11 @@ export function AssetTransactionHistory({
   onEditLot
 }) {
   const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [expandedLotId, setExpandedLotId] = useState(null);
+
+  const toggleExpandLot = (lotId) => {
+    setExpandedLotId(expandedLotId === lotId ? null : lotId);
+  };
 
   if (!lots || lots.length === 0) return null;
 
@@ -77,15 +82,21 @@ export function AssetTransactionHistory({
               {[...processedLots].reverse().map((lot, i) => {
                 const isBuy = lot.type === "BUY";
                 const rowRate = isBuy ? exchangeRate : (lot.txRate || exchangeRate);
+                const isExpanded = expandedLotId === (lot.id || i);
                 return (
-                  <tr key={lot.id || i} style={{ borderTop: "1px solid var(--border)" }}>
-                    <td style={{ padding: "9px 12px" }}>
-                      <div style={{
-                        width: 20, height: 20, borderRadius: "50%", background: "#F59E0B",
-                        display: "inline-flex", alignItems: "center", justifyContent: "center",
-                        color: "white", fontWeight: 900, fontSize: 10
-                      }}>{processedLots.length - i}</div>
-                    </td>
+                  <React.Fragment key={lot.id || i}>
+                    <tr
+                      onClick={() => toggleExpandLot(lot.id || i)}
+                      style={{ borderTop: "1px solid var(--border)", cursor: "pointer", background: isExpanded ? "var(--primary-light)" : "transparent" }}
+                      className="transaction-row"
+                    >
+                      <td style={{ padding: "9px 12px" }}>
+                        <div style={{
+                          width: 20, height: 20, borderRadius: "50%", background: "#F59E0B",
+                          display: "inline-flex", alignItems: "center", justifyContent: "center",
+                          color: "white", fontWeight: 900, fontSize: 10
+                        }}>{processedLots.length - i}</div>
+                      </td>
                     {!isCashAsset && (
                       <td style={{ padding: "9px 12px" }}>
                         {isBuy ? (
@@ -142,7 +153,7 @@ export function AssetTransactionHistory({
                         </div>
                       </td>
                     )}
-                    <td style={{ padding: "9px 12px", textAlign: "center" }}>
+                    <td style={{ padding: "9px 12px", textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
                         onClick={() => onEditLot && onEditLot(lot)}
@@ -166,8 +177,47 @@ export function AssetTransactionHistory({
                       </button>
                     </td>
                   </tr>
-                );
-              })}
+                  {isExpanded && (
+                    <tr style={{ background: "#F8FAFC", borderTop: "none" }}>
+                      <td colSpan={isCashAsset ? 6 : 8} style={{ padding: "12px 16px", color: "var(--text-muted)", fontSize: 11, borderBottom: "1px solid var(--border)" }}>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "12px 24px", alignItems: "center" }}>
+                          {lot.orderId && (
+                            <div>
+                              <span style={{ fontWeight: 700, color: "var(--text-main)" }}>Order ID:</span> <code style={{ background: "white", padding: "2px 6px", borderRadius: 4, border: "1px solid var(--border)", fontSize: 10 }}>{lot.orderId}</code>
+                            </div>
+                          )}
+                          {lot.fee != null && lot.fee > 0 && (
+                            <div>
+                              <span style={{ fontWeight: 700, color: "var(--text-main)" }}>ค่าธรรมเนียม (Fee):</span> {lot.fee.toFixed(2)} {lot.ccy || "USD"}
+                            </div>
+                          )}
+                          {lot.vat != null && lot.vat > 0 && (
+                            <div>
+                              <span style={{ fontWeight: 700, color: "var(--text-main)" }}>ภาษี (VAT):</span> {lot.vat.toFixed(2)} THB
+                            </div>
+                          )}
+                          {lot.discount != null && lot.discount > 0 && (
+                            <div>
+                              <span style={{ fontWeight: 700, color: "var(--text-main)" }}>ส่วนลด:</span> {lot.discount.toFixed(2)} THB
+                            </div>
+                          )}
+                          {lot.netAmount != null && lot.netAmount > 0 && (
+                            <div>
+                              <span style={{ fontWeight: 700, color: "var(--text-main)" }}>ราคาสุทธิ (Net):</span> {lot.ccy === "USD" ? fmtUSD(lot.netAmount) : fmtTHB(lot.netAmount)}
+                            </div>
+                          )}
+                          {lot.isAutoExpired && (
+                            <div style={{ color: "var(--loss)", fontWeight: 800 }}>
+                              ⚠️ สัญญาหมดอายุสะสม (Expired Worthless)
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
             </tbody>
             <tfoot>
               <tr style={{ borderTop: "2px solid var(--border)", background: "var(--primary-light)", position: "sticky", bottom: 0, zIndex: 1, boxShadow: "0 -2px 0 var(--border)" }}>

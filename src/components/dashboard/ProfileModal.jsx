@@ -20,6 +20,7 @@ export default function ProfileModal({
   handleClearPortfolio,
   handleClearAllData,
   onLogout,
+  handleDimeReportUpload,
 }) {
   useEffect(() => {
     if (!isOpen) return;
@@ -75,6 +76,10 @@ export default function ProfileModal({
                 <input type="file" accept=".json" style={{ display: "none" }} onChange={handleImport} />
               </label>
             </div>
+            <label className="btn ripple-btn" style={{ height: 44, fontSize: 13, background: "var(--primary)", color: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, border: "none", fontWeight: 700, borderRadius: "12px", boxShadow: "0 4px 12px var(--primary-glow)", marginTop: 4 }}>
+              📄 นำเข้ารายงาน Dime! (PDF / TEXT)
+              <input type="file" accept=".pdf,.txt" style={{ display: "none" }} onChange={handleDimeReportUpload} />
+            </label>
           </div>
 
           {/* SECTION 3: DATA MANAGEMENT */}
