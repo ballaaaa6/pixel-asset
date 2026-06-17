@@ -71,10 +71,24 @@ export function processTransactions({ formData, assets, exchangeRate, historical
       time: buyTime,
       qty: transactionType === "BUY" ? newQty : -newQty,
       price: newPrice,
-      type: transactionType
+      type: transactionType,
+      // Preserve Dime report metadata if present
+      ...(tx.orderId   ? { orderId:   tx.orderId }   : {}),
+      ...(tx.fee       ? { fee:       tx.fee }       : {}),
+      ...(tx.vat       ? { vat:       tx.vat }       : {}),
+      ...(tx.discount  ? { discount:  tx.discount }  : {}),
+      ...(tx.netAmount ? { netAmount: tx.netAmount } : {}),
+      ...(tx.ccy       ? { ccy:       tx.ccy }       : {}),
     };
 
     const currentLots = existing.lots || [];
+
+    // Order ID duplicate guard — skip if this orderId already exists on the asset
+    if (tx.orderId && currentLots.some(l => l.orderId === tx.orderId)) {
+      skippedTxs.push({ tx, reason: `Order ID ${tx.orderId} ซ้ำกัน — ข้ามรายการนี้` });
+      continue;
+    }
+
     const updatedLots = [...currentLots, newLot].sort((a, b) => new Date(a.date + "T" + (a.time || "00:00")) - new Date(b.date + "T" + (b.time || "00:00")));
 
     let runningQty = 0;

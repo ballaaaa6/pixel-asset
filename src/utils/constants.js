@@ -12,6 +12,7 @@
 /* ─── Asset Categories ─── */
 export const CATEGORY_LABELS = {
   stock:  "หุ้น",
+  option: "ออปชัน",
   crypto: "คริปโต",
   gold:   "ทองคำ/น้ำมัน",
   fiat:   "เงินสด",

@@ -9,6 +9,8 @@ import { getCurrencyTicker } from "../utils/assetHelpers";
 import { isTransactionDuplicate } from "../utils/portfolioTransactionHelpers";
 import CustomConfirmModal from "./common/CustomConfirmModal";
 import { parseDimePdfReport, parseDimeTextReport } from "../utils/dimePdfParser";
+import DimeImportPreviewModal from "./modal/DimeImportPreviewModal";
+
 
 
 import Sidebar from "./dashboard/Sidebar";
@@ -73,6 +75,7 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
   const [hoveredSymbol, setHoveredSymbol] = useState(null);
   const [hoveredCategory, setHoveredCategory] = useState(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [dimePreviewData, setDimePreviewData] = useState(null);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -144,12 +147,19 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
     try {
       showToast("กำลังอ่านไฟล์ Dime PDF...", "info");
       const parsed = file.name.endsWith(".pdf") ? await parseDimePdfReport(file) : parseDimeTextReport(await file.text());
-      if (parsed.length === 0) { showToast("ไม่พบรายการธุรกรรมที่ถูกต้อง", "error"); return; }
-      if (await askConfirm(`พบ ${parsed.length} รายการในรายงาน ต้องการนำเข้ารายการเหล่านี้ลงพอร์ตหรือไม่?`, "ยืนยันนำเข้า Dime Report")) {
-        if (await handleSaveAsset(parsed)) showToast(`นำเข้าสำเร็จ ${parsed.length} รายการ`, "success");
-      }
+      if (parsed.length === 0) { showToast("ไม่พบรายการธุรกรรมที่ถูกต้อง — ตรวจสอบรูปแบบไฟล์อีกครั้ง", "error"); return; }
+      setDimePreviewData(parsed);
+      setProfileModalOpen(false); // close settings modal to show preview
     } catch (err) { showToast("เกิดข้อผิดพลาด: " + err.message, "error"); }
     finally { e.target.value = ""; }
+  };
+
+  const onConfirmDimeImport = async (toImport) => {
+    setDimePreviewData(null);
+    if (toImport.length === 0) return;
+    if (await handleSaveAsset(toImport)) {
+      showToast(`นำเข้าสำเร็จ ${toImport.length} รายการ`, "success");
+    }
   };
 
   /* ── EXPORT / IMPORT ── */
@@ -370,6 +380,15 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
           <ArrowUp size={20} />
         </button>
       )}
+
+      <DimeImportPreviewModal
+        isOpen={!!dimePreviewData}
+        transactions={dimePreviewData || []}
+        existingAssets={assets}
+        onClose={() => setDimePreviewData(null)}
+        onConfirm={onConfirmDimeImport}
+      />
+
     </>
   );
 }

@@ -109,15 +109,19 @@ export function parseDimeLine(line) {
     time: "00:00",
     transactionType: type === "BUY" ? "BUY" : "SELL",
     symbol,
+    name: optionDetails
+      ? `${optionDetails.underlying} ${optionDetails.type} $${optionDetails.strike.toFixed(2)}`
+      : symbol,
     qty: units,
     avgPrice: price,
-    type: optionDetails ? "stock" : (symbol.endsWith(".BK") ? "stock" : "stock"), // fallback to stock
-    category: optionDetails ? "stock" : "stock", 
+    // Options use category "option"; Thai stocks use "stock"; US stocks use "stock"
+    type: optionDetails ? "option" : "stock",
+    category: optionDetails ? "option" : "stock",
     broker: "Dime!",
     orderId,
     fee: ccy === "USD" ? feeUSD : feeTHB,
-    vat: vat,
-    discount: discount,
+    vat,
+    discount,
     netAmount: ccy === "USD" ? netUSD : netTHB,
     ccy,
     optionDetails
