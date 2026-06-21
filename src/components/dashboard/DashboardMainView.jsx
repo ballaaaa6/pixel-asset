@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import KPIRow from "./KPIRow";
 import CostValueBar from "./CostValueBar";
 import PortfolioSummary from "./PortfolioSummary";
@@ -7,6 +7,7 @@ import PortfolioChart from "../charts/PortfolioChart";
 import AssetTable from "./AssetTable";
 import GlowTiltCard from "../common/GlowTiltCard";
 import EconomicSentimentWidget from "./EconomicSentimentWidget";
+import OfficeRoom from "./OfficeRoom";
 
 export default function DashboardMainView({
   hasPrices,
@@ -52,6 +53,8 @@ export default function DashboardMainView({
   totalUnrealizedUSD,
   initialCapitalUSD
 }) {
+  const [viewMode, setViewMode] = useState("office");
+
   return (
     <div className="fade-in">
       <KPIRow
@@ -122,17 +125,45 @@ export default function DashboardMainView({
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <GlowTiltCard className="card stagger-2" style={{ padding: "16px 14px 10px" }}>
-            <PortfolioChart
-              history={portfolioHistory}
-              range={chartRange}
-              onRangeChange={handleRangeChange}
-              assets={filteredAssets}
-              exchangeRate={exchangeRate}
-              prices={prices}
-              hideValues={hideValues}
-              chartCategory={chartCategory}
-              setChartCategory={setChartCategory}
-            />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", borderBottom: "2px solid #000", paddingBottom: "8px" }}>
+              <span style={{ fontSize: "20px", fontWeight: "bold", fontFamily: "var(--font-family)" }}>📊 พอร์ตโฟลิโอ</span>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button 
+                  onClick={() => setViewMode("office")} 
+                  className={`btn-retro ${viewMode === "office" ? "active" : ""}`}
+                  style={{ padding: "4px 8px", fontSize: "14px" }}
+                >
+                  🏢 ออฟฟิศเทรดเดอร์
+                </button>
+                <button 
+                  onClick={() => setViewMode("chart")} 
+                  className={`btn-retro ${viewMode === "chart" ? "active" : ""}`}
+                  style={{ padding: "4px 8px", fontSize: "14px" }}
+                >
+                  📈 กราฟประวัติ
+                </button>
+              </div>
+            </div>
+
+            {viewMode === "office" ? (
+              <OfficeRoom 
+                assets={sortedAssets} 
+                prices={prices} 
+                setSelectedAsset={setSelectedAsset} 
+              />
+            ) : (
+              <PortfolioChart
+                history={portfolioHistory}
+                range={chartRange}
+                onRangeChange={handleRangeChange}
+                assets={filteredAssets}
+                exchangeRate={exchangeRate}
+                prices={prices}
+                hideValues={hideValues}
+                chartCategory={chartCategory}
+                setChartCategory={setChartCategory}
+              />
+            )}
           </GlowTiltCard>
 
           <AssetTable
