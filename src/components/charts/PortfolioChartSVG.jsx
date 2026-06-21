@@ -254,17 +254,18 @@ export function PortfolioChartSVG({
             y={costPts[costPts.length - 1].y - 12}
             width={80}
             height={22}
-            rx="6"
-            fill="#5236FF"
-            opacity="0.95"
+            rx={0}
+            fill="var(--primary)"
+            stroke="#000000"
+            strokeWidth="1"
           />
           <text
             x={W - PAD_R - 40}
             y={costPts[costPts.length - 1].y + 4}
             textAnchor="middle"
-            fontSize="11"
-            fill="white"
-            fontWeight="900"
+            fontSize="13"
+            fill="#000000"
+            fontWeight="bold"
             fontFamily="var(--font-family)"
           >
             {fmt.usd(costPts[costPts.length - 1].cost)}

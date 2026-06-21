@@ -39,7 +39,7 @@ export function AssetChartSVG({
   const latestCost = activeCostPts.length > 0 ? activeCostPts[activeCostPts.length - 1].cost : 0;
 
   return (
-    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: "block", cursor: "crosshair" }}>
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="chart-svg" style={{ display: "block", cursor: "crosshair" }}>
       <defs>
         <linearGradient id="gainGrad" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#00B98A" stopOpacity="0.30" />
@@ -229,14 +229,14 @@ export function AssetChartSVG({
           <rect
             x={W - PAD_R - 74}
             y={activeCostPts[activeCostPts.length - 1].y - 11}
-            width={74} height={20} rx="5"
-            fill="#5236FF" opacity="0.9"
+            width={74} height={20} rx={0}
+            fill="var(--primary)" stroke="#000000" strokeWidth="1"
           />
           <text
             x={W - PAD_R - 37}
             y={activeCostPts[activeCostPts.length - 1].y + 4}
-            textAnchor="middle" fontSize="10" fill="white"
-            fontWeight="800" fontFamily="Outfit,sans-serif"
+            textAnchor="middle" fontSize="12" fill="#000000"
+            fontWeight="bold" fontFamily="var(--font-family)"
           >
             {fmtUSD(latestCost, hideValues)}
           </text>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import Login from "./components/Login";
 import Register from "./components/Register";
 import Dashboard from "./components/Dashboard";
+import retroAudio from "./utils/retroAudio";
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -28,6 +29,13 @@ export default function App() {
   // 2. Global Toast system helper
   const showToast = (message, type = "info") => {
     setToast({ show: true, message, type });
+    if (type === "success") {
+      retroAudio.playCoin();
+    } else if (type === "error") {
+      retroAudio.playError();
+    } else {
+      retroAudio.playClick();
+    }
     // Automatically close toast after 3.5 seconds
     setTimeout(() => {
       setToast({ show: false, message: "", type: "info" });
@@ -35,11 +43,13 @@ export default function App() {
   };
 
   const handleLoginSuccess = (userData) => {
+    retroAudio.playCoin();
     setUser(userData);
     setCurrentPage("dashboard");
   };
 
   const handleLogout = () => {
+    retroAudio.playClick();
     localStorage.removeItem("portfolio_user");
     setUser(null);
     setCurrentPage("login");
@@ -47,6 +57,7 @@ export default function App() {
   };
 
   const handleSessionExpired = () => {
+    retroAudio.playError();
     localStorage.removeItem("portfolio_user");
     setUser(null);
     setCurrentPage("login");

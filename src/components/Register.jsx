@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { UserPlus, User, Lock, Eye, EyeOff, ArrowLeft } from "lucide-react";
+import retroMascot from "../assets/retro-mascot.png";
 
 export default function Register({ onNavigateToLogin, showToast }) {
   const [username, setUsername] = useState("");
@@ -83,12 +84,16 @@ export default function Register({ onNavigateToLogin, showToast }) {
         </button>
 
         {/* App Logo */}
-        <div className="auth-logo">
-          AG
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 24 }}>
+          <img 
+            src={retroMascot} 
+            alt="RetroStock Mascot" 
+            style={{ width: 110, height: 110, imageRendering: "pixelated", border: "4px solid #000000", boxShadow: "4px 4px 0px #000" }} 
+          />
         </div>
         
         <h1 className="auth-title">สมัครสมาชิกใหม่</h1>
-        <p className="auth-subtitle">สร้างพอร์ตของคุณเองได้ฟรี ข้อมูลการเงินแยกบัญชี 100%</p>
+        <p className="auth-subtitle">สร้างพอร์ต 8-bit ของคุณเองได้ฟรี ข้อมูลแยกบัญชี 100%</p>
 
         <form onSubmit={handleSubmit}>
           {/* Username Input */}

@@ -7,7 +7,7 @@ export default function TechnicalChart({ candles = [], symbol = "", currentPrice
 
   if (!candles || candles.length < 5) {
     return (
-      <div style={{ height: 260, display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed var(--border)", borderRadius: 16, color: "var(--text-muted)", fontSize: 14 }}>
+      <div style={{ height: 260, display: "flex", alignItems: "center", justifyContent: "center", border: "4px dashed #000000", background: "var(--bg-card)", color: "var(--text-muted)", fontSize: 16 }}>
         ไม่มีข้อมูลประวัติราคาเพียงพอสำหรับการคำนวณเทคนิคคัล
       </div>
     );
@@ -143,9 +143,9 @@ export default function TechnicalChart({ candles = [], symbol = "", currentPrice
           y={y - 9} 
           width={100} 
           height={18} 
-          rx={4} 
+          rx={0} 
           fill={color} 
-          opacity="0.1" 
+          opacity="0.2" 
         />
         <text 
           x={width - paddingRight + 8} 
@@ -198,11 +198,11 @@ export default function TechnicalChart({ candles = [], symbol = "", currentPrice
 
       {/* SVG Canvas Area */}
       <div 
-        style={{ position: "relative", background: "rgba(0,0,0,0.01)", borderRadius: 16, border: "1px solid var(--border)", overflow: "hidden" }}
+        style={{ position: "relative", background: "var(--bg-card)", border: "4px solid #000000", boxShadow: "4px 4px 0px #000000", overflow: "hidden" }}
         onMouseMove={handleMouseMove}
         onMouseLeave={() => setHoveredIdx(null)}
       >
-        <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height} style={{ display: "block", overflow: "visible" }}>
+        <svg viewBox={`0 0 ${width} ${height}`} className="chart-svg" width="100%" height={height} style={{ display: "block", overflow: "visible" }}>
           <defs>
             <linearGradient id="chartLineGrad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.25" />
@@ -233,9 +233,9 @@ export default function TechnicalChart({ candles = [], symbol = "", currentPrice
                     x={paddingLeft - 6} 
                     y={y + 3} 
                     textAnchor="end" 
-                    fontSize="9" 
+                    fontSize="11" 
                     fill="var(--text-muted)" 
-                    fontFamily="Outfit,sans-serif"
+                    fontFamily="var(--font-family)"
                     fontWeight="600"
                   >
                     ${val.toFixed(2)}
@@ -318,19 +318,19 @@ export default function TechnicalChart({ candles = [], symbol = "", currentPrice
                   y={height - paddingBottom + 2} 
                   width={rectW_X} 
                   height={18} 
-                  rx={4} 
+                  rx={0} 
                   fill="var(--text-main)" 
-                  stroke="var(--border)" 
-                  strokeWidth="1" 
+                  stroke="#000000" 
+                  strokeWidth="1.5" 
                 />
                 <text 
                   x={badgeX + rectW_X / 2} 
                   y={height - paddingBottom + 14} 
                   textAnchor="middle" 
-                  fontSize="9.5" 
+                  fontSize="12" 
                   fill="var(--bg-card)" 
                   fontWeight="bold"
-                  fontFamily="Outfit,sans-serif"
+                  fontFamily="var(--font-family)"
                 >
                   {xValText}
                 </text>
@@ -341,19 +341,19 @@ export default function TechnicalChart({ candles = [], symbol = "", currentPrice
                   y={badgeY} 
                   width={rectW_Y} 
                   height={18} 
-                  rx={4} 
+                  rx={0} 
                   fill="var(--text-main)" 
-                  stroke="var(--border)" 
-                  strokeWidth="1" 
+                  stroke="#000000" 
+                  strokeWidth="1.5" 
                 />
                 <text 
                   x={badgeX_Y + rectW_Y / 2} 
-                  y={badgeY + 12} 
+                  y={badgeY + 13} 
                   textAnchor="middle" 
-                  fontSize="9.5" 
+                  fontSize="12" 
                   fill="var(--bg-card)" 
                   fontWeight="bold"
-                  fontFamily="Outfit,sans-serif"
+                  fontFamily="var(--font-family)"
                 >
                   {yValText}
                 </text>

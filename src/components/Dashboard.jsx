@@ -10,6 +10,7 @@ import { isTransactionDuplicate } from "../utils/portfolioTransactionHelpers";
 import CustomConfirmModal from "./common/CustomConfirmModal";
 import { parseDimePdfReport, parseDimeTextReport } from "../utils/dimePdfParser";
 import DimeImportPreviewModal from "./modal/DimeImportPreviewModal";
+import retroAudio from "../utils/retroAudio";
 
 
 
@@ -30,6 +31,10 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
   const askConfirm = (message, title = "ยืนยันการทำรายการ") => new Promise(r => setConfirmConfig({ title, message, resolve: r }));
 
   const [activeTab, setActiveTab] = useState("dashboard");
+  const changeTab = (tab) => {
+    retroAudio.playClick();
+    setActiveTab(tab);
+  };
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -40,6 +45,12 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
   useEffect(() => {
     localStorage.setItem("hide_portfolio_values", hideValues ? "true" : "false");
   }, [hideValues]);
+
+  useEffect(() => {
+    if (refreshing) {
+      retroAudio.playZap();
+    }
+  }, [refreshing]);
 
   // Hooks for Data & Profile
   const {
@@ -78,21 +89,14 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
   const [dimePreviewData, setDimePreviewData] = useState(null);
 
   useEffect(() => {
-    const handleScroll = () => {
-      setShowScrollTop(window.scrollY > 300);
-    };
+    const handleScroll = () => setShowScrollTop(window.scrollY > 300);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
+  const scrollToTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
 
-  const currentSelectedAsset = useMemo(() => {
-    if (!selectedAsset) return null;
-    return assets.find(a => a.id === selectedAsset.id) || null;
-  }, [assets, selectedAsset]);
+  const currentSelectedAsset = useMemo(() => selectedAsset ? (assets.find(a => a.id === selectedAsset.id) || null) : null, [assets, selectedAsset]);
 
   /* ── CLEAR PORTFOLIO ── */
   const handleClearPortfolio = async () => {
@@ -142,24 +146,19 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
   const handleLogoutConfirm = async () => { if (await askConfirm("คุณแน่ใจหรือไม่ที่จะออกจากระบบพอร์ตของคุณ?", "🚪 ยืนยันการออกจากระบบ")) onLogout(); };
 
   const handleDimeReportUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const file = e.target.files?.[0]; if (!file) return;
     try {
       showToast("กำลังอ่านไฟล์ Dime PDF...", "info");
       const parsed = file.name.endsWith(".pdf") ? await parseDimePdfReport(file) : parseDimeTextReport(await file.text());
-      if (parsed.length === 0) { showToast("ไม่พบรายการธุรกรรมที่ถูกต้อง — ตรวจสอบรูปแบบไฟล์อีกครั้ง", "error"); return; }
-      setDimePreviewData(parsed);
-      setProfileModalOpen(false); // close settings modal to show preview
+      if (parsed.length === 0) return showToast("ไม่พบรายการธุรกรรมที่ถูกต้อง — ตรวจสอบรูปแบบไฟล์อีกครั้ง", "error");
+      setDimePreviewData(parsed); setProfileModalOpen(false);
     } catch (err) { showToast("เกิดข้อผิดพลาด: " + err.message, "error"); }
     finally { e.target.value = ""; }
   };
 
   const onConfirmDimeImport = async (toImport) => {
     setDimePreviewData(null);
-    if (toImport.length === 0) return;
-    if (await handleSaveAsset(toImport)) {
-      showToast(`นำเข้าสำเร็จ ${toImport.length} รายการ`, "success");
-    }
+    if (toImport.length > 0 && await handleSaveAsset(toImport)) showToast(`นำเข้าสำเร็จ ${toImport.length} รายการ`, "success");
   };
 
   /* ── EXPORT / IMPORT ── */
@@ -199,7 +198,7 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
       <div className="app-layout-wrapper">
         <Sidebar
           activeTab={activeTab}
-          setActiveTab={setActiveTab}
+          setActiveTab={changeTab}
           sidebarCollapsed={sidebarCollapsed}
           setSidebarCollapsed={setSidebarCollapsed}
           sidebarOpen={sidebarOpen}
