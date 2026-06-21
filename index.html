@@ -2,6 +2,38 @@
 <html lang="th">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      window.onerror = function(message, source, lineno, colno, error) {
+        var div = document.createElement('div');
+        div.style.color = 'red';
+        div.style.background = 'white';
+        div.style.padding = '20px';
+        div.style.position = 'fixed';
+        div.style.top = '0';
+        div.style.left = '0';
+        div.style.zIndex = '999999';
+        div.style.fontFamily = 'monospace';
+        div.style.fontSize = '14px';
+        div.style.border = '4px solid red';
+        div.innerHTML = '<h3>JS Error Detected:</h3>' + message + '<br>Source: ' + source + '<br>Line: ' + lineno + ':' + colno + (error && error.stack ? '<br><pre>' + error.stack + '</pre>' : '');
+        document.body.appendChild(div);
+      };
+      window.addEventListener('unhandledrejection', function(event) {
+        var div = document.createElement('div');
+        div.style.color = 'red';
+        div.style.background = 'white';
+        div.style.padding = '20px';
+        div.style.position = 'fixed';
+        div.style.bottom = '0';
+        div.style.left = '0';
+        div.style.zIndex = '999999';
+        div.style.fontFamily = 'monospace';
+        div.style.fontSize = '14px';
+        div.style.border = '4px solid red';
+        div.innerHTML = '<h3>Unhandled Promise Rejection:</h3>' + event.reason;
+        document.body.appendChild(div);
+      });
+    </script>
     <!-- Viewport locked to prevent horizontal zoom and sway on mobile devices -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>RetroStock Vault // 8-bit Portfolio</title>
