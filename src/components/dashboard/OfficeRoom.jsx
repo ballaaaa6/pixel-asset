@@ -1,100 +1,19 @@
 import React, { useState, useEffect } from "react";
 import retroAudio from "../../utils/retroAudio";
-
-const TILE_SIZE = 48;
-const MAP_COLS = 20;
-const MAP_ROWS = 15;
+import {
+  TILE_SIZE,
+  MAP_COLS,
+  MAP_ROWS,
+  INITIAL_CHARACTERS,
+  DESK_POSITIONS
+} from "./officeData";
 
 export default function OfficeRoom({ onSelectFeature }) {
   const [activeSpeech, setActiveSpeech] = useState(null);
 
-  // 7 characters represented as cute cartoon animal emojis on gradients
-  const [characters, setCharacters] = useState([
-    {
-      id: "ceo",
-      name: "ผู้จัดการพอร์ต (CEO)",
-      feature: "summary",
-      emoji: "🦁",
-      bg: "linear-gradient(135deg, #F59E0B 0%, #EF4444 100%)",
-      x: 3 * TILE_SIZE,
-      y: 3 * TILE_SIZE + 12,
-      state: "idle",
-      hoverText: "ผู้จัดการพอร์ต (ยอดรวมพอร์ต & KPI)"
-    },
-    {
-      id: "accountant",
-      name: "หัวหน้าฝ่ายบัญชี",
-      feature: "ledger",
-      emoji: "🦊",
-      bg: "linear-gradient(135deg, #8B5CF6 0%, #D946EF 100%)",
-      x: 9 * TILE_SIZE,
-      y: 3 * TILE_SIZE + 12,
-      state: "idle",
-      hoverText: "ฝ่ายบัญชี (ตารางรายชื่อและประวัติธุรกรรม)"
-    },
-    {
-      id: "analyst",
-      name: "นักวิเคราะห์การลงทุน",
-      feature: "analyzer",
-      emoji: "🦄",
-      bg: "linear-gradient(135deg, #6366F1 0%, #EC4899 100%)",
-      x: 9 * TILE_SIZE,
-      y: 11 * TILE_SIZE + 12,
-      state: "idle",
-      hoverText: "นักวิเคราะห์ (สืบค้นข้อมูลและกราฟหุ้น)"
-    },
-    {
-      id: "receptionist",
-      name: "ฝ่ายประชาสัมพันธ์",
-      feature: "import",
-      emoji: "🐨",
-      bg: "linear-gradient(135deg, #0D9488 0%, #06B6D4 100%)",
-      x: 2 * TILE_SIZE,
-      y: 11 * TILE_SIZE - 4,
-      state: "idle",
-      hoverText: "ฝ่ายต้อนรับ (นำเข้าข้อมูลจาก Dime & สลิปธุรกรรม)"
-    },
-    {
-      id: "dividends",
-      name: "พนักงานปันผล",
-      feature: "dividends",
-      emoji: "🐻",
-      bg: "linear-gradient(135deg, #8B5CF6 0%, #EF4444 100%)",
-      x: 16 * TILE_SIZE,
-      y: 3 * TILE_SIZE,
-      targetX: 16 * TILE_SIZE,
-      targetY: 3 * TILE_SIZE,
-      state: "idle",
-      isWanderer: true,
-      idleTimer: 2.0,
-      speed: 48,
-      hoverText: "พนักงานฝ่ายเงินปันผล (ปฏิทินปันผล)"
-    },
-    {
-      id: "risk_left",
-      name: "ผู้ประเมินความเสี่ยง A",
-      feature: "risk",
-      emoji: "📈",
-      bg: "linear-gradient(135deg, #3B82F6 0%, #10B981 100%)",
-      x: 15 * TILE_SIZE - 8,
-      y: 11 * TILE_SIZE + 8,
-      state: "idle",
-      hoverText: "บอร์ดบริหารความเสี่ยง (Stress Test & ค่าสหสัมพันธ์)"
-    },
-    {
-      id: "risk_right",
-      name: "ผู้ประเมินความเสี่ยง B",
-      feature: "risk",
-      emoji: "📊",
-      bg: "linear-gradient(135deg, #3B82F6 0%, #10B981 100%)",
-      x: 17 * TILE_SIZE + 8,
-      y: 11 * TILE_SIZE + 8,
-      state: "idle",
-      hoverText: "บอร์ดบริหารความเสี่ยง (Stress Test & ค่าสหสัมพันธ์)"
-    }
-  ]);
+  const [characters, setCharacters] = useState(INITIAL_CHARACTERS);
 
-  // Animation Loop for the Wanderer (Dividend Officer)
+  // Animation Loop for all characters
   useEffect(() => {
     let lastTime = performance.now();
     let animationFrameId;
@@ -104,6 +23,9 @@ export default function OfficeRoom({ onSelectFeature }) {
       lastTime = time;
 
       setCharacters(prev => prev.map(ch => {
+        let nextFrame = ch.frame;
+        let nextFrameTimer = ch.frameTimer + dt;
+
         if (ch.isWanderer) {
           if (ch.state === "walk") {
             const dx = ch.targetX - ch.x;
@@ -116,37 +38,91 @@ export default function OfficeRoom({ onSelectFeature }) {
                 x: ch.targetX,
                 y: ch.targetY,
                 state: "idle",
-                idleTimer: 3 + Math.random() * 4
+                dir: 0,
+                idleTimer: 3 + Math.random() * 4,
+                frame: 1,
+                frameTimer: 0
               };
             } else {
               const step = ch.speed * dt;
               const ratio = Math.min(1, step / dist);
+              
+              let dir = ch.dir;
+              if (Math.abs(dx) > Math.abs(dy)) {
+                dir = dx > 0 ? 2 : 3;
+              } else {
+                dir = dy > 0 ? 0 : 1;
+              }
+
+              if (nextFrameTimer > 0.15) {
+                nextFrameTimer = 0;
+                nextFrame = (ch.frame + 1) % 3; // loops walk frames 0, 1, 2
+              }
+
               return {
                 ...ch,
                 x: ch.x + dx * ratio,
-                y: ch.y + dy * ratio
+                y: ch.y + dy * ratio,
+                dir,
+                frame: nextFrame,
+                frameTimer: nextFrameTimer
               };
             }
-          } else if (ch.state === "idle") {
+          } else {
             const nextIdleTimer = ch.idleTimer - dt;
             if (nextIdleTimer <= 0) {
-              // Pick random tile inside kitchen/breakroom area
               const randCol = 14 + Math.floor(Math.random() * 5);
               const randRow = 1 + Math.floor(Math.random() * 4);
               return {
                 ...ch,
                 state: "walk",
                 targetX: randCol * TILE_SIZE,
-                targetY: randRow * TILE_SIZE
+                targetY: randRow * TILE_SIZE,
+                frame: 0,
+                frameTimer: 0,
+                dir: 0
               };
             }
             return {
               ...ch,
-              idleTimer: nextIdleTimer
+              idleTimer: nextIdleTimer,
+              frame: 1,
+              frameTimer: nextFrameTimer
             };
           }
+        } else {
+          // Stationary working character
+          let nextStateTimer = ch.stateTimer - dt;
+          let state = ch.state;
+          if (nextStateTimer <= 0) {
+            const states = ["idle", "type", "read"];
+            state = states[Math.floor(Math.random() * states.length)];
+            nextStateTimer = 4 + Math.random() * 6;
+            nextFrameTimer = 0;
+            if (state === "idle") nextFrame = 1;
+            else if (state === "type") nextFrame = 3;
+            else if (state === "read") nextFrame = 5;
+          }
+
+          if (nextFrameTimer > 0.25) {
+            nextFrameTimer = 0;
+            if (state === "type") {
+              nextFrame = 3 + ((ch.frame - 3 + 1) % 2); // alternates 3 and 4
+            } else if (state === "read") {
+              nextFrame = 5 + ((ch.frame - 5 + 1) % 2); // alternates 5 and 6
+            } else {
+              nextFrame = 1;
+            }
+          }
+
+          return {
+            ...ch,
+            state,
+            stateTimer: nextStateTimer,
+            frame: nextFrame,
+            frameTimer: nextFrameTimer
+          };
         }
-        return ch;
       }));
 
       animationFrameId = requestAnimationFrame(loop);
@@ -162,13 +138,6 @@ export default function OfficeRoom({ onSelectFeature }) {
       onSelectFeature(ch.feature);
     }
   };
-
-  const deskPositions = [
-    { x: 3 * TILE_SIZE, y: 3 * TILE_SIZE }, // CEO
-    { x: 9 * TILE_SIZE, y: 3 * TILE_SIZE }, // Accountant
-    { x: 2 * TILE_SIZE, y: 11 * TILE_SIZE }, // Receptionist
-    { x: 9 * TILE_SIZE, y: 11 * TILE_SIZE } // Analyst
-  ];
 
   return (
     <div className="office-fullscreen-screen">
@@ -262,7 +231,7 @@ export default function OfficeRoom({ onSelectFeature }) {
       <div className="office-furniture" style={{ left: 17 * TILE_SIZE + 8, top: 11 * TILE_SIZE + 8, fontSize: "32px", zIndex: 11 * TILE_SIZE + 40 }}>🪑</div>
 
       {/* Desks and PCs */}
-      {deskPositions.map((pos, i) => {
+      {DESK_POSITIONS.map((pos, i) => {
         const isReception = i === 2;
         return (
           <React.Fragment key={`furniture-${i}`}>
@@ -299,9 +268,15 @@ export default function OfficeRoom({ onSelectFeature }) {
         );
       })}
 
-      {/* 4. Rendering depth-sorted Cartoon Avatars (Badges) */}
+      {/* 4. Rendering depth-sorted animated pixel characters */}
       {characters.map(ch => {
         const showBubble = activeSpeech === ch.id;
+
+        // Calculate background position
+        const posX = ch.frame * -48;
+        // If dir is 3 (left), we use Row 2 (Right) but apply scaleX(-1) in transform
+        const displayDir = ch.dir === 3 ? 2 : ch.dir;
+        const posY = displayDir * -96;
 
         return (
           <div 
@@ -309,12 +284,11 @@ export default function OfficeRoom({ onSelectFeature }) {
             className="sprite-char-wrapper"
             style={{ 
               left: ch.x, 
-              top: ch.y - 28, 
+              top: ch.y - 48, 
               cursor: "pointer",
               zIndex: Math.floor(ch.y),
-              transition: "transform 0.2s ease",
               width: "48px",
-              height: "48px"
+              height: "96px"
             }}
             onMouseEnter={() => setActiveSpeech(ch.id)}
             onMouseLeave={() => setActiveSpeech(null)}
@@ -322,33 +296,23 @@ export default function OfficeRoom({ onSelectFeature }) {
           >
             {/* Tooltip bubble on hover */}
             {showBubble && (
-              <div className="sprite-char-bubble bubble-up">
+              <div className="sprite-char-bubble bubble-up" style={{ top: -38 }}>
                 {ch.hoverText}
               </div>
             )}
 
-            {/* Circular Cartoon Avatar Badge */}
+            {/* Sprite sheet image with flip transform if direction is Left (3) */}
             <div 
+              className="sprite-char"
               style={{
-                width: "48px",
-                height: "48px",
-                borderRadius: "50%",
-                background: ch.bg,
-                border: "3px solid #fff",
-                boxShadow: "0 6px 12px rgba(0,0,0,0.25)",
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                fontSize: "26px",
-                transition: "all 0.2s ease"
+                backgroundImage: `url(/assets/characters/char_${ch.charId}.png)`,
+                backgroundPosition: `${posX}px ${posY}px`,
+                transform: ch.dir === 3 ? "scaleX(-1)" : "none"
               }}
-              className="cartoon-avatar-badge"
-            >
-              {ch.emoji}
-            </div>
+            />
 
             {/* Nametag */}
-            <div className="sprite-char-nametag" style={{ bottom: -20 }}>
+            <div className="sprite-char-nametag" style={{ bottom: -12 }}>
               {ch.name}
             </div>
           </div>

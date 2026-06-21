@@ -3257,7 +3257,7 @@ tr:nth-child(even) td {
 .sprite-char-wrapper {
   position: absolute;
   width: 48px;
-  height: 72px;
+  height: 96px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -3267,8 +3267,8 @@ tr:nth-child(even) td {
 
 .sprite-char {
   width: 48px;
-  height: 72px;
-  background-size: 336px 288px; /* 7 frames wide * 48, 4 directions tall * 72 */
+  height: 96px;
+  background-size: 336px 288px; /* 7 frames wide * 48px = 336px, 3 directions * 96px = 288px */
   background-repeat: no-repeat;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
