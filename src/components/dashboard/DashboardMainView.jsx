@@ -51,7 +51,8 @@ export default function DashboardMainView({
   sparklines,
   totalRealizedUSD,
   totalUnrealizedUSD,
-  initialCapitalUSD
+  initialCapitalUSD,
+  onSelectFeature
 }) {
   const [viewMode, setViewMode] = useState("office");
 
@@ -150,6 +151,7 @@ export default function DashboardMainView({
                 assets={sortedAssets} 
                 prices={prices} 
                 setSelectedAsset={setSelectedAsset} 
+                onSelectFeature={onSelectFeature}
               />
             ) : (
               <PortfolioChart

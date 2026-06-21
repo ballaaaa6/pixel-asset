@@ -1,23 +1,22 @@
 import React, { useState, useEffect, useMemo } from "react";
-import AssetModal from "./AssetModal";
-import AssetDetailPanel from "./AssetDetailPanel";
 
 import { usePortfolioData } from "../hooks/usePortfolioData";
 import { useProfile } from "../hooks/useProfile";
 import { getCurrencyTicker } from "../utils/assetHelpers";
 import { isTransactionDuplicate } from "../utils/portfolioTransactionHelpers";
-import CustomConfirmModal from "./common/CustomConfirmModal";
 import { parseDimePdfReport, parseDimeTextReport } from "../utils/dimePdfParser";
-import DimeImportPreviewModal from "./modal/DimeImportPreviewModal";
 import retroAudio from "../utils/retroAudio";
 
 import OfficeRoom from "./dashboard/OfficeRoom";
-import RetroOfficeWindows from "./dashboard/RetroOfficeWindows";
-import PnLDetailsModal from "./dashboard/PnLDetailsModal";
-import KPIDetailsModal from "./dashboard/KPIDetailsModal";
-import ProfileModal from "./dashboard/ProfileModal";
-import InvestorProfileModal from "./dashboard/InvestorProfileModal";
 import TickerTape from "./dashboard/TickerTape";
+import Sidebar from "./dashboard/Sidebar";
+import DashboardHeader from "./dashboard/DashboardHeader";
+import DashboardMainView from "./dashboard/DashboardMainView";
+import DividendTracker from "./dashboard/DividendTracker";
+import PortfolioCorrelation from "./dashboard/PortfolioCorrelation";
+import StockAnalyzer from "./dashboard/StockAnalyzer";
+import DashboardModals from "./dashboard/DashboardModals";
+import { ArrowUp } from "lucide-react";
 
 export default function Dashboard({ user, onLogout, showToast, onSessionExpired }) {
   const [confirmConfig, setConfirmConfig] = useState(null);
@@ -73,6 +72,25 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
   const [hoveredSymbol, setHoveredSymbol] = useState(null);
   const [hoveredCategory, setHoveredCategory] = useState(null);
   const [dimePreviewData, setDimePreviewData] = useState(null);
+
+  const [activeTab, setActiveTab] = useState("office");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const main = document.querySelector(".main-content-scrollable");
+      if (main) setShowScrollTop(main.scrollTop > 300);
+    };
+    const main = document.querySelector(".main-content-scrollable");
+    if (main) main.addEventListener("scroll", handleScroll);
+    return () => main?.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    document.querySelector(".main-content-scrollable")?.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   const currentSelectedAsset = useMemo(() => selectedAsset ? (assets.find(a => a.id === selectedAsset.id) || null) : null, [assets, selectedAsset]);
 
@@ -173,112 +191,142 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
 
   return (
     <>
-      <div className="office-fullscreen-wrapper">
-        <TickerTape assets={sortedAssets} prices={prices} />
+      <div className="app-layout-wrapper">
+        <Sidebar
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          sidebarCollapsed={sidebarCollapsed}
+          setSidebarCollapsed={setSidebarCollapsed}
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+          onLogout={handleLogoutConfirm}
+          user={user}
+          nickname={nickname}
+          profilePic={profilePic}
+          setInvestorModalOpen={setInvestorModalOpen}
+          setProfileModalOpen={setProfileModalOpen}
+        />
 
-        {/* Dynamic retro topbar */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 20px", background: "#0a0a14", borderBottom: "4px solid #000" }}>
-          <h2 style={{ fontSize: "28px", margin: 0, fontFamily: "var(--font-family)" }}>
-            🏢 {portfolioName} // 8-bit Office
-          </h2>
-          <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
-            {profilePic && (
-              <img 
-                src={profilePic} 
-                alt="profile" 
-                style={{ width: "32px", height: "32px", border: "2px solid #fff", imageRendering: "pixelated" }} 
+        <div className="main-content-wrapper">
+          <TickerTape assets={sortedAssets} prices={prices} />
+
+          <DashboardHeader
+            portfolioName={portfolioName}
+            isEditingName={isEditingName}
+            setIsEditingName={setIsEditingName}
+            tempName={tempName}
+            setTempName={setTempName}
+            handleSaveName={handleSaveName}
+            nickname={nickname}
+            user={user}
+            profilePic={profilePic}
+            setProfileModalOpen={setProfileModalOpen}
+            setInvestorModalOpen={setInvestorModalOpen}
+            isDirty={isDirty}
+            setSidebarOpen={setSidebarOpen}
+          />
+
+          <div className="main-content-scrollable">
+            {activeTab === "office" ? (
+              <div className="office-fullscreen-map-container" style={{ position: "relative", width: "100%", height: "100%", minHeight: "680px" }}>
+                <OfficeRoom onSelectFeature={(feature) => feature === "logout" ? handleLogoutConfirm() : setActiveModal(feature)} />
+              </div>
+            ) : activeTab === "dashboard" ? (
+              <DashboardMainView
+                hasPrices={hasPrices}
+                totalUSD={totalUSD}
+                exchangeRate={exchangeRate}
+                totalCostUSD={totalCostUSD}
+                todayChangeUSD={todayChangeUSD}
+                todayChangePct={todayChangePct}
+                totalGainUSD={totalGainUSD}
+                totalGainTHB={totalGainTHB}
+                totalGainPct={totalGainPct}
+                bestAsset={bestAsset}
+                assets={assets}
+                sortedAssets={sortedAssets}
+                donutSegments={donutSegments}
+                filteredAssets={filteredAssets}
+                portfolioHistory={portfolioHistory}
+                chartRange={chartRange}
+                handleRangeChange={handleRangeChange}
+                chartCategory={chartCategory}
+                setChartCategory={setChartCategory}
+                hideValues={hideValues}
+                setActiveKpiDetail={setActiveKpiDetail}
+                setShowPnLDetailsModal={setShowPnLDetailsModal}
+                hoveredSymbol={hoveredSymbol}
+                setHoveredSymbol={setHoveredSymbol}
+                hoveredCategory={hoveredCategory}
+                setHoveredCategory={setHoveredCategory}
+                setSelectedAsset={setSelectedAsset}
+                selectedAsset={selectedAsset}
+                priceFlash={priceFlash}
+                prices={prices}
+                refreshing={refreshing}
+                fetchPrices={fetchPrices}
+                setHideValues={setHideValues}
+                setEditingAsset={setEditingAsset}
+                setModalOpen={setModalOpen}
+                sortConfig={sortConfig}
+                handleSort={handleSort}
+                handleDeleteAsset={handleDeleteAsset}
+                sparklines={sparklines}
+                totalRealizedUSD={totalRealizedUSD}
+                totalUnrealizedUSD={totalUnrealizedUSD}
+                initialCapitalUSD={initialCapitalUSD}
+                onSelectFeature={(feature) => feature === "logout" ? handleLogoutConfirm() : setActiveModal(feature)}
               />
-            )}
-            <span style={{ fontSize: "20px", fontFamily: "var(--font-family)", cursor: "pointer" }} onClick={() => setProfileModalOpen(true)}>
-              👤 {nickname || user.username}
-            </span>
+            ) : activeTab === "dividends" ? (
+              <DividendTracker
+                assets={assets}
+                prices={prices}
+                exchangeRate={exchangeRate}
+                hideValues={hideValues}
+                showToast={showToast}
+                dividendData={dividendData}
+                dividendLoading={dividendLoading}
+                fetchDividendEvents={fetchDividendEvents}
+                setSelectedAsset={setSelectedAsset}
+              />
+            ) : activeTab === "correlation" ? (
+              <PortfolioCorrelation
+                assets={sortedAssets}
+                exchangeRate={exchangeRate}
+                hideValues={hideValues}
+              />
+            ) : activeTab === "analyzer" ? (
+              <StockAnalyzer showToast={showToast} />
+            ) : null}
           </div>
-        </div>
-
-        <div className="office-fullscreen-map-container">
-          <OfficeRoom onSelectFeature={(feature) => feature === "logout" ? handleLogoutConfirm() : setActiveModal(feature)} />
         </div>
       </div>
 
-      {showPnLDetailsModal && (
-        <PnLDetailsModal
-          isOpen={showPnLDetailsModal} onClose={() => setShowPnLDetailsModal(false)}
-          assets={assets} prices={prices} exchangeRate={exchangeRate} historicalRates={historicalRates}
-          totalUSD={totalUSD} totalCostUSD={totalCostUSD} totalRealizedUSD={totalRealizedUSD}
-          totalUnrealizedUSD={totalUnrealizedUSD} totalGainUSD={totalGainUSD} totalGainPct={totalGainPct}
-          initialCapitalUSD={initialCapitalUSD} onClearAsset={handleClearAsset} onDeleteAsset={handleDeleteAsset}
-        />
-      )}
-
-      {activeKpiDetail && (
-        <KPIDetailsModal
-          isOpen={!!activeKpiDetail} type={activeKpiDetail} onClose={() => setActiveKpiDetail(null)}
-          assets={assets} prices={prices} exchangeRate={exchangeRate} totalUSD={totalUSD}
-          totalCostUSD={totalCostUSD} todayChangeUSD={todayChangeUSD} todayChangePct={todayChangePct}
-          totalGainUSD={totalGainUSD} totalGainPct={totalGainPct} totalGainTHB={totalGainTHB}
-          totalRealizedUSD={totalRealizedUSD} totalUnrealizedUSD={totalUnrealizedUSD}
-          bestAsset={bestAsset} sortedAssets={sortedAssets} donutSegments={donutSegments}
-          initialCapitalUSD={initialCapitalUSD} historicalRates={historicalRates}
-        />
-      )}
-
-      {currentSelectedAsset && (
-        <AssetDetailPanel
-          asset={currentSelectedAsset}
-          price={(currentSelectedAsset.type === "fiat" || currentSelectedAsset.category === "fiat") ? prices[getCurrencyTicker(currentSelectedAsset.symbol)] : prices[currentSelectedAsset.symbol]}
-          exchangeRate={exchangeRate} historicalRates={historicalRates}
-          onClose={() => setSelectedAsset(null)} hideValues={hideValues}
-          onEditLot={(asset, lot) => { setEditingAsset(asset); setEditingLot(lot); setModalOpen(true); }}
-        />
-      )}
-
-      <InvestorProfileModal
-        isOpen={investorModalOpen}
-        onClose={() => setInvestorModalOpen(false)}
-        askConfirm={askConfirm}
-        totalUSD={totalUSD}
-        totalGainUSD={totalGainUSD}
-        totalGainPct={totalGainPct}
-        assetsCount={sortedAssets.length}
-        {...profileProps}
-      />
-
-      <ProfileModal
-        isOpen={profileModalOpen}
-        onClose={() => setProfileModalOpen(false)}
-        handleClearPortfolio={handleClearPortfolio}
-        handleClearAllData={handleClearAllData}
-        onLogout={handleLogoutConfirm}
-        handleDimeReportUpload={handleDimeReportUpload}
-        {...profileProps}
-      />
-
-      {modalOpen && (
-        <AssetModal
-          isOpen={modalOpen} editingAsset={editingAsset} editingLot={editingLot}
-          onClose={() => { setModalOpen(false); setEditingAsset(null); setEditingLot(null); }}
-          onDeleteLot={async (assetId, lotId) => {
-            if (await handleDeleteLot(assetId, lotId)) { setModalOpen(false); setEditingAsset(null); setEditingLot(null); }
-          }}
-          onSave={handleSaveTransaction}
-          exchangeRate={exchangeRate} showToast={showToast} onSessionExpired={onSessionExpired}
-        />
-      )}
-
-      {confirmConfig && (
-        <CustomConfirmModal
-          title={confirmConfig.title} message={confirmConfig.message}
-          onConfirm={() => { confirmConfig.resolve(true); setConfirmConfig(null); }}
-          onCancel={() => { confirmConfig.resolve(false); setConfirmConfig(null); }}
-        />
-      )}
-
-      <RetroOfficeWindows
+      <DashboardModals
         activeModal={activeModal}
         setActiveModal={setActiveModal}
-        hasPrices={hasPrices}
-        totalUSD={totalUSD}
+        showPnLDetailsModal={showPnLDetailsModal}
+        setShowPnLDetailsModal={setShowPnLDetailsModal}
+        activeKpiDetail={activeKpiDetail}
+        setActiveKpiDetail={setActiveKpiDetail}
+        selectedAsset={selectedAsset}
+        setSelectedAsset={setSelectedAsset}
+        investorModalOpen={investorModalOpen}
+        setInvestorModalOpen={setInvestorModalOpen}
+        profileModalOpen={profileModalOpen}
+        setProfileModalOpen={setProfileModalOpen}
+        modalOpen={modalOpen}
+        setModalOpen={setModalOpen}
+        confirmConfig={confirmConfig}
+        setConfirmConfig={setConfirmConfig}
+        dimePreviewData={dimePreviewData}
+        setDimePreviewData={setDimePreviewData}
+        assets={assets}
+        prices={prices}
+        sparklines={sparklines}
         exchangeRate={exchangeRate}
+        historicalRates={historicalRates}
+        totalUSD={totalUSD}
         totalCostUSD={totalCostUSD}
         todayChangeUSD={todayChangeUSD}
         todayChangePct={todayChangePct}
@@ -286,48 +334,49 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
         totalGainTHB={totalGainTHB}
         totalGainPct={totalGainPct}
         bestAsset={bestAsset}
-        assets={assets}
         sortedAssets={sortedAssets}
-        prices={prices}
-        sparklines={sparklines}
-        priceFlash={priceFlash}
-        refreshing={refreshing}
-        hideValues={hideValues}
-        hoveredSymbol={hoveredSymbol}
-        hoveredCategory={hoveredCategory}
-        selectedAsset={selectedAsset}
-        setSelectedAsset={setSelectedAsset}
-        setShowPnLDetailsModal={setShowPnLDetailsModal}
-        setActiveKpiDetail={setActiveKpiDetail}
-        setHoveredSymbol={setHoveredSymbol}
-        setHoveredCategory={setHoveredCategory}
-        fetchPrices={fetchPrices}
-        setHideValues={setHideValues}
-        setEditingAsset={setEditingAsset}
-        setModalOpen={setModalOpen}
-        sortConfig={sortConfig}
-        handleSort={handleSort}
-        handleDeleteAsset={handleDeleteAsset}
+        donutSegments={donutSegments}
+        initialCapitalUSD={initialCapitalUSD}
         totalRealizedUSD={totalRealizedUSD}
         totalUnrealizedUSD={totalUnrealizedUSD}
-        initialCapitalUSD={initialCapitalUSD}
-        handleDimeReportUpload={handleDimeReportUpload}
-        handleImport={handleImport}
-        handleExport={handleExport}
         dividendData={dividendData}
         dividendLoading={dividendLoading}
         fetchDividendEvents={fetchDividendEvents}
+        hideValues={hideValues}
+        setHideValues={setHideValues}
+        hoveredSymbol={hoveredSymbol}
+        setHoveredSymbol={setHoveredSymbol}
+        hoveredCategory={hoveredCategory}
+        setHoveredCategory={setHoveredCategory}
+        editingAsset={editingAsset}
+        setEditingAsset={setEditingAsset}
+        editingLot={editingLot}
+        setEditingLot={setEditingLot}
+        priceFlash={priceFlash}
+        refreshing={refreshing}
+        sortConfig={sortConfig}
+        handleSort={handleSort}
+        fetchPrices={fetchPrices}
+        handleClearAsset={handleClearAsset}
+        handleDeleteAsset={handleDeleteAsset}
+        handleDeleteLot={handleDeleteLot}
+        handleSaveTransaction={handleSaveTransaction}
+        handleLogoutConfirm={handleLogoutConfirm}
+        handleDimeReportUpload={handleDimeReportUpload}
+        onConfirmDimeImport={onConfirmDimeImport}
+        handleImport={handleImport}
+        handleExport={handleExport}
         showToast={showToast}
+        onSessionExpired={onSessionExpired}
+        askConfirm={askConfirm}
+        profileProps={profileProps}
       />
 
-      <DimeImportPreviewModal
-        isOpen={!!dimePreviewData}
-        transactions={dimePreviewData || []}
-        existingAssets={assets}
-        onClose={() => setDimePreviewData(null)}
-        onConfirm={onConfirmDimeImport}
-      />
-
+      {showScrollTop && (
+        <button onClick={scrollToTop} className="scroll-to-top-btn" title="เลื่อนขึ้นบนสุด">
+          <ArrowUp size={20} />
+        </button>
+      )}
     </>
   );
 }

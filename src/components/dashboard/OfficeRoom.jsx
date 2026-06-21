@@ -158,7 +158,9 @@ export default function OfficeRoom({ onSelectFeature }) {
 
   const handleCharacterClick = (ch) => {
     retroAudio.playClick();
-    onSelectFeature(ch.feature);
+    if (typeof onSelectFeature === "function") {
+      onSelectFeature(ch.feature);
+    }
   };
 
   const deskPositions = [

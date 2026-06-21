@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { BarChart3, CalendarDays, ChevronLeft, ChevronRight, X, LogOut, Settings, Grid, Compass } from "lucide-react";
+import { BarChart3, CalendarDays, ChevronLeft, ChevronRight, X, LogOut, Settings, Grid, Compass, Building } from "lucide-react";
 
 export default function Sidebar({
   activeTab,
@@ -18,6 +18,7 @@ export default function Sidebar({
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const menuItems = [
+    { id: "office", label: "จำลองออฟฟิศ", icon: Building },
     { id: "dashboard", label: "แดชบอร์ดพอร์ต", icon: BarChart3 },
     { id: "dividends", label: "ปฏิทินปันผล", icon: CalendarDays },
     { id: "correlation", label: "สหสัมพันธ์ & ความร้อน", icon: Grid },
