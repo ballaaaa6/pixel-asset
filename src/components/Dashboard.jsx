@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { ArrowUp } from "lucide-react";
 import AssetModal from "./AssetModal";
 import AssetDetailPanel from "./AssetDetailPanel";
 
@@ -12,14 +11,8 @@ import { parseDimePdfReport, parseDimeTextReport } from "../utils/dimePdfParser"
 import DimeImportPreviewModal from "./modal/DimeImportPreviewModal";
 import retroAudio from "../utils/retroAudio";
 
-
-
-import Sidebar from "./dashboard/Sidebar";
-import DashboardHeader from "./dashboard/DashboardHeader";
-import DashboardMainView from "./dashboard/DashboardMainView";
-import DividendTracker from "./dashboard/DividendTracker";
-import PortfolioCorrelation from "./dashboard/PortfolioCorrelation";
-import StockAnalyzer from "./dashboard/StockAnalyzer";
+import OfficeRoom from "./dashboard/OfficeRoom";
+import RetroOfficeWindows from "./dashboard/RetroOfficeWindows";
 import PnLDetailsModal from "./dashboard/PnLDetailsModal";
 import KPIDetailsModal from "./dashboard/KPIDetailsModal";
 import ProfileModal from "./dashboard/ProfileModal";
@@ -30,13 +23,7 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
   const [confirmConfig, setConfirmConfig] = useState(null);
   const askConfirm = (message, title = "ยืนยันการทำรายการ") => new Promise(r => setConfirmConfig({ title, message, resolve: r }));
 
-  const [activeTab, setActiveTab] = useState("dashboard");
-  const changeTab = (tab) => {
-    retroAudio.playClick();
-    setActiveTab(tab);
-  };
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [activeModal, setActiveModal] = useState(null); // 'summary', 'ledger', 'import', 'analyzer', 'dividends', 'risk'
 
   const [hideValues, setHideValues] = useState(() => {
     return localStorage.getItem("hide_portfolio_values") === "true";
@@ -85,16 +72,7 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
   const [activeKpiDetail, setActiveKpiDetail] = useState(null);
   const [hoveredSymbol, setHoveredSymbol] = useState(null);
   const [hoveredCategory, setHoveredCategory] = useState(null);
-  const [showScrollTop, setShowScrollTop] = useState(false);
   const [dimePreviewData, setDimePreviewData] = useState(null);
-
-  useEffect(() => {
-    const handleScroll = () => setShowScrollTop(window.scrollY > 300);
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  const scrollToTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
 
   const currentSelectedAsset = useMemo(() => selectedAsset ? (assets.find(a => a.id === selectedAsset.id) || null) : null, [assets, selectedAsset]);
 
@@ -195,109 +173,30 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
 
   return (
     <>
-      <div className="app-layout-wrapper">
-        <Sidebar
-          activeTab={activeTab}
-          setActiveTab={changeTab}
-          sidebarCollapsed={sidebarCollapsed}
-          setSidebarCollapsed={setSidebarCollapsed}
-          sidebarOpen={sidebarOpen}
-          setSidebarOpen={setSidebarOpen}
-          onLogout={onLogout}
-          user={user}
-          nickname={nickname}
-          profilePic={profilePic}
-          setInvestorModalOpen={setInvestorModalOpen}
-          setProfileModalOpen={setProfileModalOpen}
-        />
+      <div className="office-fullscreen-wrapper">
+        <TickerTape assets={sortedAssets} prices={prices} />
 
-        <div className="main-content-wrapper">
-          <TickerTape assets={sortedAssets} prices={prices} />
-
-          <DashboardHeader
-            portfolioName={portfolioName}
-            isEditingName={isEditingName}
-            setIsEditingName={setIsEditingName}
-            tempName={tempName}
-            setTempName={setTempName}
-            handleSaveName={handleSaveName}
-            nickname={nickname}
-            user={user}
-            profilePic={profilePic}
-            setProfileModalOpen={setProfileModalOpen}
-            setInvestorModalOpen={setInvestorModalOpen}
-            isDirty={isDirty}
-            setSidebarOpen={setSidebarOpen}
-          />
-
-          <div className="main-content-scrollable">
-            {activeTab === "dashboard" ? (
-              <DashboardMainView
-                hasPrices={hasPrices}
-                totalUSD={totalUSD}
-                exchangeRate={exchangeRate}
-                totalCostUSD={totalCostUSD}
-                todayChangeUSD={todayChangeUSD}
-                todayChangePct={todayChangePct}
-                totalGainUSD={totalGainUSD}
-                totalGainTHB={totalGainTHB}
-                totalGainPct={totalGainPct}
-                bestAsset={bestAsset}
-                assets={assets}
-                sortedAssets={sortedAssets}
-                donutSegments={donutSegments}
-                filteredAssets={filteredAssets}
-                portfolioHistory={portfolioHistory}
-                chartRange={chartRange}
-                handleRangeChange={handleRangeChange}
-                chartCategory={chartCategory}
-                setChartCategory={setChartCategory}
-                hideValues={hideValues}
-                setActiveKpiDetail={setActiveKpiDetail}
-                setShowPnLDetailsModal={setShowPnLDetailsModal}
-                hoveredSymbol={hoveredSymbol}
-                setHoveredSymbol={setHoveredSymbol}
-                hoveredCategory={hoveredCategory}
-                setHoveredCategory={setHoveredCategory}
-                setSelectedAsset={setSelectedAsset}
-                selectedAsset={selectedAsset}
-                priceFlash={priceFlash}
-                prices={prices}
-                refreshing={refreshing}
-                fetchPrices={fetchPrices}
-                setHideValues={setHideValues}
-                setEditingAsset={setEditingAsset}
-                setModalOpen={setModalOpen}
-                sortConfig={sortConfig}
-                handleSort={handleSort}
-                handleDeleteAsset={handleDeleteAsset}
-                sparklines={sparklines}
-                totalRealizedUSD={totalRealizedUSD}
-                totalUnrealizedUSD={totalUnrealizedUSD}
-                initialCapitalUSD={initialCapitalUSD}
+        {/* Dynamic retro topbar */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 20px", background: "#0a0a14", borderBottom: "4px solid #000" }}>
+          <h2 style={{ fontSize: "28px", margin: 0, fontFamily: "var(--font-family)" }}>
+            🏢 {portfolioName} // 8-bit Office
+          </h2>
+          <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
+            {profilePic && (
+              <img 
+                src={profilePic} 
+                alt="profile" 
+                style={{ width: "32px", height: "32px", border: "2px solid #fff", imageRendering: "pixelated" }} 
               />
-            ) : activeTab === "dividends" ? (
-              <DividendTracker
-                assets={assets}
-                prices={prices}
-                exchangeRate={exchangeRate}
-                hideValues={hideValues}
-                showToast={showToast}
-                dividendData={dividendData}
-                dividendLoading={dividendLoading}
-                fetchDividendEvents={fetchDividendEvents}
-                setSelectedAsset={setSelectedAsset}
-              />
-            ) : activeTab === "correlation" ? (
-              <PortfolioCorrelation
-                assets={sortedAssets}
-                exchangeRate={exchangeRate}
-                hideValues={hideValues}
-              />
-            ) : activeTab === "analyzer" ? (
-              <StockAnalyzer showToast={showToast} />
-            ) : null}
+            )}
+            <span style={{ fontSize: "20px", fontFamily: "var(--font-family)", cursor: "pointer" }} onClick={() => setProfileModalOpen(true)}>
+              👤 {nickname || user.username}
+            </span>
           </div>
+        </div>
+
+        <div className="office-fullscreen-map-container">
+          <OfficeRoom onSelectFeature={(feature) => feature === "logout" ? handleLogoutConfirm() : setActiveModal(feature)} />
         </div>
       </div>
 
@@ -346,7 +245,7 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
 
       <ProfileModal
         isOpen={profileModalOpen}
-        onClose={() => setSidebarOpen(false) || setProfileModalOpen(false)}
+        onClose={() => setProfileModalOpen(false)}
         handleClearPortfolio={handleClearPortfolio}
         handleClearAllData={handleClearAllData}
         onLogout={handleLogoutConfirm}
@@ -374,11 +273,51 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
         />
       )}
 
-      {showScrollTop && (
-        <button onClick={scrollToTop} className="scroll-to-top-btn" title="เลื่อนขึ้นบนสุด">
-          <ArrowUp size={20} />
-        </button>
-      )}
+      <RetroOfficeWindows
+        activeModal={activeModal}
+        setActiveModal={setActiveModal}
+        hasPrices={hasPrices}
+        totalUSD={totalUSD}
+        exchangeRate={exchangeRate}
+        totalCostUSD={totalCostUSD}
+        todayChangeUSD={todayChangeUSD}
+        todayChangePct={todayChangePct}
+        totalGainUSD={totalGainUSD}
+        totalGainTHB={totalGainTHB}
+        totalGainPct={totalGainPct}
+        bestAsset={bestAsset}
+        assets={assets}
+        sortedAssets={sortedAssets}
+        sparklines={sparklines}
+        priceFlash={priceFlash}
+        refreshing={refreshing}
+        hideValues={hideValues}
+        hoveredSymbol={hoveredSymbol}
+        hoveredCategory={hoveredCategory}
+        selectedAsset={selectedAsset}
+        setSelectedAsset={setSelectedAsset}
+        setShowPnLDetailsModal={setShowPnLDetailsModal}
+        setActiveKpiDetail={setActiveKpiDetail}
+        setHoveredSymbol={setHoveredSymbol}
+        setHoveredCategory={setHoveredCategory}
+        fetchPrices={fetchPrices}
+        setHideValues={setHideValues}
+        setEditingAsset={setEditingAsset}
+        setModalOpen={setModalOpen}
+        sortConfig={sortConfig}
+        handleSort={handleSort}
+        handleDeleteAsset={handleDeleteAsset}
+        totalRealizedUSD={totalRealizedUSD}
+        totalUnrealizedUSD={totalUnrealizedUSD}
+        initialCapitalUSD={initialCapitalUSD}
+        handleDimeReportUpload={handleDimeReportUpload}
+        handleImport={handleImport}
+        handleExport={handleExport}
+        dividendData={dividendData}
+        dividendLoading={dividendLoading}
+        fetchDividendEvents={fetchDividendEvents}
+        showToast={showToast}
+      />
 
       <DimeImportPreviewModal
         isOpen={!!dimePreviewData}

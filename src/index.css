@@ -3208,53 +3208,80 @@ tr:nth-child(even) td {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   OFFICE ROOM & CHARACTER SPRITES LAYOUT (8-bit)
+   OFFICE SCREEN SIMULATOR & CHARACTER SPRITES (8-bit)
    ═══════════════════════════════════════════════════════════════ */
-.office-container {
+.office-fullscreen-wrapper {
+  width: 100vw;
+  height: 100vh;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  background-color: var(--bg-card);
-  border: 4px solid #000;
-  box-shadow: var(--shadow-md);
-  padding: 16px;
-  width: 100%;
+  background-color: #030307;
+  overflow: hidden;
+  position: relative;
 }
 
-.office-screen {
+.office-fullscreen-map-container {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
   position: relative;
-  width: 672px;  /* 14 tiles * 48px */
-  height: 384px; /* 8 tiles * 48px */
+  overflow: auto;
+  padding: 16px;
+}
+
+.office-fullscreen-screen {
+  position: relative;
+  width: 960px;  /* 20 tiles * 48px */
+  height: 720px; /* 15 tiles * 48px */
   background-color: #121224;
-  margin: 16px auto 0;
-  overflow: hidden;
-  border: 4px solid #000;
-  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.8);
+  border: 8px solid #000;
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.8), var(--shadow-lg);
   image-rendering: pixelated;
   image-rendering: crisp-edges;
+  transform-origin: center center;
 }
 
-.office-floor {
+.office-fullscreen-floor {
   display: grid;
-  grid-template-columns: repeat(14, 48px);
-  grid-template-rows: repeat(8, 48px);
-  width: 672px;
-  height: 384px;
+  grid-template-columns: repeat(20, 48px);
+  grid-template-rows: repeat(15, 48px);
+  width: 960px;
+  height: 720px;
 }
 
-.tile-wall {
+/* Flooring Types */
+.tile-wood {
   width: 48px;
   height: 48px;
-  background-image: url('/assets/walls/wall_0.png');
+  background-image: url('/assets/floors/floor_0.png');
   background-size: cover;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
 }
 
-.tile-floor {
+.tile-carpet {
   width: 48px;
   height: 48px;
-  background-image: url('/assets/floors/floor_0.png');
+  background-image: url('/assets/floors/floor_5.png');
+  background-size: cover;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.tile-kitchen {
+  width: 48px;
+  height: 48px;
+  background-image: url('/assets/floors/floor_8.png');
+  background-size: cover;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.tile-wood-wall {
+  width: 48px;
+  height: 48px;
+  background-image: url('/assets/walls/wall_0.png');
   background-size: cover;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
@@ -3267,6 +3294,7 @@ tr:nth-child(even) td {
   pointer-events: none;
 }
 
+/* Depth sorted sprites wrapper */
 .sprite-char-wrapper {
   position: absolute;
   width: 48px;
@@ -3358,31 +3386,139 @@ tr:nth-child(even) td {
   border-color: var(--loss) transparent;
 }
 
-/* Retro Tab Toggles */
-.btn-retro {
-  background: var(--bg-card);
-  color: var(--text-main);
-  border: 2px solid #000;
-  box-shadow: 2px 2px 0px #000;
+/* ═══════════════════════════════════════════════════════════════
+   RETRO CRT WINDOW OVERLAYS (Win95 style)
+   ═══════════════════════════════════════════════════════════════ */
+.retro-window-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+  padding: 20px;
+}
+
+.retro-window {
+  background: #c0c0c0;
+  border: 4px solid #fff;
+  border-right-color: #808080;
+  border-bottom-color: #808080;
+  box-shadow: 6px 6px 0 #000;
+  width: 90%;
+  max-width: 1000px;
+  height: 85vh;
+  display: flex;
+  flex-direction: column;
+  color: #000;
+  font-family: var(--font-family);
+  image-rendering: pixelated;
+}
+
+.retro-window-header {
+  background: #000080;
+  color: #fff;
+  padding: 6px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: bold;
+  border-bottom: 2px solid #808080;
+}
+
+.retro-window-title {
+  font-size: 22px;
+  letter-spacing: 1px;
+}
+
+.retro-window-close {
+  background: #c0c0c0;
+  color: #000;
+  border: 2px solid #fff;
+  border-right-color: #808080;
+  border-bottom-color: #808080;
+  padding: 2px 8px;
   cursor: pointer;
   font-family: var(--font-family);
-  transition: all 0.1s ease;
+  font-weight: bold;
+  font-size: 16px;
 }
 
-.btn-retro.active {
-  background: var(--primary);
-  color: #000;
+.retro-window-close:active {
+  border-color: #808080;
+  border-right-color: #fff;
+  border-bottom-color: #fff;
   transform: translate(1px, 1px);
-  box-shadow: 1px 1px 0px #000;
 }
 
-.btn-retro:hover:not(.active) {
-  background: var(--primary-light);
+.retro-window-menu {
+  display: flex;
+  gap: 16px;
+  padding: 4px 12px;
+  background: #c0c0c0;
+  border-bottom: 2px solid #808080;
+  font-size: 17px;
 }
 
-.btn-retro:active {
-  transform: translate(2px, 2px);
-  box-shadow: 0px 0px 0px #000;
+.retro-window-menu span {
+  cursor: pointer;
 }
+
+.retro-window-menu span:hover {
+  text-decoration: underline;
+}
+
+.retro-window-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  background: #0a0a14;
+  color: #fff;
+}
+
+/* Exit button / Door sprite */
+.exit-door {
+  position: absolute;
+  width: 48px;
+  height: 96px;
+  background-image: url('/assets/walls/wall_0.png'); /* fallback floor/wall */
+  background-size: cover;
+  border: 3px solid #000;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  background: #5c3c24; /* Brown wooden door */
+  z-index: 100;
+}
+
+.exit-door:hover::after {
+  content: 'ทางออก';
+  position: absolute;
+  top: -24px;
+  background: #000;
+  color: #fff;
+  font-size: 12px;
+  padding: 1px 4px;
+  border: 1px solid #fff;
+  white-space: nowrap;
+}
+
+.exit-door-knob {
+  width: 8px;
+  height: 8px;
+  background: #ffd700;
+  border-radius: 50%;
+  border: 1px solid #000;
+  align-self: flex-start;
+  margin-left: 8px;
+}
+
 
 
