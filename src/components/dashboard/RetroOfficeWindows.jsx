@@ -22,6 +22,7 @@ export default function RetroOfficeWindows({
   bestAsset,
   assets,
   sortedAssets,
+  prices,
   sparklines,
   priceFlash,
   refreshing,

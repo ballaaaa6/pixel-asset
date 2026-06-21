@@ -288,6 +288,7 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
         bestAsset={bestAsset}
         assets={assets}
         sortedAssets={sortedAssets}
+        prices={prices}
         sparklines={sparklines}
         priceFlash={priceFlash}
         refreshing={refreshing}

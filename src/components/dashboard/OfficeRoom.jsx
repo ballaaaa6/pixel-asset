@@ -1,115 +1,100 @@
 import React, { useState, useEffect } from "react";
 import retroAudio from "../../utils/retroAudio";
 
-// Coordinate offsets and boundaries
 const TILE_SIZE = 48;
 const MAP_COLS = 20;
 const MAP_ROWS = 15;
 
 export default function OfficeRoom({ onSelectFeature }) {
-  const [activeSpeech, setActiveSpeech] = useState(null); // id of NPC showing hover text
+  const [activeSpeech, setActiveSpeech] = useState(null);
 
-  // 7 core characters positioned at their desks or zones
+  // 7 characters represented as cute cartoon animal emojis on gradients
   const [characters, setCharacters] = useState([
     {
       id: "ceo",
       name: "ผู้จัดการพอร์ต (CEO)",
       feature: "summary",
-      charId: 0,
+      emoji: "🦁",
+      bg: "linear-gradient(135deg, #F59E0B 0%, #EF4444 100%)",
       x: 3 * TILE_SIZE,
-      y: 3 * TILE_SIZE + 18,
-      dir: 1, // UP (facing computer)
-      state: "typing",
-      frame: 4,
-      frameTimer: 0,
+      y: 3 * TILE_SIZE + 12,
+      state: "idle",
       hoverText: "ผู้จัดการพอร์ต (ยอดรวมพอร์ต & KPI)"
     },
     {
       id: "accountant",
       name: "หัวหน้าฝ่ายบัญชี",
       feature: "ledger",
-      charId: 2,
+      emoji: "🦊",
+      bg: "linear-gradient(135deg, #8B5CF6 0%, #D946EF 100%)",
       x: 9 * TILE_SIZE,
-      y: 3 * TILE_SIZE + 18,
-      dir: 1, // UP (facing computer)
-      state: "typing",
-      frame: 4,
-      frameTimer: 0,
+      y: 3 * TILE_SIZE + 12,
+      state: "idle",
       hoverText: "ฝ่ายบัญชี (ตารางรายชื่อและประวัติธุรกรรม)"
     },
     {
       id: "analyst",
       name: "นักวิเคราะห์การลงทุน",
       feature: "analyzer",
-      charId: 3,
+      emoji: "🦄",
+      bg: "linear-gradient(135deg, #6366F1 0%, #EC4899 100%)",
       x: 9 * TILE_SIZE,
-      y: 11 * TILE_SIZE + 18,
-      dir: 1, // UP (facing computer)
-      state: "typing",
-      frame: 4,
-      frameTimer: 0,
+      y: 11 * TILE_SIZE + 12,
+      state: "idle",
       hoverText: "นักวิเคราะห์ (สืบค้นข้อมูลและกราฟหุ้น)"
     },
     {
       id: "receptionist",
       name: "ฝ่ายประชาสัมพันธ์",
       feature: "import",
-      charId: 1,
+      emoji: "🐨",
+      bg: "linear-gradient(135deg, #0D9488 0%, #06B6D4 100%)",
       x: 2 * TILE_SIZE,
       y: 11 * TILE_SIZE - 4,
-      dir: 0, // DOWN (facing entrance)
       state: "idle",
-      frame: 6,
-      frameTimer: 0,
       hoverText: "ฝ่ายต้อนรับ (นำเข้าข้อมูลจาก Dime & สลิปธุรกรรม)"
     },
     {
       id: "dividends",
       name: "พนักงานปันผล",
       feature: "dividends",
-      charId: 4,
+      emoji: "🐻",
+      bg: "linear-gradient(135deg, #8B5CF6 0%, #EF4444 100%)",
       x: 16 * TILE_SIZE,
       y: 3 * TILE_SIZE,
       targetX: 16 * TILE_SIZE,
       targetY: 3 * TILE_SIZE,
-      dir: 0, // DOWN
       state: "idle",
-      frame: 6,
-      frameTimer: 0,
       isWanderer: true,
       idleTimer: 2.0,
-      speed: 48, // pixels per second
+      speed: 48,
       hoverText: "พนักงานฝ่ายเงินปันผล (ปฏิทินปันผล)"
     },
     {
       id: "risk_left",
       name: "ผู้ประเมินความเสี่ยง A",
       feature: "risk",
-      charId: 5,
+      emoji: "📈",
+      bg: "linear-gradient(135deg, #3B82F6 0%, #10B981 100%)",
       x: 15 * TILE_SIZE - 8,
       y: 11 * TILE_SIZE + 8,
-      dir: 2, // RIGHT (facing table)
       state: "idle",
-      frame: 6,
-      frameTimer: 0,
       hoverText: "บอร์ดบริหารความเสี่ยง (Stress Test & ค่าสหสัมพันธ์)"
     },
     {
       id: "risk_right",
       name: "ผู้ประเมินความเสี่ยง B",
       feature: "risk",
-      charId: 0,
+      emoji: "📊",
+      bg: "linear-gradient(135deg, #3B82F6 0%, #10B981 100%)",
       x: 17 * TILE_SIZE + 8,
       y: 11 * TILE_SIZE + 8,
-      dir: 3, // LEFT (facing table)
       state: "idle",
-      frame: 6,
-      frameTimer: 0,
-      hoverText: "บอร์ดบริหารความเสี่ยง ( Stress Test & ค่าสหสัมพันธ์)"
+      hoverText: "บอร์ดบริหารความเสี่ยง (Stress Test & ค่าสหสัมพันธ์)"
     }
   ]);
 
-  // Game/Animation Loop
+  // Animation Loop for the Wanderer (Dividend Officer)
   useEffect(() => {
     let lastTime = performance.now();
     let animationFrameId;
@@ -119,23 +104,6 @@ export default function OfficeRoom({ onSelectFeature }) {
       lastTime = time;
 
       setCharacters(prev => prev.map(ch => {
-        let nextFrame = ch.frame;
-        let nextFrameTimer = ch.frameTimer + dt;
-        const frameDuration = ch.state === "walk" ? 0.15 : 0.25;
-
-        // Loop animation frames
-        if (nextFrameTimer >= frameDuration) {
-          nextFrameTimer -= frameDuration;
-          if (ch.state === "walk") {
-            nextFrame = (nextFrame + 1) % 4; // walk frames (0 to 3)
-          } else if (ch.state === "typing") {
-            nextFrame = 4 + ((nextFrame - 4 + 1) % 2); // typing (4 or 5)
-          } else {
-            nextFrame = 6; // idle pose
-          }
-        }
-
-        // Wanderer movement updates (Dividend officer only)
         if (ch.isWanderer) {
           if (ch.state === "walk") {
             const dx = ch.targetX - ch.x;
@@ -143,52 +111,33 @@ export default function OfficeRoom({ onSelectFeature }) {
             const dist = Math.sqrt(dx * dx + dy * dy);
 
             if (dist < 2) {
-              // Arrived
               return {
                 ...ch,
                 x: ch.targetX,
                 y: ch.targetY,
                 state: "idle",
-                frame: 6,
-                idleTimer: 3 + Math.random() * 4 // Idle for 3-7 seconds
+                idleTimer: 3 + Math.random() * 4
               };
             } else {
-              // Walk towards target
               const step = ch.speed * dt;
               const ratio = Math.min(1, step / dist);
-              const nextX = ch.x + dx * ratio;
-              const nextY = ch.y + dy * ratio;
-
-              let dir = ch.dir;
-              if (Math.abs(dx) > Math.abs(dy)) {
-                dir = dx > 0 ? 2 : 3; // Right / Left
-              } else {
-                dir = dy > 0 ? 0 : 1; // Down / Up
-              }
-
               return {
                 ...ch,
-                x: nextX,
-                y: nextY,
-                dir,
-                frame: nextFrame,
-                frameTimer: nextFrameTimer
+                x: ch.x + dx * ratio,
+                y: ch.y + dy * ratio
               };
             }
           } else if (ch.state === "idle") {
             const nextIdleTimer = ch.idleTimer - dt;
             if (nextIdleTimer <= 0) {
-              // Pick a random waypoint inside kitchen/breakroom zone
-              // Kitchen is x: 13-19, y: 1-5
+              // Pick random tile inside kitchen/breakroom area
               const randCol = 14 + Math.floor(Math.random() * 5);
               const randRow = 1 + Math.floor(Math.random() * 4);
               return {
                 ...ch,
                 state: "walk",
                 targetX: randCol * TILE_SIZE,
-                targetY: randRow * TILE_SIZE,
-                frame: 0,
-                frameTimer: 0
+                targetY: randRow * TILE_SIZE
               };
             }
             return {
@@ -197,12 +146,7 @@ export default function OfficeRoom({ onSelectFeature }) {
             };
           }
         }
-
-        return {
-          ...ch,
-          frame: nextFrame,
-          frameTimer: nextFrameTimer
-        };
+        return ch;
       }));
 
       animationFrameId = requestAnimationFrame(loop);
@@ -217,26 +161,24 @@ export default function OfficeRoom({ onSelectFeature }) {
     onSelectFeature(ch.feature);
   };
 
-  // Define desks positions for grid map rendering
   const deskPositions = [
-    { x: 3 * TILE_SIZE, y: 3 * TILE_SIZE }, // CEO Desk
-    { x: 9 * TILE_SIZE, y: 3 * TILE_SIZE }, // Accountant Desk
-    { x: 2 * TILE_SIZE, y: 11 * TILE_SIZE }, // Reception Desk
-    { x: 9 * TILE_SIZE, y: 11 * TILE_SIZE } // Analyst Desk
+    { x: 3 * TILE_SIZE, y: 3 * TILE_SIZE }, // CEO
+    { x: 9 * TILE_SIZE, y: 3 * TILE_SIZE }, // Accountant
+    { x: 2 * TILE_SIZE, y: 11 * TILE_SIZE }, // Receptionist
+    { x: 9 * TILE_SIZE, y: 11 * TILE_SIZE } // Analyst
   ];
 
   return (
     <div className="office-fullscreen-screen">
-      {/* 1. Floor grid rendering (20 cols x 15 rows) */}
+      {/* 1. Flat Grid flooring (20 cols x 15 rows) */}
       <div className="office-fullscreen-floor">
         {Array.from({ length: MAP_ROWS }).map((_, r) => (
           Array.from({ length: MAP_COLS }).map((_, c) => {
             let tileClass = "tile-wood";
             
-            // Map boundaries & wall layouts
             const isTopWall = r === 0;
-            const isVertWall = c === 12 && r !== 3 && r !== 11; // Doorways at row 3 and 11
-            const isHorizWall = r === 7 && c > 12 && c !== 16; // Doorway at col 16
+            const isVertWall = c === 12 && r !== 3 && r !== 11;
+            const isHorizWall = r === 7 && c > 12 && c !== 16;
             
             if (isTopWall || isVertWall || isHorizWall) {
               tileClass = "tile-wood-wall";
@@ -254,7 +196,7 @@ export default function OfficeRoom({ onSelectFeature }) {
         ))}
       </div>
 
-      {/* 2. Entrance Exit Door (Logs out user) */}
+      {/* 2. Entrance Exit Door (Logout door) */}
       <div 
         className="exit-door" 
         style={{ left: 0, top: 6 * TILE_SIZE }}
@@ -262,7 +204,7 @@ export default function OfficeRoom({ onSelectFeature }) {
         onMouseEnter={() => setActiveSpeech("exit")}
         onMouseLeave={() => setActiveSpeech(null)}
       >
-        <div className="exit-door-knob" />
+        <span style={{ fontSize: "28px" }}>🚪</span>
         {activeSpeech === "exit" && (
           <div className="sprite-char-bubble bubble-down" style={{ top: -38 }}>
             🚪 ออกจากระบบ (Logout)
@@ -270,66 +212,94 @@ export default function OfficeRoom({ onSelectFeature }) {
         )}
       </div>
 
-      {/* 3. Static Furniture Placements */}
-      {/* Wall Decorations */}
-      <div className="office-furniture" style={{ left: 8 * TILE_SIZE, top: 4, width: 64, height: 44, background: "url(/assets/furniture/WHITEBOARD/WHITEBOARD.png) no-repeat", backgroundSize: "contain", zIndex: 40 }} />
-      <div className="office-furniture" style={{ left: 1 * TILE_SIZE, top: 8, width: 32, height: 32, background: "url(/assets/furniture/CLOCK/CLOCK.png) no-repeat", backgroundSize: "contain", zIndex: 30 }} />
+      {/* 3. Vector Cartoon Furniture Placements */}
+      {/* Whiteboard */}
+      <div 
+        className="office-furniture" 
+        style={{ 
+          left: 8 * TILE_SIZE, 
+          top: 10, 
+          width: "100px", 
+          height: "60px", 
+          background: "#fff", 
+          border: "3px solid #333", 
+          borderRadius: "8px", 
+          boxShadow: "0 6px 12px rgba(0,0,0,0.15)", 
+          display: "flex", 
+          flexDirection: "column",
+          justifyContent: "center", 
+          alignItems: "center",
+          color: "#333",
+          fontFamily: "var(--font-family)",
+          fontWeight: "bold",
+          fontSize: "14px",
+          zIndex: 30
+        }}
+      >
+        <span>📈 STOCKS</span>
+        <span style={{ fontSize: "11px", color: "#666" }}>Portfolios</span>
+      </div>
+
+      {/* Clock */}
+      <div className="office-furniture" style={{ left: 1 * TILE_SIZE, top: 10, fontSize: "28px", zIndex: 30 }}>⏰</div>
 
       {/* Bookshelves */}
-      <div className="office-furniture" style={{ left: 5 * TILE_SIZE, top: 12, width: 48, height: 32, background: "url(/assets/furniture/BOOKSHELF/BOOKSHELF.png) no-repeat", backgroundSize: "contain", zIndex: 44 }} />
-      <div className="office-furniture" style={{ left: 13 * TILE_SIZE + 8, top: 8 * TILE_SIZE + 10, width: 48, height: 32, background: "url(/assets/furniture/BOOKSHELF/BOOKSHELF.png) no-repeat", backgroundSize: "contain", zIndex: 8 * TILE_SIZE + 42 }} />
-      <div className="office-furniture" style={{ left: 19 * TILE_SIZE - 12, top: 8 * TILE_SIZE + 10, width: 48, height: 32, background: "url(/assets/furniture/BOOKSHELF/BOOKSHELF.png) no-repeat", backgroundSize: "contain", zIndex: 8 * TILE_SIZE + 42 }} />
+      <div className="office-furniture" style={{ left: 5 * TILE_SIZE, top: 12, fontSize: "32px", zIndex: 44 }}>📚</div>
+      <div className="office-furniture" style={{ left: 13 * TILE_SIZE + 12, top: 8 * TILE_SIZE + 10, fontSize: "32px", zIndex: 8 * TILE_SIZE + 42 }}>📚</div>
+      <div className="office-furniture" style={{ left: 19 * TILE_SIZE - 24, top: 8 * TILE_SIZE + 10, fontSize: "32px", zIndex: 8 * TILE_SIZE + 42 }}>📚</div>
 
       {/* Kitchen items */}
-      <div className="office-furniture" style={{ left: 19 * TILE_SIZE - 16, top: 10, width: 32, height: 48, background: "url(/assets/furniture/COFFEE/COFFEE_FRONT.png) no-repeat", backgroundSize: "contain", zIndex: 48 }} />
-      <div className="office-furniture" style={{ left: 14 * TILE_SIZE, top: 10, width: 32, height: 38, background: "url(/assets/furniture/COFFEE/COFFEE_FRONT.png) no-repeat", backgroundSize: "contain", zIndex: 40 }} />
-      <div className="office-furniture" style={{ left: 15 * TILE_SIZE, top: 4 * TILE_SIZE, width: 64, height: 48, background: "url(/assets/furniture/SOFA/SOFA_FRONT.png) no-repeat", backgroundSize: "contain", zIndex: 4 * TILE_SIZE + 48 }} />
+      <div className="office-furniture" style={{ left: 19 * TILE_SIZE - 24, top: 10, fontSize: "32px", zIndex: 48 }}>🥤</div>
+      <div className="office-furniture" style={{ left: 14 * TILE_SIZE, top: 10, fontSize: "32px", zIndex: 40 }}>☕</div>
+      <div className="office-furniture" style={{ left: 15 * TILE_SIZE, top: 4 * TILE_SIZE, fontSize: "40px", zIndex: 4 * TILE_SIZE + 48 }}>🛋️</div>
+      <div className="office-furniture" style={{ left: 19 * TILE_SIZE - 20, top: 5 * TILE_SIZE, fontSize: "32px", zIndex: 5 * TILE_SIZE + 40 }}>🪴</div>
 
-      {/* Meeting Room Table & Chairs */}
-      <div className="office-furniture" style={{ left: 16 * TILE_SIZE - 8, top: 11 * TILE_SIZE + 8, width: 64, height: 48, background: "url(/assets/furniture/COFFEE_TABLE/COFFEE_TABLE.png) no-repeat", backgroundSize: "contain", zIndex: 11 * TILE_SIZE + 56 }} />
-      <div className="office-furniture" style={{ left: 15 * TILE_SIZE - 8, top: 11 * TILE_SIZE + 8, width: 32, height: 32, background: "url(/assets/furniture/CUSHIONED_CHAIR/CUSHIONED_CHAIR_SIDE.png) no-repeat", backgroundSize: "contain", zIndex: 11 * TILE_SIZE + 40 }} />
-      <div className="office-furniture" style={{ left: 17 * TILE_SIZE + 8, top: 11 * TILE_SIZE + 8, width: 32, height: 32, background: "url(/assets/furniture/CUSHIONED_CHAIR/CUSHIONED_CHAIR_SIDE.png) no-repeat", backgroundSize: "contain", transform: "scaleX(-1)", zIndex: 11 * TILE_SIZE + 40 }} />
+      {/* Meeting Room Table */}
+      <div className="office-furniture" style={{ left: 16 * TILE_SIZE - 12, top: 11 * TILE_SIZE + 10, fontSize: "44px", zIndex: 11 * TILE_SIZE + 56 }}>🪵</div>
+      <div className="office-furniture" style={{ left: 15 * TILE_SIZE - 8, top: 11 * TILE_SIZE + 8, fontSize: "32px", zIndex: 11 * TILE_SIZE + 40 }}>🪑</div>
+      <div className="office-furniture" style={{ left: 17 * TILE_SIZE + 8, top: 11 * TILE_SIZE + 8, fontSize: "32px", zIndex: 11 * TILE_SIZE + 40 }}>🪑</div>
 
       {/* Desks and PCs */}
       {deskPositions.map((pos, i) => {
         const isReception = i === 2;
         return (
           <React.Fragment key={`furniture-${i}`}>
+            {/* Cartoon Desk */}
             <div 
               className="office-furniture" 
               style={{ 
                 left: pos.x + 8, 
                 top: pos.y, 
-                width: 32, 
-                height: 28, 
-                background: "url(/assets/furniture/DESK/DESK_FRONT.png) no-repeat", 
-                backgroundSize: "contain", 
+                width: 36, 
+                height: 32, 
+                background: "#a05a2c", 
+                border: "2px solid #5c3c24",
+                borderRadius: "4px",
+                boxShadow: "0 4px 6px rgba(0,0,0,0.2)",
                 zIndex: pos.y + 28 
               }} 
             />
+            {/* Cartoon PC */}
             {!isReception && (
               <div 
                 className="office-furniture" 
                 style={{ 
                   left: pos.x + 14, 
                   top: pos.y - 12, 
-                  width: 20, 
-                  height: 16, 
-                  background: "url(/assets/furniture/PC/PC_BACK.png) no-repeat", 
-                  backgroundSize: "contain", 
+                  fontSize: "24px",
                   zIndex: pos.y + 4 
                 }} 
-              />
+              >
+                🖥️
+              </div>
             )}
           </React.Fragment>
         );
       })}
 
-      {/* 4. Rendering depth-sorted Employees (NPCs) */}
+      {/* 4. Rendering depth-sorted Cartoon Avatars (Badges) */}
       {characters.map(ch => {
         const showBubble = activeSpeech === ch.id;
-        const posX = ch.frame * -48;
-        const posY = ch.dir * -72;
 
         return (
           <div 
@@ -337,9 +307,12 @@ export default function OfficeRoom({ onSelectFeature }) {
             className="sprite-char-wrapper"
             style={{ 
               left: ch.x, 
-              top: ch.y - 28, // aligned Y offset
+              top: ch.y - 28, 
               cursor: "pointer",
-              zIndex: Math.floor(ch.y)
+              zIndex: Math.floor(ch.y),
+              transition: "transform 0.2s ease",
+              width: "48px",
+              height: "48px"
             }}
             onMouseEnter={() => setActiveSpeech(ch.id)}
             onMouseLeave={() => setActiveSpeech(null)}
@@ -352,17 +325,28 @@ export default function OfficeRoom({ onSelectFeature }) {
               </div>
             )}
 
-            {/* Character Sprite Sheet */}
+            {/* Circular Cartoon Avatar Badge */}
             <div 
-              className="sprite-char"
               style={{
-                backgroundImage: `url(/assets/characters/char_${ch.charId}.png)`,
-                backgroundPosition: `${posX}px ${posY}px`
+                width: "48px",
+                height: "48px",
+                borderRadius: "50%",
+                background: ch.bg,
+                border: "3px solid #fff",
+                boxShadow: "0 6px 12px rgba(0,0,0,0.25)",
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                fontSize: "26px",
+                transition: "all 0.2s ease"
               }}
-            />
+              className="cartoon-avatar-badge"
+            >
+              {ch.emoji}
+            </div>
 
             {/* Nametag */}
-            <div className="sprite-char-nametag">
+            <div className="sprite-char-nametag" style={{ bottom: -20 }}>
               {ch.name}
             </div>
           </div>
