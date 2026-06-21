@@ -46,12 +46,6 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
     localStorage.setItem("hide_portfolio_values", hideValues ? "true" : "false");
   }, [hideValues]);
 
-  useEffect(() => {
-    if (refreshing) {
-      retroAudio.playZap();
-    }
-  }, [refreshing]);
-
   // Hooks for Data & Profile
   const {
     assets, prices, sparklines, portfolioHistory, chartCategory, setChartCategory, exchangeRate, historicalRates,
@@ -62,6 +56,12 @@ export default function Dashboard({ user, onLogout, showToast, onSessionExpired 
     initialCapitalUSD, totalUnrealizedUSD, totalUnrealizedTHB, totalGainTHB, totalGainUSD, totalGainPct, todayChangePct, isDirty,
     dividendData, dividendLoading, fetchDividendEvents
   } = usePortfolioData({ user, showToast, onSessionExpired, askConfirm });
+
+  useEffect(() => {
+    if (refreshing) {
+      retroAudio.playZap();
+    }
+  }, [refreshing]);
 
   const filteredAssets = useMemo(() => {
     return chartCategory === "all"
